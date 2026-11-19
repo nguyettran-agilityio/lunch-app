@@ -146,7 +146,7 @@ An order needs a refund when money confirmed by the shop is more than what the c
 - **BR-29** Customers sign up and sign in with phone number + password, or with Google; either is fine. Each account uses one method; a phone number cannot belong to two accounts. A phone + password account must also have an email. A customer who forgets the password taps "Forgot password" and receives a reset link by email [CN-2] [CN-3] [CN-15].
 - **BR-30** The interface is available in Vietnamese and English, Vietnamese by default, with a VI/EN switch remembered per account and per browser. Only the app's own text is translated; dish and building names entered by the shop are shown as entered [OQ11] [CN-8].
 - **BR-31** Every screen, for customers and for the shop, works on both phone and computer [OQ12].
-- **BR-32** Customers see order status and payment and refund state when they open the app. There are no push notifications or SMS in the first version [OQ6].
+- **BR-32** Customers see order status and payment and refund state when they open the app. There are no push, email or SMS notifications about orders in the first version; email is used only for password reset links [OQ6] [CN-15].
 
 ## 6. Screens
 
@@ -225,7 +225,7 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 
 From intent: multiple shops; shippers using the app; a daily portion limit (D21).
 
-Decided while writing this spec: push notifications or SMS [OQ6]; bank integration or automatic payment matching [CN-5]; a "delivery failed" status [CN-13]; translating shop-entered content [CN-8]; linking two sign-in methods to one account [CN-2] [CN-3]; customer cancellation after the cutoff [CN-12]; staff roles with different rights inside the shop [CN-4]; a success threshold beyond one full day [OQ9].
+Decided while writing this spec: push, email or SMS notifications about orders (email is used only for password reset) [OQ6] [CN-15]; bank integration or automatic payment matching [CN-5]; a "delivery failed" status [CN-13]; translating shop-entered content [CN-8]; linking two sign-in methods to one account [CN-2] [CN-3]; customer cancellation after the cutoff [CN-12]; staff roles with different rights inside the shop [CN-4]; a success threshold beyond one full day [OQ9].
 
 ## Areas of concern
 
@@ -251,6 +251,7 @@ Resolved by Lead: "Fixed per building": each building has one fixed delivery tim
 
 **OQ6 — Who moves orders to Preparing, Delivering, Delivered, and are customers notified (D10).**
 Resolved by Lead: "The shop, in bulk and per order; viewed in the app": the shop moves the whole day to Preparing, and Delivering/Delivered by building or per order. Customers see the status when they open the app; no push notification/SMS in the first version.
+Resolved by Lead (follow-up after CN-15): email is used only for password reset. Order notifications by email stay out of scope, as before.
 
 **OQ7 — Cutoff fixed or per day (D6).** Intent says "each day has a cutoff time" and "the shop sets the cutoff time each day" without saying whether there is a default.
 Resolved by Lead: "Default + per-day override": the shop sets a default cutoff time (e.g. 9:30) and can change it for a specific day before that day's cutoff. This matches "the shop sets the cutoff time each day" in scope.
