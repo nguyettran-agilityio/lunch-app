@@ -36,3 +36,5 @@ When Claude makes the same mistake a second time, add it here as one line: the m
 
 - Shortening or rewording the user's decisions when writing them down. Record the user's decisions in full (translated into English for committed files); do not summarize or shorten them.
 - Ending a report to the user with a summary in English. Everything said to the user in chat, including recaps and summaries, must be in Vietnamese.
+- Adding rules the user has not decided (in specs, decisions or docs). Write down only what the user decided; when something is not decided, ask the user instead of filling the gap.
+- Giving a new decision an ID that is already taken because an old copy of the file was read. Always pull `dev` and read the file again before adding a new ID.
