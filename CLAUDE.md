@@ -27,6 +27,7 @@ Run it before every commit; all four must exit 0. Use Node 26 (`.nvmrc`).
 - Open PRs into `dev` with `gh pr create` and fill every section of `.github/pull_request_template.md`.
 - Merge: squash for PRs into `dev`, merge commit for PRs `dev` → `main`; rebase merge is off. `main` is production.
 - Commit or push only when the user asks.
+- Hooks in `.claude/settings.json` enforce the dangerous-action rules (see `docs/decisions.md` G10). If a hook blocks you, tell the user the reason; do not work around it.
 - No `Co-Authored-By: Claude ...` trailer (or any other Claude co-author line) in commit messages, and no "🤖 Generated with Claude Code" line (or any other Claude attribution) in PR descriptions. This is the user's decision (see `docs/decisions.md` G6).
 
 ## Things Claude gets wrong
@@ -34,3 +35,4 @@ Run it before every commit; all four must exit 0. Use Node 26 (`.nvmrc`).
 When Claude makes the same mistake a second time, add it here as one line: the mistake, then what to do instead.
 
 - Shortening or rewording the user's decisions when writing them down. Record the user's decisions in full (translated into English for committed files); do not summarize or shorten them.
+- Ending a report to the user with a summary in English. Everything said to the user in chat, including recaps and summaries, must be in Vietnamese.
