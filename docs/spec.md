@@ -41,7 +41,7 @@ Conceptual entities and the facts the app keeps. This is not a database schema.
 
 | Entity | Facts kept |
 |---|---|
-| Account | Name, phone number (unique across accounts), default building, sign-in method (phone + password, or Google; one per account), role (customer or shop), interface language (D13) [CN-2] [CN-3] [CN-8] |
+| Account | Name, phone number (unique across accounts), email (required for phone + password accounts), default building, sign-in method (phone + password, or Google; one per account), role (customer or shop), interface language (D13) [CN-2] [CN-3] [CN-8] [CN-15] |
 | Building | Name, address or description, delivery time (one fixed time per building), state: approved or pending, who proposed it (D14) [OQ5] |
 | Dish | Name, description, optional photo, kind (fixed dish and/or build-your-own component), price (fixed dish), group and surcharge (build-your-own), active flag |
 | Dish group | Name, minimum count, maximum count, included count, extra dish fee, display order [OQ2] |
@@ -143,10 +143,10 @@ An order needs a refund when money confirmed by the shop is more than what the c
 
 ### Accounts, language and devices
 
-- **BR-29** Customers sign up and sign in with phone number + password, or with Google; either is fine. Each account uses one method; a phone number cannot belong to two accounts. There is no self-service password reset in the first version; the shop resets it on request [CN-2] [CN-3].
+- **BR-29** Customers sign up and sign in with phone number + password, or with Google; either is fine. Each account uses one method; a phone number cannot belong to two accounts. A phone + password account must also have an email. A customer who forgets the password taps "Forgot password" and receives a reset link by email [CN-2] [CN-3] [CN-15].
 - **BR-30** The interface is available in Vietnamese and English, Vietnamese by default, with a VI/EN switch remembered per account and per browser. Only the app's own text is translated; dish and building names entered by the shop are shown as entered [OQ11] [CN-8].
 - **BR-31** Every screen, for customers and for the shop, works on both phone and computer [OQ12].
-- **BR-32** Customers see order status and payment and refund state when they open the app. There are no push, email or SMS notifications in the first version [OQ6].
+- **BR-32** Customers see order status and payment and refund state when they open the app. There are no push notifications or SMS in the first version [OQ6].
 
 ## 6. Screens
 
@@ -156,7 +156,8 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 
 | # | Screen | Shows / does |
 |---|---|---|
-| S-C1 | Sign in / Sign up | Phone + password, or Google (BR-29) |
+| S-C1 | Sign in / Sign up | Phone + password (with email), or Google (BR-29) |
+| S-C1a | Forgot password | Request a reset link by email; set a new password from the link (BR-29) |
 | S-C2 | Profile | Name, phone number, default building (pick from list or propose a new one), language. Shown first when the profile is incomplete (BR-15, BR-16) |
 | S-C3 | Week view | Today + next 6 days, each marked open (with cutoff time), closed, past cutoff or "no menu yet" (BR-3) |
 | S-C4 | Day menu | Fixed dishes with prices; entry to the plate builder; add to cart (BR-2) |
@@ -180,7 +181,6 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-S8 | Preparation sheet | Portions per dish for the day; "Start preparing" for the whole day (BR-24, BR-25) |
 | S-S9 | Delivery list | By building and delivery time; mark Delivering / Delivered per building or per order, with note (BR-26, BR-27) |
 | S-S10 | Refunds | Orders with Needs refund: amount, reason, customer phone; mark Refunded (BR-21) |
-| S-S11 | Customer accounts | Find a customer by phone; reset password (BR-29) |
 
 ## 7. Flows
 
@@ -219,12 +219,13 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | AC17 | A device set to another time zone | It shows cutoffs and delivery times | Times are shown and enforced in Asia/Ho_Chi_Minh |
 | AC18 | A new visitor | They open the app | The interface is in Vietnamese; switching to English changes app text, not dish or building names; the choice is remembered |
 | AC19 | Any screen | It is opened on a phone and on a computer | It is usable on both without horizontal scrolling |
+| AC20 | A phone + password account with an email | The customer taps "Forgot password" | A reset link is sent to that email, and the customer can set a new password from it |
 
 ## 9. Out of scope for the first version
 
 From intent: multiple shops; shippers using the app; a daily portion limit (D21).
 
-Decided while writing this spec: push, email or SMS notifications [OQ6]; bank integration or automatic payment matching [CN-5]; a "delivery failed" status [CN-13]; translating shop-entered content [CN-8]; self-service password reset and linking two sign-in methods to one account [CN-2] [CN-3]; customer cancellation after the cutoff [CN-12]; staff roles with different rights inside the shop [CN-4]; a success threshold beyond one full day [OQ9].
+Decided while writing this spec: push notifications or SMS [OQ6]; bank integration or automatic payment matching [CN-5]; a "delivery failed" status [CN-13]; translating shop-entered content [CN-8]; linking two sign-in methods to one account [CN-2] [CN-3]; customer cancellation after the cutoff [CN-12]; staff roles with different rights inside the shop [CN-4]; a success threshold beyond one full day [OQ9].
 
 ## Areas of concern
 
@@ -312,5 +313,8 @@ Resolved by Lead: "Still Delivered + note": no new status. The shop marks the or
 
 **CN-14 — Time zone and currency (missing).**
 Resolved by Lead: "Vietnam time, VND": all dates and times use Asia/Ho_Chi_Minh, even when the user is in another time zone. Money is VND, whole numbers, no fractions.
+
+**CN-15 — Forgotten password (CN-2, missing).** Phone + password sign-in needs a way back in when the password is forgotten; SMS OTP was not offered because it costs money.
+Resolved by Lead: "Reset link by email": phone + password accounts must also have an email; the customer taps "Forgot password" and receives a link by email. This needs an email-sending service (free plans with limits exist).
 
 No concern is open.
