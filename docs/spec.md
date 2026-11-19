@@ -135,7 +135,7 @@ An order needs a refund when money confirmed by the shop is more than what the c
 
 - **BR-22** The shop confirms orders before the cutoff (D18). Orders still Placed at the cutoff stay Placed; after the cutoff the shop confirms or rejects each one [CN-1].
 - **BR-23** At the cutoff the shop reviews every order whose payment state is not Paid and chooses to reject it or keep it (D17) [CN-6]. The review list shows the amount still owed.
-- **BR-24** The shop moves orders to Preparing one order at a time, at any time, also before the cutoff. Only a Shop confirmed order can move to Preparing; orders still Placed do not block other orders. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff, and the shop can no longer reject it (D7, D20) [OQ6].
+- **BR-24** The shop moves orders to Preparing one order at a time, at any time, also before the cutoff. Only a Shop confirmed order can move to Preparing; orders still Placed do not block other orders. The shop can select several Shop confirmed orders and start preparing them in one action; each order still moves on its own, Placed orders cannot be selected, and there is no "whole day" button. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff, and the shop can no longer reject it (D7, D20) [OQ6].
 - **BR-25** The shop sees the preparation sheet for a day: portions of each fixed dish and of each build-your-own component, split into columns by status (Preparing, Shop confirmed not yet preparing, still Placed) with a total. Rejected and Cancelled orders are not counted (D7) [OQ6].
 - **BR-26** The shop sees the delivery list grouped by building, ordered by delivery time, with each order's customer name, phone number, lines, delivery note and payment state (D8).
 - **BR-27** The shop moves orders to Delivering and Delivered per building or per order. If a customer cannot be reached, the shop still marks the order Delivered (for example left at reception) with a delivery note; anything further is handled outside the app (D10) [OQ6] [CN-13].
@@ -176,9 +176,9 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-S3 | Days | Calendar of service days: set menu, cutoff override, mark closed (BR-2, BR-4, BR-28) |
 | S-S4 | Settings | Default cutoff time; bank details for VietQR (BR-4, BR-19) |
 | S-S5 | Buildings | Approved buildings with delivery times; pending buildings to approve or decline (BR-16–BR-18) |
-| S-S6 | Orders | Orders of a day, filter by status/payment/building; confirm, reject, confirm payment (BR-19, BR-22) |
+| S-S6 | Orders | Orders of a day, filter by status/payment/building; confirm, reject, confirm payment; select several Shop confirmed orders and start preparing them (BR-19, BR-22, BR-24) |
 | S-S7 | Cutoff review | After the cutoff: orders still Placed and orders not Paid, with amount owed; keep or reject each (BR-22, BR-23) |
-| S-S8 | Preparation sheet | Portions per dish for the day, split by status with a total; "Start preparing" per Shop confirmed order (BR-24, BR-25) |
+| S-S8 | Preparation sheet | Portions per dish for the day, split by status with a total; "Start preparing" per Shop confirmed order or for several selected ones (BR-24, BR-25) |
 | S-S9 | Delivery list | By building and delivery time; mark Delivering / Delivered per building or per order, with note (BR-26, BR-27) |
 | S-S10 | Refunds | Orders with Needs refund: amount, reason, customer phone; mark Refunded (BR-21) |
 
@@ -256,6 +256,7 @@ Resolved by Lead (replaces the Preparing part of the decision above): the shop m
 Resolved by Lead (follow-up on when): "Any time": the shop can start cooking early. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff (an exception to D6).
 Resolved by Lead (follow-up on the preparation sheet, D7): "Split by status": the preparation sheet shows the portions of each dish split into columns: being cooked (Preparing), confirmed not yet cooking, still Placed; with a total. Rejected and Cancelled are not counted.
 Resolved by Lead (follow-up on closed days, CN-9): "Keep as CN-9": as soon as one order is Preparing, the day can no longer be marked closed; orders not yet cooking can still be rejected one by one (D20). Matches D20.
+Resolved by Lead (follow-up on the shop's order screen): "Allow selecting several orders": the shop ticks several Shop confirmed orders and taps "Start cooking" once; each order still moves on its own. Placed orders cannot be selected. There is no "whole day" button.
 
 **OQ7 — Cutoff fixed or per day (D6).** Intent says "each day has a cutoff time" and "the shop sets the cutoff time each day" without saying whether there is a default.
 Resolved by Lead: "Default + per-day override": the shop sets a default cutoff time (e.g. 9:30) and can change it for a specific day before that day's cutoff. This matches "the shop sets the cutoff time each day" in scope.
