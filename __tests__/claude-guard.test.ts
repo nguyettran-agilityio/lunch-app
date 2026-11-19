@@ -341,3 +341,80 @@ describe('ordinary commands', () => {
     expectAllowed(bash(cmd))
   })
 })
+
+describe('guard files (.claude/settings*.json, .claude/hooks/)', () => {
+  const GUARD_REASON = /guard rules\. Ask the user to change the file by hand/
+  const p = (rel: string) => path.join(ROOT, rel)
+
+  it.each([
+    ['Edit', { file_path: p('.claude/settings.json') }],
+    ['Write', { file_path: p('.claude/settings.local.json') }],
+    ['Edit', { file_path: p('.claude/hooks/guard.mjs') }],
+    ['MultiEdit', { file_path: p('.claude/hooks/notify-done.sh') }],
+    ['Write', { file_path: p('.claude/hooks/new-hook.sh') }],
+    ['NotebookEdit', { notebook_path: p('.claude/hooks/x.ipynb') }],
+    ['Edit', { file_path: '.claude/settings.json' }],
+  ])('blocks %s %j', (tool, input) => {
+    expectBlocked(run(tool, input), GUARD_REASON)
+  })
+
+  it.each([
+    'echo {} > .claude/settings.json',
+    'echo x >> .claude/hooks/guard.mjs',
+    '> .claude/settings.local.json',
+    'rm .claude/hooks/guard.mjs',
+    'rm -rf .claude',
+    'git rm .claude/hooks/guard.mjs',
+    'find .claude -delete',
+    'mv .claude/settings.json /tmp/settings.json',
+    'cp /tmp/guard.mjs .claude/hooks/guard.mjs',
+    'cp /tmp/x.sh .claude/hooks/',
+    'cp -t .claude/hooks /tmp/x.sh',
+    'ln -sf /tmp/x .claude/hooks/guard.mjs',
+    'sed -i "" "s/a/b/" .claude/settings.json',
+    'perl -pi -e "s/a/b/" .claude/hooks/guard.mjs',
+    'tee .claude/hooks/x.sh',
+    'touch .claude/hooks/new.sh',
+    'truncate -s 0 .claude/settings.json',
+    'chmod -x .claude/hooks/guard.mjs',
+    'dd if=/dev/null of=.claude/settings.json',
+    'git checkout -- .claude/hooks/guard.mjs',
+    'git restore .claude/settings.json',
+    'git mv .claude/hooks/guard.mjs .claude/hooks/old.mjs',
+    'cd .claude && rm settings.json',
+    'cd .claude/hooks; echo x > guard.mjs',
+    'bash -c "rm .claude/settings.json"',
+    'echo $(rm .claude/hooks/guard.mjs)',
+  ])('blocks %s', (cmd) => {
+    expectBlocked(bash(cmd), GUARD_REASON)
+  })
+
+  it.each([
+    ['Read', { file_path: p('.claude/hooks/guard.mjs') }],
+    ['Read', { file_path: p('.claude/settings.json') }],
+    ['Edit', { file_path: p('.claude/skills/open-pr/SKILL.md') }],
+    ['Edit', { file_path: p('__tests__/claude-guard.test.ts') }],
+    ['Write', { file_path: p('docs/retro/phase-0.md') }],
+  ])('allows %s %j', (tool, input) => {
+    expectAllowed(run(tool, input))
+  })
+
+  it.each([
+    'cat .claude/settings.json',
+    'grep -n block .claude/hooks/guard.mjs',
+    'sed -n 1,20p .claude/hooks/guard.mjs',
+    'jq . .claude/settings.json',
+    'node .claude/hooks/guard.mjs < /tmp/input.json',
+    'cp .claude/settings.json /tmp/settings.json',
+    'ls .claude/hooks',
+    'git add .claude/hooks/guard.mjs .claude/settings.json',
+    'git diff .claude/',
+    'git log -- .claude/hooks',
+    'git checkout dev',
+    'git checkout -b feat/x',
+    'echo .claude/settings.json > /tmp/notes.txt',
+    'git commit -m "Protect .claude/settings.json and .claude/hooks"',
+  ])('allows %s', (cmd) => {
+    expectAllowed(bash(cmd))
+  })
+})

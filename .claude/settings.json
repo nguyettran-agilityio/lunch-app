@@ -16,7 +16,10 @@
       "Bash(git push * -f *)",
       "Bash(vercel --prod *)",
       "Bash(vercel * --prod *)",
-      "mcp__github__merge_pull_request"
+      "mcp__github__merge_pull_request",
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/settings.local.json)",
+      "Edit(/.claude/hooks/**)"
     ]
   },
   "hooks": {
@@ -27,7 +30,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.mjs"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.mjs"
+            ],
             "timeout": 10,
             "onFailure": "block",
             "statusMessage": "Checking guard rules"
@@ -41,7 +46,9 @@
           {
             "type": "command",
             "command": "sh",
-            "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/notify-done.sh"],
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/notify-done.sh"
+            ],
             "timeout": 10
           }
         ]
