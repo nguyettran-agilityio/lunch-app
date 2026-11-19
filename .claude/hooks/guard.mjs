@@ -16,6 +16,9 @@
 //     messages, PR bodies, search patterns, here-document text) is allowed.
 //   - production deploys with the Vercel CLI
 //   - rm / git rm / rmdir / unlink / find -delete on docs/ (or a parent of docs/)
+//   - writing, editing, moving or deleting .claude/settings.json, .claude/settings.local.json or
+//     files in .claude/hooks/ (file tools, Bash output redirections and file arguments,
+//     sed/perl -i, git checkout/restore/mv). Reading them, and git add/commit, are allowed.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeSync } from 'node:fs'
@@ -203,18 +206,24 @@ function splitCommands(src) {
   const commands = []
   let words = []
   let redirects = []
+  let outputs = [] // targets of output redirections (> and >>), a subset of redirects
   let cur = null
   let redirectNext = false
+  let redirectOut = false
   const pushWord = () => {
-    if (cur !== null) (redirectNext ? redirects : words).push(cur)
-    if (cur !== null) redirectNext = false
+    if (cur !== null) {
+      ;(redirectNext ? redirects : words).push(cur)
+      if (redirectNext && redirectOut) outputs.push(cur)
+      redirectNext = false
+    }
     cur = null
   }
   const endCommand = () => {
     pushWord()
-    if (words.length || redirects.length) commands.push({ words, redirects })
+    if (words.length || redirects.length) commands.push({ words, redirects, outputs })
     words = []
     redirects = []
+    outputs = []
     redirectNext = false
   }
   for (let i = 0; i < src.length; i++) {
@@ -252,6 +261,7 @@ function splitCommands(src) {
     } else if (c === '<' || c === '>') {
       // Redirection: the next word is the target file.
       pushWord()
+      redirectOut = c === '>'
       while (src[i + 1] === '>' || src[i + 1] === '&' || src[i + 1] === '<') i++
       redirectNext = true
     } else if (/\s/.test(c)) {
@@ -418,6 +428,7 @@ function checkGit(words, cwd) {
   const rest = words.slice(i + 1)
   if (sub === 'push') checkGitPush(rest, dir)
   if (sub === 'rm') checkDocsTargets(rest.filter((a) => !a.startsWith('-')), dir, 'git rm')
+  checkGitGuardFiles(sub, rest, dir)
 }
 
 // ---------- gh ----------
@@ -526,6 +537,7 @@ function checkDocsTargets(targets, cwd, tool) {
       }
     }
   }
+  checkGuardTargets(targets, cwd)
 }
 
 function checkDelete(words, cwd) {
@@ -557,6 +569,65 @@ function checkDelete(words, cwd) {
   }
 }
 
+// ---------- guard files ----------
+
+const GUARD_FILES_REASON =
+  'changing .claude/settings.json, .claude/settings.local.json or files in .claude/hooks/ is not allowed for Claude: they hold the guard rules. Ask the user to change the file by hand.'
+
+function guardPaths(cwd) {
+  return projectRoots(cwd).flatMap((root) => [
+    path.join(root, '.claude', 'settings.json'),
+    path.join(root, '.claude', 'settings.local.json'),
+    path.join(root, '.claude', 'hooks'),
+  ])
+}
+
+// True when changing `target` could change a guard file: it is one, is inside .claude/hooks/,
+// is a parent of one, or is a glob that can match one of those. Words with spaces are text.
+function hitsGuardFiles(target, cwd) {
+  if (target === '' || /\s/.test(target)) return false
+  const abs = path.resolve(cwd, target.replace(/^~(?=$|\/)/, process.env.HOME ?? '~'))
+  return guardPaths(cwd).some((p) => hitsDocs(abs, p))
+}
+
+function checkGuardTargets(targets, cwd) {
+  if (targets.some((t) => hitsGuardFiles(t, cwd))) block(GUARD_FILES_REASON)
+}
+
+const operands = (args) => args.filter((a) => !a.startsWith('-'))
+
+// Commands that change every file they are given, and commands whose last operand is the
+// destination (sources are only read). Deleting commands are covered by checkDocsTargets.
+const CHANGES_EVERY_OPERAND = new Set(['mv', 'touch', 'truncate', 'chmod', 'chown', 'chgrp', 'tee', 'xattr', 'chflags'])
+const CHANGES_LAST_OPERAND = new Set(['cp', 'install', 'ln', 'rsync', 'scp', 'ditto'])
+
+function checkGuardFiles(words, outputs, cwd) {
+  checkGuardTargets(outputs, cwd)
+  if (!words.length) return
+  const head = path.basename(words[0])
+  const args = words.slice(1)
+  if (CHANGES_EVERY_OPERAND.has(head)) checkGuardTargets(operands(args), cwd)
+  if (CHANGES_LAST_OPERAND.has(head)) {
+    const ops = operands(args)
+    if (ops.length) checkGuardTargets([ops[ops.length - 1]], cwd)
+    args.forEach((a, i) => {
+      if ((a === '-t' || a === '--target-directory') && args[i + 1] !== undefined) checkGuardTargets([args[i + 1]], cwd)
+      const eq = a.match(/^--target-directory=(.*)$/s)
+      if (eq) checkGuardTargets([eq[1]], cwd)
+    })
+  }
+  // In-place edits: sed -i, perl -i / -pi. The script word cannot name a guard file, so check all.
+  if ((head === 'sed' || head === 'gsed') && args.some((a) => /^-[a-zA-Z]*i/.test(a) || a.startsWith('--in-place')))
+    checkGuardTargets(operands(args), cwd)
+  if (head === 'perl' && args.some((a) => /^-[a-zA-Z]*i/.test(a))) checkGuardTargets(operands(args), cwd)
+  if (head === 'dd') checkGuardTargets(args.filter((a) => a.startsWith('of=')).map((a) => a.slice(3)), cwd)
+}
+
+// git subcommands that overwrite or move working-tree files named as pathspecs.
+function checkGitGuardFiles(sub, rest, dir) {
+  if (['checkout', 'restore', 'mv'].includes(sub)) checkGuardTargets(operands(rest), dir)
+}
+
 // ---------- Bash ----------
 
 function checkShell(source, cwd, depth = 0) {
@@ -567,8 +638,9 @@ function checkShell(source, cwd, depth = 0) {
     else if (CODE_OPENER.test(opener) && ENV_IN_CODE.test(body)) block(ENV_REASON)
   }
   for (const inner of substitutions(command)) checkShell(inner, cwd, depth + 1)
-  for (const { words: raw, redirects } of splitCommands(command)) {
+  for (const { words: raw, redirects, outputs } of splitCommands(command)) {
     const words = stripPrefixes(raw)
+    checkGuardFiles(words, outputs, cwd)
     if (!words.length) {
       if (redirects.some(wordNamesEnv)) block(ENV_REASON)
       continue
@@ -610,7 +682,9 @@ function check(input) {
     return
   }
   if (tool in FILE_TOOLS) {
-    if (isEnvName(requireString(ti, FILE_TOOLS[tool], `${tool} tool_input`))) block(ENV_REASON)
+    const file = requireString(ti, FILE_TOOLS[tool], `${tool} tool_input`)
+    if (isEnvName(file)) block(ENV_REASON)
+    if (tool !== 'Read' && hitsGuardFiles(file, cwd)) block(GUARD_FILES_REASON)
     return
   }
   if (tool === 'Grep') {
