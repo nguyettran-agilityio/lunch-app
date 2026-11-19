@@ -22,7 +22,7 @@ References in brackets point to the decision behind a rule: `D#` (intent), `OQ#`
 | Term | Meaning |
 |---|---|
 | Service day | A calendar date the shop sells lunch for. Each service day has a menu, a cutoff time and an open/closed flag |
-| Cutoff | The time on a service day after which customers cannot place, edit or cancel orders for that day (D6) [CN-12] |
+| Cutoff | The time on a service day after which customers cannot place, edit or cancel orders for that day (D6) [CN-12]. An order that is already Preparing cannot be edited or cancelled even before the cutoff [OQ6] |
 | Fixed dish | A complete dish sold at its own price (D2) |
 | Build-your-own plate | A rice plate the customer assembles from that day's dishes, priced as base price plus surcharges (D2, D15) |
 | Dish group | A category used by build-your-own plates (for example main, vegetable, soup), with a minimum, a maximum and an included count [OQ2] |
@@ -64,9 +64,9 @@ Conceptual entities and the facts the app keeps. This is not a database schema.
 | (new) | Placed | Customer | Before the day's cutoff; day has a menu and is not closed; within the order horizon [CN-7] |
 | Placed | Shop confirmed | Shop | Any time before Preparing, including after the cutoff [CN-1]; the delivery building must be approved [OQ3] |
 | Shop confirmed | Placed | System | The customer edits the order (before the cutoff) [OQ10] |
-| Placed, Shop confirmed | Cancelled | Customer | Before the cutoff only [CN-12] |
+| Placed, Shop confirmed | Cancelled | Customer | Before the cutoff only [CN-12]; never once the order is Preparing [OQ6] |
 | Placed, Shop confirmed | Rejected | Shop | Until the order is Preparing, including after the cutoff (D20); also in bulk when the day is marked closed (D22) [CN-9] |
-| Shop confirmed | Preparing | Shop | After the cutoff, for the whole day in one action; blocked while any order of that day is still Placed [OQ6] [CN-1] |
+| Shop confirmed | Preparing | Shop | Per order, at any time, also before the cutoff; only an order that is Shop confirmed can move; orders still Placed do not block other orders [OQ6] |
 | Preparing | Delivering | Shop | Per building or per order [OQ6] |
 | Delivering | Delivered | Shop | Per building or per order; with an optional delivery note [OQ6] [CN-13] |
 
@@ -115,7 +115,7 @@ An order needs a refund when money confirmed by the shop is more than what the c
 - **BR-10** An order has one or more lines; each line has a quantity. The whole order goes to one recipient, the customer who placed it, who pays the whole total (D23).
 - **BR-11** A customer can place any number of orders for the same day; each is paid and tracked separately [OQ8].
 - **BR-12** An order is delivered to the customer's default building unless the customer picks another building for that order before the cutoff. An order can carry a delivery note (floor, room) [CN-11].
-- **BR-13** Before the cutoff the customer can edit or cancel their order. After the cutoff they can do neither; only the shop can reject (D6, D20) [CN-12].
+- **BR-13** Before the cutoff the customer can edit or cancel their order, unless it is already Preparing. After the cutoff they can do neither; only the shop can reject (D6, D20) [CN-12] [OQ6].
 - **BR-14** Editing an order returns it to Placed; the shop must confirm it again (D18) [OQ10].
 - **BR-15** A customer must have a complete profile (name, phone number, default building) before ordering. A Google sign-in without a phone number is sent to profile completion first (D13) [CN-3].
 
@@ -135,8 +135,8 @@ An order needs a refund when money confirmed by the shop is more than what the c
 
 - **BR-22** The shop confirms orders before the cutoff (D18). Orders still Placed at the cutoff stay Placed; after the cutoff the shop confirms or rejects each one [CN-1].
 - **BR-23** At the cutoff the shop reviews every order whose payment state is not Paid and chooses to reject it or keep it (D17) [CN-6]. The review list shows the amount still owed.
-- **BR-24** The day can move to Preparing only when no order of that day is Placed. The shop moves the whole day to Preparing in one action (D7) [OQ6] [CN-1].
-- **BR-25** After the cutoff the shop sees the preparation sheet: total portions of each fixed dish and of each build-your-own component, counting active orders only (not Rejected or Cancelled) (D7).
+- **BR-24** The shop moves orders to Preparing one order at a time, at any time, also before the cutoff. Only a Shop confirmed order can move to Preparing; orders still Placed do not block other orders. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff, and the shop can no longer reject it (D7, D20) [OQ6].
+- **BR-25** The shop sees the preparation sheet for a day: portions of each fixed dish and of each build-your-own component, split into columns by status (Preparing, Shop confirmed not yet preparing, still Placed) with a total. Rejected and Cancelled orders are not counted (D7) [OQ6].
 - **BR-26** The shop sees the delivery list grouped by building, ordered by delivery time, with each order's customer name, phone number, lines, delivery note and payment state (D8).
 - **BR-27** The shop moves orders to Delivering and Delivered per building or per order. If a customer cannot be reached, the shop still marks the order Delivered (for example left at reception) with a delivery note; anything further is handled outside the app (D10) [OQ6] [CN-13].
 - **BR-28** The shop can mark a day closed until any order of that day is Preparing. Marking a day closed rejects all its active orders in bulk and records refunds for paid ones; customers see the day as closed (D20, D22) [CN-9].
@@ -165,7 +165,7 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-C6 | Cart and checkout | Lines and quantities, delivery building (default, changeable) and note, total; place order (BR-10, BR-12) |
 | S-C7 | Payment | VietQR with amount and order code, "I have transferred" button, amount still owed if Underpaid (BR-19, BR-20) |
 | S-C8 | My orders | Orders by day with status, payment state and refund state (BR-32) |
-| S-C9 | Order detail | Lines, total, building, status history; edit and cancel before the cutoff (BR-13, BR-14) |
+| S-C9 | Order detail | Lines, total, building, status history; edit and cancel before the cutoff while not Preparing (BR-13, BR-14) |
 
 ### Shop
 
@@ -178,7 +178,7 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-S5 | Buildings | Approved buildings with delivery times; pending buildings to approve or decline (BR-16–BR-18) |
 | S-S6 | Orders | Orders of a day, filter by status/payment/building; confirm, reject, confirm payment (BR-19, BR-22) |
 | S-S7 | Cutoff review | After the cutoff: orders still Placed and orders not Paid, with amount owed; keep or reject each (BR-22, BR-23) |
-| S-S8 | Preparation sheet | Portions per dish for the day; "Start preparing" for the whole day (BR-24, BR-25) |
+| S-S8 | Preparation sheet | Portions per dish for the day, split by status with a total; "Start preparing" per Shop confirmed order (BR-24, BR-25) |
 | S-S9 | Delivery list | By building and delivery time; mark Delivering / Delivered per building or per order, with note (BR-26, BR-27) |
 | S-S10 | Refunds | Orders with Needs refund: amount, reason, customer phone; mark Refunded (BR-21) |
 
@@ -186,9 +186,9 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 
 **F1 Customer orders and pays.** Sign in → (complete profile if needed) → week view → pick a day → add fixed dishes and/or build a plate → checkout (building, note) → order is Placed → payment screen: scan QR, transfer, tap "I have transferred" → payment state Reported → shop confirms → Paid.
 
-**F2 Customer edits or cancels.** Before the cutoff: open the order → edit → order returns to Placed; if paid and the total went up, pay the difference (Underpaid until confirmed); if it went down, the difference is Needs refund. Or cancel → Cancelled; if paid, Needs refund. After the cutoff: no edit or cancel; the customer contacts the shop, which may reject.
+**F2 Customer edits or cancels.** Before the cutoff, while the order is not Preparing: open the order → edit → order returns to Placed; if paid and the total went up, pay the difference (Underpaid until confirmed); if it went down, the difference is Needs refund. Or cancel → Cancelled; if paid, Needs refund. After the cutoff, or once the order is Preparing: no edit or cancel; the customer contacts the shop, which may reject until the order is Preparing.
 
-**F3 Shop daily run (D12).** Before the day: set dishes, rules, the day's menu and cutoff. Before the cutoff: confirm incoming orders and payments. At the cutoff: open the cutoff review, decide every order still Placed and every order not Paid. Start preparing for the whole day using the preparation sheet. Deliver by building using the delivery list: Delivering, then Delivered. Finish payments and refunds: every order is Paid or rejected, every Needs refund is Refunded.
+**F3 Shop daily run (D12).** Before the day: set dishes, rules, the day's menu and cutoff. Before the cutoff: confirm incoming orders and payments. At the cutoff: open the cutoff review, decide every order still Placed and every order not Paid. Start preparing order by order (any Shop confirmed order, also before the cutoff), using the preparation sheet. Deliver by building using the delivery list: Delivering, then Delivered. Finish payments and refunds: every order is Paid or rejected, every Needs refund is Refunded.
 
 **F4 Closed day.** Shop marks a day closed (before any order is Preparing) → all active orders of that day are Rejected → paid ones are Needs refund → customers see the day as closed.
 
@@ -209,8 +209,8 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | AC7 | A Paid order of 50,000 VND before the cutoff | The customer edits it to 40,000 | Refund state Needs refund, 10,000 VND, reason "edit lowered the total" |
 | AC8 | A Paid order | The customer cancels it before the cutoff, or the shop rejects it | Status Cancelled or Rejected, Needs refund for the paid amount; after the shop marks it, Refunded |
 | AC9 | The cutoff has passed | The shop opens the cutoff review | It lists every order still Placed and every order not Paid (Unpaid, Reported, Underpaid) with the amount owed; each can be kept or rejected |
-| AC10 | Any order of the day is still Placed | The shop tries to start preparing | The app blocks it and points to the orders still Placed |
-| AC11 | All active orders are Shop confirmed, after the cutoff | The shop starts preparing | All of them become Preparing; the preparation sheet shows portion totals per dish excluding Rejected and Cancelled orders; none can be rejected any more |
+| AC10 | A day with one Placed order and one Shop confirmed order, before or after the cutoff | The shop starts preparing the Shop confirmed order, and tries the same on the Placed order | The Shop confirmed order becomes Preparing; the Placed order cannot move to Preparing until it is confirmed, and it does not block the other order |
+| AC11 | An order moved to Preparing before the cutoff | The customer tries to edit or cancel it, and the shop tries to reject it | All are refused; the preparation sheet counts it in the Preparing column, shows Shop confirmed and Placed orders in their own columns with a total, and leaves out Rejected and Cancelled orders |
 | AC12 | Orders for two buildings | The shop opens the delivery list | Orders are grouped by building, ordered by delivery time, with name, phone, lines, note and payment state; Delivering/Delivered can be set per building or per order |
 | AC13 | A day with orders and none Preparing | The shop marks it closed | All active orders are Rejected, paid ones Need refund, and customers see the day as closed; once any order is Preparing, the day can no longer be marked closed |
 | AC14 | A customer proposes a new building | They order to it | The order is Placed and cannot be confirmed until the building is approved; declining the building lets the shop reject the order with a refund if paid |
@@ -250,8 +250,12 @@ Resolved by Lead: "Refund as in D19": the app records the order as "needs refund
 Resolved by Lead: "Fixed per building": each building has one fixed delivery time set by the shop when adding/approving the building; the shop can edit it, and the change applies to days not yet past the cutoff.
 
 **OQ6 — Who moves orders to Preparing, Delivering, Delivered, and are customers notified (D10).**
-Resolved by Lead: "The shop, in bulk and per order; viewed in the app": the shop moves the whole day to Preparing, and Delivering/Delivered by building or per order. Customers see the status when they open the app; no push notification/SMS in the first version.
+Resolved by Lead (replaced, see below): "The shop, in bulk and per order; viewed in the app": the shop moves the whole day to Preparing, and Delivering/Delivered by building or per order. Customers see the status when they open the app; no push notification/SMS in the first version.
 Resolved by Lead (follow-up after CN-15): email is used only for password reset. Order notifications by email stay out of scope, as before.
+Resolved by Lead (replaces the Preparing part of the decision above): the shop moves orders to Preparing per order, not the whole day. An order must be confirmed before it can move; orders still Placed do not block other orders. Delivering/Delivered by building or per order, and viewing status in the app, are unchanged.
+Resolved by Lead (follow-up on when): "Any time": the shop can start cooking early. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff (an exception to D6).
+Resolved by Lead (follow-up on the preparation sheet, D7): "Split by status": the preparation sheet shows the portions of each dish split into columns: being cooked (Preparing), confirmed not yet cooking, still Placed; with a total. Rejected and Cancelled are not counted.
+Resolved by Lead (follow-up on closed days, CN-9): "Keep as CN-9": as soon as one order is Preparing, the day can no longer be marked closed; orders not yet cooking can still be rejected one by one (D20). Matches D20.
 
 **OQ7 — Cutoff fixed or per day (D6).** Intent says "each day has a cutoff time" and "the shop sets the cutoff time each day" without saying whether there is a default.
 Resolved by Lead: "Default + per-day override": the shop sets a default cutoff time (e.g. 9:30) and can change it for a specific day before that day's cutoff. This matches "the shop sets the cutoff time each day" in scope.
@@ -274,7 +278,7 @@ Resolved by Lead, in the Lead's words: "customers and the shop both use multiple
 ### Concerns raised while writing this spec
 
 **CN-1 — Order still unconfirmed at the cutoff (D18, missing).** D18 says the shop confirms before the cutoff but not what happens if it does not.
-Resolved by Lead: "Shop handles it after the cutoff": the order stays Placed; after the cutoff the shop reviews it and chooses to confirm or reject (like D17). The day cannot move to Preparing while any order is still Placed.
+Resolved by Lead: "Shop handles it after the cutoff": the order stays Placed; after the cutoff the shop reviews it and chooses to confirm or reject (like D17). The day cannot move to Preparing while any order is still Placed. (The last sentence is replaced by the new OQ6 decision: orders move to Preparing one by one, and orders still Placed do not block other orders.)
 
 **CN-2 — Sign-in method (D13, missing).** D13 gives customers an account but not how they sign in. SMS OTP was not offered because it costs money.
 Resolved by Lead, in the Lead's words: "can sign in with phone number + password and sign in with Google. Choosing either of the two methods is fine."
