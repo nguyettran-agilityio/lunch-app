@@ -1,0 +1,101 @@
+// @vitest-environment node
+// Checks the decision tables in docs/decisions.md (see decisions X3 and X4).
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const FILE = path.resolve(__dirname, '..', 'docs', 'decisions.md')
+
+type Row = { line: number; id: string; why: string; source: string }
+
+// Table rows whose first cell is a decision ID such as T1 or G10. Escaped pipes (\|) stay inside a cell.
+function parseRows(markdown: string): Row[] {
+  const rows: Row[] = []
+  markdown.split('\n').forEach((text, i) => {
+    if (!text.startsWith('|')) return
+    const cells = text
+      .replace(/^\|/, '')
+      .replace(/\|\s*$/, '')
+      .split(/(?<!\\)\|/)
+      .map((c) => c.trim())
+    if (!/^[A-Z]+\d+$/.test(cells[0] ?? '')) return
+    rows.push({ line: i + 1, id: cells[0], why: cells[3] ?? '', source: cells[4] ?? '' })
+  })
+  return rows
+}
+
+// IDs must be unique, and each prefix must be numbered 1..n with no gaps.
+function idProblems(rows: Row[]): string[] {
+  const problems: string[] = []
+  const seen = new Map<string, number>()
+  const byPrefix = new Map<string, number[]>()
+  for (const r of rows) {
+    if (seen.has(r.id)) problems.push(`${r.id} on line ${r.line} duplicates line ${seen.get(r.id)}`)
+    else seen.set(r.id, r.line)
+    const [, prefix, num] = r.id.match(/^([A-Z]+)(\d+)$/)!
+    byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), Number(num)])
+  }
+  for (const [prefix, nums] of byPrefix) {
+    nums.forEach((n, i) => {
+      if (n !== i + 1) problems.push(`${prefix}${n} is in position ${i + 1}; expected ${prefix}${i + 1}`)
+    })
+  }
+  return problems
+}
+
+// Every row needs a Source; a "User decision" row needs the user's words quoted in it.
+function sourceProblems(rows: Row[]): string[] {
+  const problems: string[] = []
+  for (const r of rows) {
+    if (r.source === '') problems.push(`${r.id} on line ${r.line} has no Source`)
+    else if (/^User decision/.test(r.why) && !/\buser: "/i.test(r.source))
+      problems.push(`${r.id} on line ${r.line} is a user decision but its Source quotes no user words`)
+  }
+  return problems
+}
+
+const header = '| # | Topic | Decision | Why | Source |\n|---|---|---|---|---|\n'
+
+describe('docs/decisions.md', () => {
+  const rows = parseRows(readFileSync(FILE, 'utf8'))
+
+  it('has decision rows', () => {
+    expect(rows.length).toBeGreaterThan(0)
+  })
+
+  it('has unique IDs numbered 1..n per prefix', () => {
+    expect(idProblems(rows)).toEqual([])
+  })
+
+  it('gives every decision a Source, with the user words for user decisions', () => {
+    expect(sourceProblems(rows)).toEqual([])
+  })
+})
+
+describe('decision checks catch mistakes', () => {
+  it('reports a duplicate ID', () => {
+    const rows = parseRows(header + '| G1 | a | b | c | #1 |\n| G1 | a | b | c | #2 |\n')
+    expect(idProblems(rows)).toContain('G1 on line 4 duplicates line 3')
+  })
+
+  it('reports a gap in the numbering', () => {
+    const rows = parseRows(header + '| T1 | a | b | c | #1 |\n| T3 | a | b | c | #2 |\n')
+    expect(idProblems(rows)).toEqual(['T3 is in position 2; expected T2'])
+  })
+
+  it('reports a missing Source', () => {
+    const rows = parseRows(header + '| C1 | a | b | c |  |\n')
+    expect(sourceProblems(rows)).toEqual(['C1 on line 3 has no Source'])
+  })
+
+  it('reports a user decision without the user words', () => {
+    const rows = parseRows(header + '| X1 | a | b | User decision | #4 |\n')
+    expect(sourceProblems(rows)).toEqual(['X1 on line 3 is a user decision but its Source quotes no user words'])
+  })
+
+  it('accepts a user decision with the user words and keeps escaped pipes in a cell', () => {
+    const rows = parseRows(header + '| X1 | a | b \\| c | User decision | #3; user: "Yes" |\n')
+    expect(rows[0].source).toBe('#3; user: "Yes"')
+    expect(sourceProblems(rows)).toEqual([])
+  })
+})
