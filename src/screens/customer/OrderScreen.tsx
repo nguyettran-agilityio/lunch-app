@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { DayLabel, LineText, LinesList, OrderHistory, RefundToView } from '@/components/parts'
+import { DayLabel, LineText, LinesList, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
   cancelOrder,
@@ -60,8 +60,7 @@ export function OrderScreen() {
               <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-tray pt-3 text-[15px]">
                 <dt className="text-muted">{m.detail.total}</dt>
                 <dd className="text-right text-lg font-bold">{money(orderTotal(order))}</dd>
-                <dt className="text-muted">{m.detail.paid}</dt>
-                <dd className="text-right">{money(Math.max(0, netPaid(order)))}</dd>
+                <PaidRows order={order} />
                 {due > 0 && (
                   <>
                     <dt className="font-semibold text-chili">{m.detail.owed}</dt>

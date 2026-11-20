@@ -141,6 +141,15 @@ export const isActive = (st: Status): boolean => st !== 'rejected' && st !== 'ca
 /** Money the shop holds for the order: confirmed receipts minus refunds recorded. */
 export const netPaid = (o: Order): number => o.received - o.refunds.reduce((sum, r) => sum + r.amount, 0)
 
+/**
+ * What happened to the customer's money, for display: everything the shop confirmed it received,
+ * refunds still to send back, and refunds already sent. A refund does not lower "received".
+ */
+export function moneySummary(o: Order): { received: number; pendingRefund: number; refunded: number } {
+  const sum = (done: boolean) => o.refunds.filter((r) => (r.refundedAt !== null) === done).reduce((n, r) => n + r.amount, 0)
+  return { received: o.received, pendingRefund: sum(false), refunded: sum(true) }
+}
+
 export function owed(o: Order): number {
   if (!isActive(o.status)) return 0
   return Math.max(0, orderTotal(o) - netPaid(o))

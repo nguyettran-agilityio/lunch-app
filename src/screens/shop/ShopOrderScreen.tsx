@@ -1,9 +1,9 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { DayLabel, LinesList, OrderHistory, RefundToView } from '@/components/parts'
+import { DayLabel, LinesList, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
 import { Button, Card, OrderBadges, PageTitle } from '@/components/ui'
-import { findBuilding, findCustomer, markRefunded, netPaid, orderTotal, owed, startPreparing } from '@/proto/logic'
+import { findBuilding, findCustomer, markRefunded, orderTotal, owed, startPreparing } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { useApp } from '@/proto/useApp'
 import { ShopOrderActions } from './common'
@@ -40,8 +40,7 @@ export function ShopOrderScreen() {
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-tray pt-3 text-[15px]">
               <dt className="text-muted">{m.detail.total}</dt>
               <dd className="text-right text-lg font-bold">{money(orderTotal(order))}</dd>
-              <dt className="text-muted">{m.detail.paid}</dt>
-              <dd className="text-right">{money(Math.max(0, netPaid(order)))}</dd>
+              <PaidRows order={order} />
               {due > 0 && (
                 <>
                   <dt className="font-semibold text-chili">{m.detail.owed}</dt>

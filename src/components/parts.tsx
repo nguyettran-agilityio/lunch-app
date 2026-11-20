@@ -1,8 +1,8 @@
 'use client'
 
-import { dishName, findBuilding, lineTotal } from '@/proto/logic'
+import { dishName, findBuilding, lineTotal, moneySummary } from '@/proto/logic'
 import { dayMonth, weekday } from '@/proto/time'
-import type { DateStr, EditChange, HistoryEntry, Line, RefundTo } from '@/proto/types'
+import type { DateStr, EditChange, HistoryEntry, Line, Order, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
 
 export function DayLabel({ date, long = false }: { date: DateStr; long?: boolean }) {
@@ -149,5 +149,29 @@ export function RefundToView({ to }: { to: RefundTo }) {
     <p className="text-[15px]">
       <span className="font-semibold">{to.bank}</span> · <span className="font-bold tracking-wide">{to.account}</span> · {to.holder}
     </p>
+  )
+}
+
+/** Money received by the shop, and refunds pending or sent, as rows of an order's detail list. */
+export function PaidRows({ order }: { order: Order }) {
+  const { m, money } = useApp()
+  const { received, pendingRefund, refunded } = moneySummary(order)
+  return (
+    <>
+      <dt className="text-muted">{m.detail.paid}</dt>
+      <dd className="text-right">{money(received)}</dd>
+      {pendingRefund > 0 && (
+        <>
+          <dt className="font-semibold text-chili">{m.detail.pendingRefund}</dt>
+          <dd className="text-right font-semibold text-chili">{money(pendingRefund)}</dd>
+        </>
+      )}
+      {refunded > 0 && (
+        <>
+          <dt className="text-muted">{m.detail.refundedAmount}</dt>
+          <dd className="text-right">{money(refunded)}</dd>
+        </>
+      )}
+    </>
   )
 }

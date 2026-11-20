@@ -19,6 +19,7 @@ import {
   markDelivered,
   markDelivering,
   markRefunded,
+  moneySummary,
   setDeliveryTime,
   owed,
   paymentState,
@@ -460,6 +461,27 @@ describe('shop day run', () => {
     const lan = s.orders.find((o) => o.customerId === 'c7')!
     s = must(editOrder({ ...s, me: 'c7' }, lan.id, lan.lines, lan.buildingId, 'Tầng 2'))
     expect(findOrder(s, lan.id)!.history.slice(-2).map((h) => h.kind)).toEqual(['edit', 'status'])
+  })
+
+  it('a paid order cancelled keeps showing what the shop received, with the refund pending then sent', () => {
+    let s = seed(TODAY)
+    const [, id] = place(s, TODAY, 'd-bunbo')
+    s = place(s, TODAY, 'd-bunbo')[0]
+    s = must(confirmPayment(s, id))
+    s = must(cancelOrder(s, id))
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, pendingRefund: 45000, refunded: 0 })
+    const refund = findOrder(s, id)!.refunds[0]
+    s = must(markRefunded(s, id, refund.id))
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, pendingRefund: 0, refunded: 45000 })
+  })
+
+  it('an edit that lowers the total shows the full amount received and the difference pending', () => {
+    let s = seed(TODAY)
+    const [s1, id] = place(s, TODAY, 'd-bunbo', 2)
+    s = must(confirmPayment(s1, id))
+    const line = findOrder(s, id)!.lines[0]
+    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', ''))
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 90000, pendingRefund: 45000, refunded: 0 })
   })
 
   it('AC29, CN-31: dishes show their English name in English when they have one', () => {
