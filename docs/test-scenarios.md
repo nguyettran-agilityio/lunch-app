@@ -6,6 +6,9 @@ Scenarios for the clickable prototype (PR #17), with the steps, the expected res
 - **Browser**: clicked through by hand in the Browser pane at 375px wide, on fresh fake data ("Reset data").
 - **Test**: automated test in `__tests__/prototype-logic.test.ts` (logic) or `__tests__/screens.test.tsx` (screens). The test name starts with the AC or CN id.
 - **Both**: clicked through and covered by an automated test.
+- **Planned**: written before the code (decision X6) and not run yet.
+
+Each round of Lead decisions adds its scenarios here before the code is written. `__tests__/spec-coverage.test.ts` checks that every acceptance criterion has an automated test (decision X7).
 
 Rules are in [spec.md](spec.md). Fake data: today's orders LA…001 to LA…008 (LA…002 Trần Văn Bình, 45,000 reported; LA…004 Phạm Quốc Huy, unpaid; LA…008 Bình, paid and cancelled, 45,000 refund pending), one Saturday order (Lê Thu Hà, paid). Default cutoff 09:30.
 
@@ -107,3 +110,24 @@ Rules are in [spec.md](spec.md). Fake data: today's orders LA…001 to LA…008 
 | # | Steps | Expected | How run |
 |---|---|---|---|
 | T1 | Mark a refund made; look at the Refunds screen, the shop order detail and the customer's order | The same format everywhere: "at HH:MM, DD/MM" | Both |
+
+## 11. Core day flow (first round)
+
+Clicked through in the Browser pane in the first round of PR #17 (8eeeba1), on the fake data of that time; not clicked again since. "Test" means a test whose name gives the AC id.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| D1 | Customer: open the week, pick today, add a ready meal to the cart | The cart shows the dish and its price | Browser |
+| D2 | Customer: build a rice plate with ribs and a vegetable, then add an egg as a second main | 40,000, then 50,000; a plate with 0 mains or 2 vegetables cannot be added (AC3) | Both |
+| D3 | Customer: propose a new building in the cart and place the order | The order is Placed; the shop cannot confirm it until the building is approved (AC14) | Both |
+| D4 | Customer: open the payment screen, tap "I have transferred" | Fake QR with the exact total and the order code; payment state Reported (AC1) | Both |
+| D5 | Shop: approve the building, "Payment received", confirm the order | Building approved; the order is Paid and Shop confirmed (AC22) | Both |
+| D6 | Customer: edit the Paid order up | Placed again, Underpaid, QR for the difference only (AC5, AC6) | Both |
+| D7 | Demo bar: move the time past the cutoff; shop opens the Cutoff review, confirms one order and keeps another | Still Placed and Not fully paid groups; the orders move as chosen (AC9) | Both |
+| D8 | Shop: select two Shop confirmed orders, start preparing; open the preparation sheet | Both Preparing; the sheet counts them in the Preparing column (AC10, AC11) | Both |
+| D9 | Shop: Delivery list, mark one building Delivering then Delivered | Orders grouped by building and delivery time; status moves per building (AC12, AC23) | Both |
+| D10 | Shop: Refunds, mark a refund made | It moves from Not refunded to Refunded (AC8) | Both |
+| D11 | Customer: add a plate to an existing order and Save | One edit in the history, back to Placed (AC26) | Both |
+| D12 | Customer: open a closed day by its URL | Ordering is refused, the day is shown as closed (AC2) | Both |
+| D13 | Every route at 375px and on desktop | No horizontal scroll (AC19) | Browser |
+| D14 | Switch VI/EN | App text changes; dish and building names stay (AC18) | Both |

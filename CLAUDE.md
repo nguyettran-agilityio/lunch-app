@@ -38,3 +38,5 @@ When Claude makes the same mistake a second time, add it here as one line: the m
 - Ending a report to the user with a summary in English. Everything said to the user in chat, including recaps and summaries, must be in Vietnamese.
 - Adding rules the user has not decided (in specs, decisions or docs). Write down only what the user decided; when something is not decided, ask the user instead of filling the gap.
 - Giving a new decision an ID that is already taken because an old copy of the file was read. Always pull `dev` and read the file again before adding a new ID.
+- Pushing, or reporting work as done, after running only part of the check (for example only the tests). Run all four commands of the **Check** section before every push; the `check-and-push` skill does this.
+- Building behaviour the spec does not cover, then asking the Lead only after `spec-reviewer` finds it. Before writing code, list every place the change needs that the spec does not say, ask the Lead (the `ask-lead` skill), write the answers into the spec, then write the code.
