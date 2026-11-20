@@ -42,15 +42,16 @@ Conceptual entities and the facts the app keeps. This is not a database schema.
 | Entity | Facts kept |
 |---|---|
 | Account | Name, phone number (unique across accounts), email (required for phone + password accounts), default building, sign-in method (phone + password, or Google; one per account), role (customer or shop), interface language (D13) [CN-2] [CN-3] [CN-8] [CN-15] |
-| Building | Name, address or description, delivery time (one fixed time per building), state: approved or pending, who proposed it (D14) [OQ5] |
+| Building | Name, address or description, delivery time (one fixed time per building), state: approved, pending or declined (F5), who proposed it (D14) [OQ5] |
 | Dish | Name, description, optional photo, kind (fixed dish and/or build-your-own component), price (fixed dish), group and surcharge (build-your-own), active flag |
 | Dish group | Name, minimum count, maximum count, included count, extra dish fee, display order [OQ2] |
 | Build-your-own rules | Base price; the groups that make up a plate [OQ2] |
 | Shop settings | Default cutoff time, bank details used to build the VietQR code (bank, account number, account holder) [OQ7] [CN-5] |
 | Service day | Date, menu (which fixed dishes and which build-your-own components are on sale), cutoff time (default or override), closed flag (D3, D6, D22) [OQ7] |
-| Order | Order code, customer, service day, delivery building, delivery note (floor, room), lines, total, status, payment state, amount paid, refund state, amount to refund, status history with times, notes from the shop (D23) [CN-11] [CN-13] |
+| Order | Order code ("LA" + service day as MMDD + a sequence number for that day, letters and digits only, for example LA1119007) [CN-20], customer, service day, delivery building, delivery note (floor, room), lines, total, status, payment state, amount paid, refund state, amount to refund, status history with times, notes from the shop (D23) [CN-11] [CN-13]; whether the shop kept it at the cutoff review [CN-18] |
 | Order line | Fixed dish or build-your-own plate (with its chosen dishes), quantity (portions), unit price as at the time of ordering (D23) [CN-10] |
-| Payment record | Order, amount, time the customer reported "I have transferred", time and account of the shop's confirmation (D9) [CN-5] |
+| Cart | One cart per service day per customer: lines not yet placed as an order [CN-16] |
+| Payment record | Order, amount, time the customer reported "I have transferred" (if they did), time and account of the shop's confirmation (D9) [CN-5] |
 | Refund record | Order, amount, reason (customer cancel, edit lowered the total, shop reject, closed day, building not approved), time and account of the shop's "refunded" mark (D19) [OQ1] [OQ4] |
 
 ## 4. Order lifecycle
@@ -77,8 +78,8 @@ No other transitions exist. There is no "delivery failed" status [CN-13].
 | State | Meaning |
 |---|---|
 | Unpaid | Customer has not reported a transfer |
-| Reported | Customer tapped "I have transferred"; the shop has not confirmed |
-| Paid | The shop confirmed receipt of the full total |
+| Reported | Customer tapped "I have transferred"; the shop has not confirmed. An Underpaid order the customer reports shows Reported, together with the amount still owed. Editing the order clears the report, because the amount to pay has changed [CN-24] |
+| Paid | The shop confirmed receipt of the full total. The shop can confirm from Unpaid or from Reported [CN-17] |
 | Underpaid | The shop confirmed some money, but the total later went up (edit); the app shows the amount still owed [OQ1] |
 
 Only **Paid** counts as paid. Unpaid, Reported and Underpaid all count as unpaid at the cutoff (D17) [CN-6].
@@ -114,6 +115,7 @@ An order needs a refund when money confirmed by the shop is more than what the c
 
 - **BR-10** An order has one or more lines; each line has a quantity. The whole order goes to one recipient, the customer who placed it, who pays the whole total (D23).
 - **BR-11** A customer can place any number of orders for the same day; each is paid and tracked separately [OQ8].
+- **BR-11a** The customer has one cart per service day. Dishes and plates added on a day's menu go into that day's cart; placing the cart creates one order for that day and empties that cart. Carts of other days are not affected [CN-16].
 - **BR-12** An order is delivered to the customer's default building unless the customer picks another building for that order before the cutoff. An order can carry a delivery note (floor, room) [CN-11].
 - **BR-13** Before the cutoff the customer can edit or cancel their order, unless it is already Preparing. After the cutoff they can do neither; only the shop can reject (D6, D20) [CN-12] [OQ6].
 - **BR-14** Editing an order returns it to Placed; the shop must confirm it again (D18) [OQ10].
@@ -121,23 +123,23 @@ An order needs a refund when money confirmed by the shop is more than what the c
 
 ### Buildings
 
-- **BR-16** Customers pick a building from the approved list, or enter one that is not listed; that building is pending until the shop approves it (D14).
+- **BR-16** Customers pick a building from the approved list, or enter one that is not listed; that building is pending until the shop approves it (D14). A pending building is shown only to the customer who proposed it; other customers propose it again or wait for the shop to approve it [CN-25].
 - **BR-17** An order to a pending building can be placed and stays Placed; the shop cannot confirm it until the building is approved. If the shop does not approve the building, it rejects the order, with a refund if paid [OQ3].
 - **BR-18** Each building has one fixed delivery time, set when the shop adds or approves it. The shop can change it; the change applies to days not yet past the cutoff (D8) [OQ5].
 
 ### Payment and refunds
 
-- **BR-19** Customers pay when they order (D16). The app shows a VietQR code for the order with the amount and the order code prefilled in the transfer note. The customer taps "I have transferred"; the shop checks its bank statement and confirms receipt. There is no bank integration (D9) [CN-5].
+- **BR-19** Customers pay when they order (D16). The app shows a VietQR code for the order with the amount and the order code prefilled in the transfer note. The customer taps "I have transferred"; the shop checks its bank statement and confirms receipt. The shop can also confirm receipt of an order the customer has not reported (Unpaid), for example when the customer forgot to tap the button. There is no bank integration (D9) [CN-5] [CN-17].
 - **BR-20** When a paid order is edited to a higher total, the payment state becomes Underpaid and the app shows a QR for the difference; the shop confirms it the same way. When the total goes down, the difference is recorded as Needs refund (D19) [OQ1].
 - **BR-21** Every refund works the same way: the app records the amount and reason as Needs refund; the shop returns the money outside the app and marks it Refunded. This covers customer cancellation, edits that lower the total, shop rejection, closed days and unapproved buildings (D19, D20, D22) [OQ1] [OQ3] [OQ4].
 
 ### Shop review and day run
 
 - **BR-22** The shop confirms orders before the cutoff (D18). Orders still Placed at the cutoff stay Placed; after the cutoff the shop confirms or rejects each one [CN-1].
-- **BR-23** At the cutoff the shop reviews every order whose payment state is not Paid and chooses to reject it or keep it (D17) [CN-6]. The review list shows the amount still owed.
+- **BR-23** At the cutoff the shop reviews every order whose payment state is not Paid and chooses to reject it or keep it (D17) [CN-6]. The review list shows the amount still owed. A kept order leaves the review list and is marked "kept"; it is still not Paid, and the Orders screen still shows the amount owed until the shop confirms the payment [CN-18].
 - **BR-24** The shop moves orders to Preparing one order at a time, at any time, also before the cutoff. Only a Shop confirmed order can move to Preparing; orders still Placed do not block other orders. The shop can select several Shop confirmed orders and start preparing them in one action; each order still moves on its own, Placed orders cannot be selected, and there is no "whole day" button. Once an order is Preparing the customer can no longer edit or cancel it, even before the cutoff, and the shop can no longer reject it (D7, D20) [OQ6].
-- **BR-25** The shop sees the preparation sheet for a day: portions of each fixed dish and of each build-your-own component, split into columns by status (Preparing, Shop confirmed not yet preparing, still Placed) with a total. Rejected and Cancelled orders are not counted (D7) [OQ6].
-- **BR-26** The shop sees the delivery list grouped by building, ordered by delivery time, with each order's customer name, phone number, lines, delivery note and payment state (D8).
+- **BR-25** The shop sees the preparation sheet for a day: portions of each fixed dish and of each build-your-own component, split into columns by status (Preparing, Shop confirmed not yet preparing, still Placed, and Done for orders already Delivering or Delivered) with a total for the whole day. Rejected and Cancelled orders are not counted (D7) [OQ6] [CN-21].
+- **BR-26** The shop sees the delivery list grouped by building, ordered by delivery time, with each order's customer name, phone number, lines, delivery note and payment state (D8). The list shows orders from Shop confirmed onwards (Shop confirmed, Preparing, Delivering, Delivered); a Shop confirmed order is shown so the shop knows it is coming, but only a Preparing order can move to Delivering [CN-19].
 - **BR-27** The shop moves orders to Delivering and Delivered per building or per order. If a customer cannot be reached, the shop still marks the order Delivered (for example left at reception) with a delivery note; anything further is handled outside the app (D10) [OQ6] [CN-13].
 - **BR-28** The shop can mark a day closed until any order of that day is Preparing. Marking a day closed rejects all its active orders in bulk and records refunds for paid ones; customers see the day as closed (D20, D22) [CN-9].
 
@@ -160,12 +162,12 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-C1a | Forgot password | Request a reset link by email; set a new password from the link (BR-29) |
 | S-C2 | Profile | Name, phone number, default building (pick from list or propose a new one), language. Shown first when the profile is incomplete (BR-15, BR-16) |
 | S-C3 | Week view | Today + next 6 days, each marked open (with cutoff time), closed, past cutoff or "no menu yet" (BR-3) |
-| S-C4 | Day menu | Fixed dishes with prices; entry to the plate builder; add to cart (BR-2) |
+| S-C4 | Day menu | Fixed dishes with prices; entry to the plate builder; add to that day's cart (BR-2, BR-11a) |
 | S-C5 | Plate builder | Groups with min/max/included counts, chosen dishes, live plate price; blocks invalid plates (BR-7–BR-9) |
-| S-C6 | Cart and checkout | Lines and quantities, delivery building (default, changeable) and note, total; place order (BR-10, BR-12) |
+| S-C6 | Cart and checkout | One cart per service day (BR-11a); lines and quantities, delivery building (default, changeable) and note, total; place order (BR-10, BR-12) |
 | S-C7 | Payment | VietQR with amount and order code, "I have transferred" button, amount still owed if Underpaid (BR-19, BR-20) |
 | S-C8 | My orders | Orders by day with status, payment state and refund state (BR-32) |
-| S-C9 | Order detail | Lines, total, building, status history; edit and cancel before the cutoff while not Preparing (BR-13, BR-14) |
+| S-C9 | Order detail | Lines, total, building, status history; edit and cancel before the cutoff while not Preparing (BR-13, BR-14). Editing can change the quantity of any line or remove it, add fixed dishes, add new build-your-own plates, and change the building and note; the dishes inside a plate already ordered cannot be changed [CN-23] |
 
 ### Shop
 
@@ -176,10 +178,10 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | S-S3 | Days | Calendar of service days: set menu, cutoff override, mark closed (BR-2, BR-4, BR-28) |
 | S-S4 | Settings | Default cutoff time; bank details for VietQR (BR-4, BR-19) |
 | S-S5 | Buildings | Approved buildings with delivery times; pending buildings to approve or decline (BR-16–BR-18) |
-| S-S6 | Orders | Orders of a day, filter by status/payment/building; confirm, reject, confirm payment; select several Shop confirmed orders and start preparing them (BR-19, BR-22, BR-24) |
-| S-S7 | Cutoff review | After the cutoff: orders still Placed and orders not Paid, with amount owed; keep or reject each (BR-22, BR-23) |
-| S-S8 | Preparation sheet | Portions per dish for the day, split by status with a total; "Start preparing" per Shop confirmed order or for several selected ones (BR-24, BR-25) |
-| S-S9 | Delivery list | By building and delivery time; mark Delivering / Delivered per building or per order, with note (BR-26, BR-27) |
+| S-S6 | Orders | Orders of a day, filter by status/payment/building; confirm, reject, confirm payment (from Unpaid or Reported, CN-17); amount owed and "kept" mark (CN-18); select several Shop confirmed orders and start preparing them (BR-19, BR-22, BR-24) |
+| S-S7 | Cutoff review | After the cutoff: orders still Placed and orders not Paid and not yet kept, with amount owed; keep or reject each; a kept order leaves the list (BR-22, BR-23) [CN-18] |
+| S-S8 | Preparation sheet | Portions per dish for the day, split by status (including Done, CN-21) with a total; "Start preparing" per Shop confirmed order or for several selected ones (BR-24, BR-25) |
+| S-S9 | Delivery list | Orders from Shop confirmed onwards (CN-19), by building and delivery time; mark Delivering / Delivered per building or per order, with note (BR-26, BR-27) |
 | S-S10 | Refunds | Orders with Needs refund: amount, reason, customer phone; mark Refunded (BR-21) |
 
 ## 7. Flows
@@ -208,7 +210,7 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | AC6 | A Paid order of 50,000 VND before the cutoff | The customer edits it to 65,000 | Payment state Underpaid, amount owed 15,000, a QR for 15,000 is shown |
 | AC7 | A Paid order of 50,000 VND before the cutoff | The customer edits it to 40,000 | Refund state Needs refund, 10,000 VND, reason "edit lowered the total" |
 | AC8 | A Paid order | The customer cancels it before the cutoff, or the shop rejects it | Status Cancelled or Rejected, Needs refund for the paid amount; after the shop marks it, Refunded |
-| AC9 | The cutoff has passed | The shop opens the cutoff review | It lists every order still Placed and every order not Paid (Unpaid, Reported, Underpaid) with the amount owed; each can be kept or rejected |
+| AC9 | The cutoff has passed | The shop opens the cutoff review | It lists every order still Placed and every order not Paid (Unpaid, Reported, Underpaid) with the amount owed; each order still Placed can be confirmed or rejected, and each order not Paid can be kept or rejected; a confirmed order that is still not Paid stays on the list until it is kept or rejected; a kept order leaves the list and keeps showing the amount owed on the Orders screen [CN-22] |
 | AC10 | A day with one Placed order and one Shop confirmed order, before or after the cutoff | The shop starts preparing the Shop confirmed order, and tries the same on the Placed order | The Shop confirmed order becomes Preparing; the Placed order cannot move to Preparing until it is confirmed, and it does not block the other order |
 | AC11 | An order moved to Preparing before the cutoff | The customer tries to edit or cancel it, and the shop tries to reject it | All are refused; the preparation sheet counts it in the Preparing column, shows Shop confirmed and Placed orders in their own columns with a total, and leaves out Rejected and Cancelled orders |
 | AC12 | Orders for two buildings | The shop opens the delivery list | Orders are grouped by building, ordered by delivery time, with name, phone, lines, note and payment state; Delivering/Delivered can be set per building or per order |
@@ -220,6 +222,9 @@ All screens have the VI/EN switch and work on phone and computer (BR-30, BR-31).
 | AC18 | A new visitor | They open the app | The interface is in Vietnamese; switching to English changes app text, not dish or building names; the choice is remembered |
 | AC19 | Any screen | It is opened on a phone and on a computer | It is usable on both without horizontal scrolling |
 | AC20 | A phone + password account with an email | The customer taps "Forgot password" | A reset link is sent to that email, and the customer can set a new password from it |
+| AC21 | A customer has items in Monday's cart | They add a dish from Tuesday's menu and place Tuesday's cart | Tuesday's order is created; Monday's cart is unchanged |
+| AC22 | An Unpaid order (the customer did not tap "I have transferred") | The shop confirms receipt | The payment state becomes Paid |
+| AC23 | Orders of one day in Placed, Shop confirmed and Preparing | The shop opens the delivery list | It shows the Shop confirmed and Preparing orders, not the Placed one; only the Preparing order can be marked Delivering |
 
 ## 9. Out of scope for the first version
 
@@ -322,5 +327,35 @@ Resolved by Lead: "Vietnam time, VND": all dates and times use Asia/Ho_Chi_Minh,
 
 **CN-15 — Forgotten password (CN-2, missing).** Phone + password sign-in needs a way back in when the password is forgotten; SMS OTP was not offered because it costs money.
 Resolved by Lead: "Reset link by email": phone + password accounts must also have an email; the customer taps "Forgot password" and receives a link by email. This needs an email-sending service (free plans with limits exist).
+
+**CN-16 — Cart across days (D5, OQ8, missing).** An order belongs to one service day, but the spec did not say what happens when a customer's cart has dishes from one day and they add a dish from another day.
+Resolved by Lead: "One cart per day": carts are kept separately per day; each day is placed as its own order. Matches OQ8 (several orders per day, each paid separately).
+
+**CN-17 — Shop confirms a payment the customer did not report (D9, CN-5, missing).** A customer may transfer the money but forget to tap "I have transferred", leaving the order Unpaid.
+Resolved by Lead: "Yes, from both Unpaid and Reported": when the shop sees the money in the bank statement it can confirm, without waiting for the customer to tap.
+
+**CN-18 — What "keep" does at the cutoff review (D17, CN-6, missing).** The spec said the shop keeps or rejects each unpaid order but not whether a kept order stays on the review list.
+Resolved by Lead: "Leaves the list, marked "kept"": the order is marked as reviewed/kept, is still not Paid, and still shows the amount owed on the Orders screen; the review list only shows orders not yet decided.
+
+**CN-19 — Which orders the delivery list shows (D8, OQ6, missing).**
+Resolved by Lead: "From Shop confirmed onwards": it also shows Shop confirmed orders (not cooking yet, cannot be marked delivering yet) so the shop knows in advance; only Preparing orders can move to Delivering.
+
+**CN-20 — Order code format (D9, CN-5, missing).** The order code goes into the transfer note, and the shop looks for it in the bank statement.
+Resolved by Lead: "LA + date + sequence number": for example LA1119007: only letters and digits (banks often strip special characters), and the delivery date can be read from it.
+
+**CN-21 — Delivering and Delivered orders on the preparation sheet (D7, OQ6, missing).** The sheet had columns for Preparing, Shop confirmed and Placed, but not for orders that have already left the kitchen.
+Resolved by Lead: "Separate "Done" column": a column for Delivering + Delivered orders; the total still covers the whole day.
+
+**CN-22 — An order both still Placed and not Paid at the cutoff review (D17, D18, BR-22, AC9, contradiction).** AC9 said every listed order can be kept or rejected, while BR-22 said an order still Placed is confirmed or rejected.
+Resolved by Lead: "Confirm = keep": a Placed order is confirmed or rejected; once confirmed, if money is still owed it moves to the "not fully paid" group to be kept or rejected. AC9 is reworded to match BR-22.
+
+**CN-23 — What a customer can change when editing an order (S-C9, BR-14, missing).**
+Resolved by Lead: "Can add new plates, reduce or remove old plates": new build-your-own plates are added through the plate builder; an old plate can only change its quantity or be removed, the dishes inside it cannot be changed.
+
+**CN-24 — Underpaid and Reported at the same time, and editing after reporting (D18, OQ1, CN-6, missing).**
+Resolved by Lead: "Show "Reported" + the amount still owed": Reported wins over Underpaid but the amount still owed is still shown. Editing the order clears the "reported" flag, because the amount to pay has changed.
+
+**CN-25 — Who sees a pending building (D14, BR-16, missing).** A building proposed by one customer is pending until the shop approves it.
+Resolved by Lead: "Only the proposer sees it": other customers propose it again or wait for the shop to approve it; this avoids showing a building that has not been checked.
 
 No concern is open.
