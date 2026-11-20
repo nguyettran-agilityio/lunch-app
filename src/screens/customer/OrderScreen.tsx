@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { DayLabel, LineText, LinesList, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
+import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
   cancelOrder,
@@ -13,15 +13,16 @@ import {
   findBuilding,
   findDay,
   findDish,
+  isActive,
   linesTotal,
   netPaid,
   orderTotal,
-  owed,
-  paymentState,
   refundState,
+  reportedTotal,
   setDraft,
   setRefundTo,
   startEdit,
+  toPay,
 } from '@/proto/logic'
 import { run, update } from '@/proto/store'
 import type { Order, RefundTo } from '@/proto/types'
@@ -36,7 +37,9 @@ export function OrderScreen() {
   if (!order) return <PageTitle title={m.detail.notFound} />
 
   const block = customerChangeBlock(s, order)
-  const due = owed(order)
+  // What is left to transfer, after money confirmed and money already reported (CN-37).
+  const due = toPay(order)
+  const active = isActive(order.status)
   // An edit in progress stays open across the plate builder until it is saved or discarded (CN-29).
   const editing = !block && !!s.drafts[order.id]
 
@@ -82,21 +85,29 @@ export function OrderScreen() {
                   </>
                 )}
               </dl>
-              {/* Once the transfer is reported, no QR: say it waits for the shop (CN-34). */}
-              {due > 0 && paymentState(order) === 'reported' && (
+              {/* Once the transfer is reported, no QR: say it waits for the shop (CN-34), also when cancelled or rejected (CN-39). */}
+              {reportedTotal(order) > 0 && (
                 <div className="mt-4">
-                  <Notice tone="leaf">{m.detail.waiting(money(due))}</Notice>
+                  <Notice tone="leaf">{m.detail.waiting(money(reportedTotal(order)))}</Notice>
+                </div>
+              )}
+              {/* The shop did not find the last transfer reported (CN-41). */}
+              {order.missing.length > 0 && (
+                <div className="mt-4">
+                  <MissingNotice order={order} />
                 </div>
               )}
               <div className="mt-5 flex flex-wrap gap-2">
-                {due > 0 &&
-                  (paymentState(order) === 'reported' ? (
+                {due > 0 ? (
+                  <LinkButton href={`/pay?id=${order.id}`}>{m.detail.pay}</LinkButton>
+                ) : (
+                  reportedTotal(order) > 0 &&
+                  active && (
                     <LinkButton href={`/pay?id=${order.id}&qr=1`} variant="ghost">
                       {m.pay.showQr}
                     </LinkButton>
-                  ) : (
-                    <LinkButton href={`/pay?id=${order.id}`}>{m.detail.pay}</LinkButton>
-                  ))}
+                  )
+                )}
                 {!block && (
                   <>
                     <Button variant="secondary" onClick={() => run((st) => startEdit(st, order.id))}>
@@ -220,7 +231,8 @@ function EditOrder({ order }: { order: Order }) {
               const r = run((st) => editOrder(st, order.id, lines, buildingId, note))
               if (!r.ok) return
               const after = r.state.orders.find((o) => o.id === order.id)
-              if (after && owed(after) > 0 && netPaid(after) > 0) router.push(`/pay?id=${order.id}`)
+              // Money already paid or reported: go straight to the difference to transfer (BR-20, CN-37).
+              if (after && toPay(after) > 0 && (netPaid(after) > 0 || reportedTotal(after) > 0)) router.push(`/pay?id=${order.id}`)
             }}
           >
             {m.detail.save}

@@ -14,9 +14,14 @@ import {
   dayState,
   findBuilding,
   findCustomer,
+  isActive,
   orderTotal,
   owed,
+  paymentState,
   rejectOrder,
+  reportedTotal,
+  reportNotReceived,
+  toPay,
   week,
 } from '@/proto/logic'
 import { run, update } from '@/proto/store'
@@ -128,14 +133,54 @@ export function ShopOrderCard({
   )
 }
 
-/** The shop's actions on one order: confirm, payment received, reject (BR-19, BR-22, D20). */
+/** What the shop sees of a reported transfer it has not confirmed yet (CN-39, CN-42). */
+export function ReportNote({ order }: { order: Order }) {
+  const { m, money } = useApp()
+  if (reportedTotal(order) === 0) return null
+  const more = toPay(order)
+  return (
+    <p className="mt-2 text-sm font-semibold text-[#7a5104]">
+      {/* A Paid order with a report still open: no "not confirmed 0" (CN-47). */}
+      {isActive(order.status) && paymentState(order) === 'paid'
+        ? m.shop.reportNotePaid(money(reportedTotal(order)))
+        : isActive(order.status)
+        ? m.shop.reportNote(money(owed(order)), money(reportedTotal(order)), more > 0 ? money(more) : null)
+        : m.shop.reportNoteClosed(money(reportedTotal(order)))}
+    </p>
+  )
+}
+
+/** The shop's actions on one order: confirm, payment received, not received yet, reject (BR-19, BR-22, D20). */
 export function ShopOrderActions({ order, extra }: { order: Order; extra?: ReactNode }) {
   const { s, m, money } = useApp()
   const building = findBuilding(s, order.buildingId)
   const notApproved = building?.state !== 'approved'
-  const due = owed(order)
+  // Money owed that the customer has not reported: the full amount owed without a report (CN-28),
+  // or "the rest" next to open reports (CN-48). Reports are answered one by one below (CN-43).
+  const due = toPay(order)
   return (
     <>
+      <ReportNote order={order} />
+      {/* Each report is answered on its own: exactly its amount, also on a closed order (CN-38, CN-39, CN-41, CN-43). */}
+      {order.reports.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-2">
+          {order.reports.map((r) => (
+            <li key={r.id} className="rounded-lg bg-turmeric-soft p-2">
+              <p className="text-sm">{m.shop.reportLine(money(r.amount), r.at)}</p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => run((st) => confirmPayment(st, order.id, r.id))}>
+                  {m.shop.confirmPay} · {money(r.amount)}
+                </Button>
+                <ConfirmButton
+                  label={m.shop.notReceived}
+                  question={m.shop.notReceivedConfirm(money(r.amount))}
+                  onConfirm={() => run((st) => reportNotReceived(st, order.id, r.id))}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="mt-3 flex flex-wrap gap-2">
         {order.status === 'placed' && (
           <Button
@@ -148,7 +193,7 @@ export function ShopOrderActions({ order, extra }: { order: Order; extra?: React
         )}
         {due > 0 && (
           <Button variant="secondary" onClick={() => run((st) => confirmPayment(st, order.id))}>
-            {m.shop.confirmPay} · {money(due)}
+            {order.reports.length > 0 ? m.shop.confirmRest : m.shop.confirmPay} · {money(due)}
           </Button>
         )}
         {extra}

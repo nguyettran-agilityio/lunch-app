@@ -23,7 +23,11 @@ export function ShopOrdersScreen() {
   const shown = all.filter(
     (o) =>
       (!status || o.status === status) &&
-      (!payment || (o.status !== 'rejected' && o.status !== 'cancelled' && paymentState(o) === payment)) &&
+      // "Reported" lists every order with an open report, also Paid, Cancelled or Rejected ones (CN-39, CN-47).
+      (!payment ||
+        (payment === 'reported'
+          ? o.reports.length > 0
+          : o.status !== 'rejected' && o.status !== 'cancelled' && paymentState(o) === payment)) &&
       (!building || o.buildingId === building),
   )
   // Only Shop confirmed orders can be selected (BR-24); drop any that moved on.

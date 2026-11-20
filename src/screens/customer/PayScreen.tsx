@@ -2,9 +2,9 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { FakeQr } from '@/components/parts'
+import { FakeQr, MissingNotice } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, OrderBadges, PageTitle } from '@/components/ui'
-import { findOrder, netPaid, owed, paymentState, reportTransfer } from '@/proto/logic'
+import { findOrder, netPaid, paymentState, reportedTotal, reportTransfer, toPay } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { useApp } from '@/proto/useApp'
 
@@ -17,13 +17,18 @@ export function PayScreen() {
   const order = findOrder(s, id)
   if (!order) return <PageTitle title={m.detail.notFound} />
 
-  const due = owed(order)
+  // Only what is not yet reported is asked for; a report survives an edit (CN-37).
+  const more = toPay(order)
+  const reported = reportedTotal(order)
   const pay = paymentState(order)
+  // "Show QR again" carries the latest report only (CN-45, CN-49).
+  const last = order.reports.at(-1)?.amount ?? 0
+  const due = more > 0 ? more : last
   const { bank } = s.settings
   // VietQR-style content: bank account, amount, transfer note = order code (CN-5, CN-20).
   const payload = `${bank.name}|${bank.account}|${due}|${order.code}`
-  // Once reported, the QR is hidden before and after the cutoff, unless asked for again (CN-34).
-  const showQr = due > 0 && (pay !== 'reported' || qrAgain)
+  // Once everything is reported, the QR is hidden before and after the cutoff, unless asked for again (CN-34).
+  const showQr = more > 0 || (reported > 0 && qrAgain)
 
   return (
     <>
@@ -38,9 +43,9 @@ export function PayScreen() {
           </Card>
         ) : null}
         <Card>
-          {due > 0 && pay === 'reported' && !qrAgain ? (
+          {more === 0 && reported > 0 && !qrAgain ? (
             <>
-              <Notice tone="leaf">{m.pay.waiting(money(due))}</Notice>
+              <Notice tone="leaf">{m.pay.waiting(money(reported))}</Notice>
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button variant="ghost" onClick={() => setQrAgain(true)}>
                   {m.pay.showQr}
@@ -50,12 +55,30 @@ export function PayScreen() {
                 </LinkButton>
               </div>
             </>
-          ) : due > 0 ? (
+          ) : showQr ? (
             <>
-              {netPaid(order) > 0 && (
+              {/* The "not found" notice is shown next to the others, never instead of them (CN-41, CN-37). */}
+              {order.missing.length > 0 && (
                 <div className="mb-4">
-                  <Notice>{m.pay.topUp(money(due))}</Notice>
+                  <MissingNotice order={order} />
                 </div>
+              )}
+              {/* "Transfer more after an edit" only when no report was turned down (S-C7, CN-37, CN-41). */}
+              {reported > 0 && more > 0 && order.missing.length === 0 ? (
+                <div className="mb-4">
+                  <Notice>{m.pay.moreAfterReport(money(reported), money(more))}</Notice>
+                </div>
+              ) : reported > 0 ? (
+                // Reports still waiting; on "Show QR again" the latest one: never "0 owed" (CN-34, CN-45).
+                <div className="mb-4">
+                  <Notice tone="leaf">{m.pay.waiting(money(more > 0 ? reported : last))}</Notice>
+                </div>
+              ) : (
+                netPaid(order) > 0 && (
+                  <div className="mb-4">
+                    <Notice>{m.pay.topUp(money(more))}</Notice>
+                  </div>
+                )
               )}
               <p className="mb-4 text-[15px]">{m.pay.scan}</p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[15px]">
@@ -71,12 +94,12 @@ export function PayScreen() {
                 <dd>{bank.holder}</dd>
               </dl>
               <div className="mt-5 flex flex-wrap gap-3">
-                {pay === 'reported' ? (
+                {more > 0 ? (
+                  <Button onClick={() => run((st) => reportTransfer(st, order.id))}>{m.pay.done}</Button>
+                ) : (
                   <Button variant="ghost" onClick={() => setQrAgain(false)}>
                     {m.pay.hideQr}
                   </Button>
-                ) : (
-                  <Button onClick={() => run((st) => reportTransfer(st, order.id))}>{m.pay.done}</Button>
                 )}
                 <LinkButton href={`/order?id=${order.id}`} variant="secondary">
                   {m.pay.later}

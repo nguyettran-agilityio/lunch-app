@@ -74,6 +74,9 @@ export type Refund = {
   refundedAt: string | null
 }
 
+/** One tap on "I have transferred", kept apart from the others so the shop answers each (CN-43). */
+export type TransferReport = { id: string; amount: number; at: string }
+
 export type StatusEntry = { kind: 'status'; status: Status; at: string }
 
 /** One change inside a saved edit (CN-32). Lines are copied so the history survives later edits. */
@@ -86,7 +89,10 @@ export type EditChange =
 
 export type EditEntry = { kind: 'edit'; at: string; fromTotal: number; toTotal: number; changes: EditChange[] }
 
-export type HistoryEntry = StatusEntry | EditEntry
+/** The shop did not find a reported transfer in its bank statement (CN-41). */
+export type ReportMissingEntry = { kind: 'reportMissing'; at: string; amount: number }
+
+export type HistoryEntry = StatusEntry | EditEntry | ReportMissingEntry
 
 /** Where the customer wants a refund sent, entered per order (CN-33). */
 export type RefundTo =
@@ -107,8 +113,15 @@ export type Order = {
   status: Status
   /** Money the shop confirmed it received, before refunds. */
   received: number
-  /** The customer tapped "I have transferred" and the shop has not confirmed since. */
-  reported: boolean
+  /**
+   * Transfers the customer reported with "I have transferred" that the shop has not confirmed or turned
+   * down yet, one per tap (CN-37, CN-43). Kept across edits and after the order is cancelled or rejected (CN-39).
+   */
+  reports: TransferReport[]
+  /** Reports the shop said it had not received, one amount each, shown to the customer (CN-41, CN-43, CN-46). */
+  missing: number[]
+  /** Why the order was cancelled or rejected, for a refund recorded later (CN-39). */
+  endReason: RefundReason | null
   refunds: Refund[]
   /** Kept at the cutoff review (CN-18). */
   kept: boolean
@@ -130,7 +143,7 @@ export type Clock = {
 }
 
 export type State = {
-  version: 2
+  version: 3
   lang: Lang
   clock: Clock
   me: string

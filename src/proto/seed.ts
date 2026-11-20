@@ -35,7 +35,7 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
     buildingId: string,
     lines: Line[],
     status: Status,
-    opts: Partial<Pick<Order, 'received' | 'reported' | 'refunds' | 'note'>> = {},
+    opts: Partial<Pick<Order, 'received' | 'reports' | 'refunds' | 'note'>> = {},
   ): Order => {
     const n = (perDay.get(date) ?? 0) + 1
     perDay.set(date, n)
@@ -51,7 +51,9 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
       lines,
       status,
       received: opts.received ?? 0,
-      reported: opts.reported ?? false,
+      reports: opts.reports ?? [],
+      missing: [],
+      endReason: status === 'cancelled' ? 'cancel' : null,
       refunds: opts.refunds ?? [],
       kept: false,
       history: path.map((s, i) => ({ kind: 'status' as const, status: s, at: stamp(addDays(today, -1), 17 * 60 + i * 20) })),
@@ -61,7 +63,7 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
   }
 
   return {
-    version: 2,
+    version: 3,
     lang: 'vi',
     clock: { today, minutes },
     me: 'c1',
@@ -151,7 +153,7 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
     ],
     orders: [
       order('c1', d(0), 'b-bitexco', [plate(['d-suon', 'd-raumuong', 'd-canhchua'], 1, 40000)], 'confirmed', { received: 40000, note: 'Tầng 21, phòng 2103' }),
-      order('c2', d(0), 'b-bitexco', [fixed('d-bunbo', 1, 45000)], 'placed', { reported: true, note: 'Tầng 15' }),
+      order('c2', d(0), 'b-bitexco', [fixed('d-bunbo', 1, 45000)], 'placed', { reports: [{ id: 'p-seed', amount: 45000, at: stamp(today, 8 * 60 + 40) }], note: 'Tầng 15' }),
       order('c3', d(0), 'b-viettel', [fixed('d-comga', 2, 45000)], 'confirmed', { received: 90000 }),
       order('c4', d(0), 'b-viettel', [plate(['d-thitkho', 'd-trung', 'd-caithia'], 1, 45000)], 'confirmed', { note: 'Lễ tân tầng trệt' }),
       order('c5', d(0), 'b-pearl', [fixed('d-buncha', 1, 40000)], 'placed'),

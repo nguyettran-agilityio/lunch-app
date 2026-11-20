@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { DayLabel, LinesList, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
 import { Button, Card, OrderBadges, PageTitle } from '@/components/ui'
-import { findBuilding, findCustomer, markRefunded, orderTotal, owed, startPreparing } from '@/proto/logic'
+import { findBuilding, findCustomer, markRefunded, orderTotal, owed, reportedTotal, startPreparing, toPay } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { useApp } from '@/proto/useApp'
 import { ShopOrderActions } from './common'
@@ -18,6 +18,8 @@ export function ShopOrderScreen() {
 
   const customer = findCustomer(s, order.customerId)
   const due = owed(order)
+  // With a transfer reported: not confirmed, then what is still to transfer (CN-42).
+  const more = reportedTotal(order) > 0 ? toPay(order) : due
 
   return (
     <>
@@ -41,10 +43,16 @@ export function ShopOrderScreen() {
               <dt className="text-muted">{m.detail.total}</dt>
               <dd className="text-right text-lg font-bold">{money(orderTotal(order))}</dd>
               <PaidRows order={order} />
-              {due > 0 && (
+              {reportedTotal(order) > 0 && due > 0 && (
+                <>
+                  <dt className="text-muted">{m.detail.unconfirmed}</dt>
+                  <dd className="text-right">{money(due)}</dd>
+                </>
+              )}
+              {more > 0 && (
                 <>
                   <dt className="font-semibold text-chili">{m.detail.owed}</dt>
-                  <dd className="text-right font-semibold text-chili">{money(due)}</dd>
+                  <dd className="text-right font-semibold text-chili">{money(more)}</dd>
                 </>
               )}
               <dt className="text-muted">{m.shop.customer}</dt>

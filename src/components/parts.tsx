@@ -1,9 +1,10 @@
 'use client'
 
-import { dishName, findBuilding, lineTotal, moneySummary } from '@/proto/logic'
+import { dishName, findBuilding, lineTotal, moneySummary, owed } from '@/proto/logic'
 import { dayMonth, weekday } from '@/proto/time'
 import type { DateStr, EditChange, HistoryEntry, Line, Order, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
+import { Notice } from './ui'
 
 export function DayLabel({ date, long = false }: { date: DateStr; long?: boolean }) {
   const { s, m } = useApp()
@@ -117,7 +118,7 @@ export function OrderHistory({ history }: { history: HistoryEntry[] }) {
       {history.map((h, i) => (
         <li key={i} className="relative">
           <span
-            className={`absolute top-1.5 -left-[23px] size-3 rounded-full ring-2 ring-card ${h.kind === 'edit' ? 'bg-turmeric' : 'bg-leaf'}`}
+            className={`absolute top-1.5 -left-[23px] size-3 rounded-full ring-2 ring-card ${h.kind === 'edit' ? 'bg-turmeric' : h.kind === 'reportMissing' ? 'bg-chili' : 'bg-leaf'}`}
           />
           {h.kind === 'edit' ? (
             <>
@@ -128,6 +129,8 @@ export function OrderHistory({ history }: { history: HistoryEntry[] }) {
                 ))}
               </ul>
             </>
+          ) : h.kind === 'reportMissing' ? (
+            <p className="font-semibold">{m.detail.historyMissing(money(h.amount))}</p>
           ) : (
             <p className="font-semibold">{m.status[h.status]}</p>
           )}
@@ -155,11 +158,18 @@ export function RefundToView({ to }: { to: RefundTo }) {
 /** Money received by the shop, and refunds pending or sent, as rows of an order's detail list. */
 export function PaidRows({ order }: { order: Order }) {
   const { m, money } = useApp()
-  const { received, pendingRefund, refunded } = moneySummary(order)
+  const { received, reported, pendingRefund, refunded } = moneySummary(order)
   return (
     <>
       <dt className="text-muted">{m.detail.paid}</dt>
       <dd className="text-right">{money(received)}</dd>
+      {/* Reported money is not received until the shop confirms it (CN-37, CN-39). */}
+      {reported > 0 && (
+        <>
+          <dt className="text-muted">{m.detail.reportedRow}</dt>
+          <dd className="text-right">{money(reported)}</dd>
+        </>
+      )}
       {pendingRefund > 0 && (
         <>
           <dt className="font-semibold text-chili">{m.detail.pendingRefund}</dt>
@@ -174,4 +184,14 @@ export function PaidRows({ order }: { order: Order }) {
       )}
     </>
   )
+}
+
+/** Transfers the shop has not found; a closed order owes nothing, so no transfer is asked for (CN-41, CN-44). */
+export function MissingNotice({ order }: { order: Order }) {
+  const { m, money } = useApp()
+  if (order.missing.length === 0) return null
+  const amounts = order.missing.map((v) => money(v)).join(m.detail.and)
+  // A closed order, or a Paid one, owes nothing: no transfer is asked for (CN-44, CN-51).
+  const closed = order.status === 'cancelled' || order.status === 'rejected' || owed(order) === 0
+  return <Notice tone="chili">{closed ? m.detail.reportMissingClosed(amounts) : m.detail.reportMissing(amounts)}</Notice>
 }

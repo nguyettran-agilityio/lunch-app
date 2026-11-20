@@ -187,7 +187,7 @@ function DeclineButton({ building: b }: { building: Building }) {
       {preview.length > 0 && (
         <div className="w-full text-sm text-ink">
           <ul className="mb-1 divide-y divide-chili/20">
-            {preview.map(({ order, refund }) => (
+            {preview.map(({ order, refund, reported }) => (
               <li key={order.id} className="flex flex-wrap justify-between gap-2 py-1">
                 <span>
                   <Link href={`/shop/order?id=${order.id}`} className="font-bold tracking-wide text-leaf underline underline-offset-2">
@@ -197,8 +197,10 @@ function DeclineButton({ building: b }: { building: Building }) {
                 </span>
                 <span className={refund > 0 ? 'font-semibold text-chili' : 'text-muted'}>
                   {m.buildings.declineRefund(money(refund))}
-                  {refund === 0 && ` (${m.buildings.declineNoRefund})`}
+                  {refund === 0 && reported === 0 && ` (${m.buildings.declineNoRefund})`}
                 </span>
+                {/* Reported but not confirmed: refunded only once the shop confirms it received it (CN-39). */}
+                {reported > 0 && <span className="w-full text-right font-semibold text-[#7a5104]">{m.buildings.declineReported(money(reported))}</span>}
               </li>
             ))}
           </ul>

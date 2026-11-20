@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, type ComponentProps, type ReactNode } from 'react'
-import { owed, paymentState, refundState } from '@/proto/logic'
+import { owed, paymentState, refundState, reportedTotal } from '@/proto/logic'
 import type { Order, Status } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
 
@@ -114,7 +114,14 @@ export function OrderBadges({ order }: { order: Order }) {
       {active && (
         <Badge tone={pay === 'paid' ? 'leaf' : pay === 'reported' ? 'turmeric' : 'chili'}>
           {m.payment[pay]}
-          {pay !== 'paid' && ` · ${money(owed(order))}`}
+          {/* Reported shows the amount reported; the rest is shown in the order (CN-37, CN-42). */}
+          {pay === 'reported' ? ` · ${money(reportedTotal(order))}` : pay !== 'paid' && ` · ${money(owed(order))}`}
+        </Badge>
+      )}
+      {/* A report still open on a Paid, Cancelled or Rejected order is shown next to it (CN-39, CN-47). */}
+      {(!active || pay === 'paid') && reportedTotal(order) > 0 && (
+        <Badge tone="turmeric">
+          {m.payment.reported} · {money(reportedTotal(order))}
         </Badge>
       )}
       {refund !== 'none' && <Badge tone={refund === 'refunded' ? 'steel' : 'chili'}>{m.refund[refund]}</Badge>}

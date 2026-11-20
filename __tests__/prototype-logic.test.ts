@@ -29,12 +29,16 @@ import {
   prepSheet,
   refundState,
   rejectOrder,
+  reportedTotal,
+  reportNotReceived,
+  reportTransfer,
   reviewList,
   canReject,
   setDraft,
   setRefundTo,
   startEdit,
   startPreparing,
+  toPay,
   type Result,
 } from '../src/proto/logic'
 import { seed } from '../src/proto/seed'
@@ -398,8 +402,8 @@ describe('shop day run', () => {
     const second = (r as { id: string }).id
     s = must(confirmPayment(s, second))
     expect(declinePreview(s, 'b-pearl')).toEqual([
-      { order: expect.objectContaining({ id: lan.id }), refund: 0 },
-      { order: expect.objectContaining({ id: second }), refund: 45000 },
+      { order: expect.objectContaining({ id: lan.id }), refund: 0, reported: 0 },
+      { order: expect.objectContaining({ id: second }), refund: 45000, reported: 0 },
     ])
     // The preview changes nothing.
     expect(findOrder(s, lan.id)!.status).toBe('placed')
@@ -419,10 +423,10 @@ describe('shop day run', () => {
     expect(reviewList(must(keepOrder(s, huy.id)), TODAY).map((x) => x.id)).not.toContain(huy.id)
   })
 
-  it('CN-28: payment received records the full amount owed', () => {
+  it('CN-38: payment received on a reported order records the amount of that report', () => {
     const s = seed(TODAY)
     const binh = s.orders.find((o) => o.customerId === 'c2' && o.status === 'placed')!
-    const after = findOrder(must(confirmPayment(s, binh.id)), binh.id)!
+    const after = findOrder(must(confirmPayment(s, binh.id, binh.reports[0].id)), binh.id)!
     expect(after.received).toBe(45000)
     expect(paymentState(after)).toBe('paid')
   })
@@ -469,10 +473,10 @@ describe('shop day run', () => {
     s = place(s, TODAY, 'd-bunbo')[0]
     s = must(confirmPayment(s, id))
     s = must(cancelOrder(s, id))
-    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, pendingRefund: 45000, refunded: 0 })
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, reported: 0, pendingRefund: 45000, refunded: 0 })
     const refund = findOrder(s, id)!.refunds[0]
     s = must(markRefunded(s, id, refund.id))
-    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, pendingRefund: 0, refunded: 45000 })
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, reported: 0, pendingRefund: 0, refunded: 45000 })
   })
 
   it('an edit that lowers the total shows the full amount received and the difference pending', () => {
@@ -481,7 +485,7 @@ describe('shop day run', () => {
     s = must(confirmPayment(s1, id))
     const line = findOrder(s, id)!.lines[0]
     s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', ''))
-    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 90000, pendingRefund: 45000, refunded: 0 })
+    expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 90000, reported: 0, pendingRefund: 45000, refunded: 0 })
   })
 
   it('AC29, CN-31: dishes show their English name in English when they have one', () => {
@@ -490,5 +494,253 @@ describe('shop day run', () => {
     const en: State = { ...s, lang: 'en' }
     expect(dishName(en, 'd-bunbo')).toBe('Hue beef noodle soup')
     expect(dishName(en, 'd-buncha')).toBe('Bún chả')
+  })
+})
+
+describe('money with a reported transfer (CN-37 – CN-42)', () => {
+  // Two Bún bò Huế: 90,000. The extra line is one Thịt kho trứng: 40,000.
+  const thitkho: Line = { id: 'l-extra', kind: 'fixed', dishId: 'd-thitkho', qty: 1, unitPrice: 40000 }
+
+  /** A 90,000 order the customer has reported as transferred; the shop has not confirmed it. */
+  function reported(): [State, string] {
+    const [s, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    return [must(reportTransfer(s, id)), id]
+  }
+  /** The first transfer report of an order, answered by the shop (CN-43). */
+  const first = (s: State, id: string) => findOrder(s, id)!.reports[0].id
+  const editTo = (s: State, id: string, lines: Line[]) => must(editOrder(s, id, lines, 'b-bitexco', ''))
+  const lines = (s: State, id: string) => findOrder(s, id)!.lines
+
+  it('CN-37: the report records the amount the app asked for', () => {
+    const [s, id] = reported()
+    const o = findOrder(s, id)!
+    expect(reportedTotal(o)).toBe(90000)
+    expect(paymentState(o)).toBe('reported')
+    expect(toPay(o)).toBe(0)
+  })
+
+  it('AC30, CN-37: an edit after reporting keeps the report and asks only for the difference', () => {
+    const [start, id] = reported()
+    let s = start
+    s = editTo(s, id, [...lines(s, id), thitkho])
+    let o = findOrder(s, id)!
+    expect(reportedTotal(o)).toBe(90000)
+    expect(paymentState(o)).toBe('reported')
+    expect(owed(o)).toBe(130000)
+    expect(toPay(o)).toBe(40000)
+    // The customer reports again, for the 40,000 only.
+    s = must(reportTransfer(s, id))
+    o = findOrder(s, id)!
+    expect(reportedTotal(o)).toBe(130000)
+    expect(toPay(o)).toBe(0)
+  })
+
+  it('AC36, CN-43: each report is its own line; the shop confirms one and turns down the other', () => {
+    const [start, id] = reported()
+    let s = editTo(start, id, [...lines(start, id), thitkho])
+    s = must(reportTransfer(s, id))
+    const [r90, r40] = findOrder(s, id)!.reports
+    expect([r90.amount, r40.amount]).toEqual([90000, 40000])
+    // Everything is reported: there is no unreported rest to confirm (CN-48).
+    expect(confirmPayment(s, id)).toEqual({ ok: false, error: 'nothingOwed' })
+    s = must(confirmPayment(s, id, r90.id))
+    s = must(reportNotReceived(s, id, r40.id))
+    const o = findOrder(s, id)!
+    expect(o.received).toBe(90000)
+    expect(o.reports).toEqual([])
+    expect(o.missing).toEqual([40000])
+    expect(paymentState(o)).toBe('underpaid')
+    expect(toPay(o)).toBe(40000)
+  })
+
+  it('AC31, CN-38: "Payment received" records the amount reported; the order costing more is Underpaid', () => {
+    const [start, id] = reported()
+    let s = start
+    s = editTo(s, id, [...lines(s, id), thitkho])
+    s = must(confirmPayment(s, id, first(s, id)))
+    const o = findOrder(s, id)!
+    expect(o.received).toBe(90000)
+    expect(reportedTotal(o)).toBe(0)
+    expect(paymentState(o)).toBe('underpaid')
+    expect(owed(o)).toBe(40000)
+    expect(o.refunds).toEqual([])
+  })
+
+  it('AC31, CN-38: "Payment received" records the amount reported; the order costing less Needs refund', () => {
+    const [start, id] = reported()
+    let s = start
+    s = editTo(s, id, [{ ...lines(s, id)[0], qty: 1 }])
+    s = must(confirmPayment(s, id, first(s, id)))
+    const o = findOrder(s, id)!
+    expect(o.received).toBe(90000)
+    expect(paymentState(o)).toBe('paid')
+    expect(o.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'edit', refundedAt: null })])
+  })
+
+  it('CN-28 still holds without a report: "Payment received" records the full amount owed', () => {
+    const [s, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    expect(findOrder(must(confirmPayment(s, id)), id)!.received).toBe(90000)
+  })
+
+  it('AC32, CN-39: cancelling with a report records no refund until the shop confirms it received the money', () => {
+    const [start, id] = reported()
+    let s = start
+    s = must(cancelOrder(s, id))
+    let o = findOrder(s, id)!
+    expect(o.refunds).toEqual([])
+    expect(reportedTotal(o)).toBe(90000)
+    expect(owed(o)).toBe(0)
+    expect(reportTransfer(s, id)).toEqual({ ok: false, error: 'nothingOwed' })
+    s = must(confirmPayment(s, id, first(s, id)))
+    o = findOrder(s, id)!
+    expect(reportedTotal(o)).toBe(0)
+    expect(o.received).toBe(90000)
+    expect(o.refunds).toEqual([expect.objectContaining({ amount: 90000, reason: 'cancel' })])
+  })
+
+  it.each([
+    ['reject', (s: State, id: string) => rejectOrder(s, id)],
+    ['closedDay', (s: State, id: string) => rejectOrder(s, id, 'closedDay')],
+  ] as const)('AC32, CN-39: a reported order rejected (%s) is refunded with that reason once confirmed', (reason, reject) => {
+    const [start, id] = reported()
+    let s = start
+    s = must(reject(s, id))
+    expect(findOrder(s, id)!.refunds).toEqual([])
+    s = must(confirmPayment(s, id, first(s, id)))
+    expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 90000, reason })])
+  })
+
+  it('AC32, CN-39: declining a building lists the amount reported, and refunds it with that reason once confirmed', () => {
+    let s = must(addToCart({ ...seed(TODAY), me: 'c5' }, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
+    const r = placeOrder(s, TODAY, 'b-pearl', '')
+    const id = (r as { id: string }).id
+    s = must(reportTransfer(must(r), id))
+    expect(declinePreview(s, 'b-pearl')).toContainEqual({ order: expect.objectContaining({ id }), refund: 0, reported: 45000 })
+    s = must(declineBuilding(s, 'b-pearl'))
+    expect(findOrder(s, id)!.refunds).toEqual([])
+    s = must(confirmPayment(s, id, first(s, id)))
+    expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'building' })])
+  })
+
+  it('AC33, CN-40: a refund not yet sent is dropped when the total goes back up', () => {
+    const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    let s = start
+    s = must(confirmPayment(s, id))
+    const bunbo = lines(s, id)[0]
+    s = editTo(s, id, [{ ...bunbo, qty: 1 }])
+    expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 45000, refundedAt: null })])
+    s = editTo(s, id, [bunbo, thitkho])
+    const o = findOrder(s, id)!
+    expect(o.refunds).toEqual([])
+    expect(owed(o)).toBe(40000)
+  })
+
+  it('AC33, CN-40: a refund already marked Refunded is kept when the total goes back up', () => {
+    const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    let s = start
+    s = must(confirmPayment(s, id))
+    const bunbo = lines(s, id)[0]
+    s = editTo(s, id, [{ ...bunbo, qty: 1 }])
+    s = must(markRefunded(s, id, findOrder(s, id)!.refunds[0].id))
+    s = editTo(s, id, [bunbo, thitkho])
+    const o = findOrder(s, id)!
+    expect(o.refunds).toEqual([expect.objectContaining({ amount: 45000 })])
+    expect(owed(o)).toBe(85000)
+  })
+
+  it('AC34, CN-41: "Not received yet" clears the report, tells the customer and logs it', () => {
+    const [start, id] = reported()
+    let s = start
+    s = must(reportNotReceived(s, id, first(s, id)))
+    let o = findOrder(s, id)!
+    expect(reportedTotal(o)).toBe(0)
+    expect(o.missing).toEqual([90000])
+    expect(paymentState(o)).toBe('unpaid')
+    expect(toPay(o)).toBe(90000)
+    expect(o.history.at(-1)).toMatchObject({ kind: 'reportMissing', amount: 90000 })
+    // Reporting again clears the notice.
+    s = must(reportTransfer(s, id))
+    o = findOrder(s, id)!
+    expect(o.missing).toEqual([])
+    expect(reportedTotal(o)).toBe(90000)
+  })
+
+  it('AC36, CN-43: answered in the other order, the "not found" 40,000 stays after the 90,000 is confirmed', () => {
+    const [start, id] = reported()
+    let s = editTo(start, id, [...lines(start, id), thitkho])
+    s = must(reportTransfer(s, id))
+    const [r90, r40] = findOrder(s, id)!.reports
+    s = must(reportNotReceived(s, id, r40.id))
+    s = must(confirmPayment(s, id, r90.id))
+    expect(findOrder(s, id)!.missing).toEqual([40000])
+  })
+
+  it('CN-43: two reports turned down are both shown', () => {
+    const [start, id] = reported()
+    let s = editTo(start, id, [...lines(start, id), thitkho])
+    s = must(reportTransfer(s, id))
+    const [r90, r40] = findOrder(s, id)!.reports
+    s = must(reportNotReceived(must(reportNotReceived(s, id, r90.id)), id, r40.id))
+    expect(findOrder(s, id)!.missing).toEqual([90000, 40000])
+  })
+
+  it('CN-47: a Paid order with a report still open stays Paid; confirming the report records a refund', () => {
+    const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    let s = must(confirmPayment(start, id))
+    const bunbo = lines(s, id)[0]
+    s = must(reportTransfer(editTo(s, id, [bunbo, thitkho]), id))
+    s = editTo(s, id, [bunbo])
+    let o = findOrder(s, id)!
+    expect(paymentState(o)).toBe('paid')
+    expect(o.reports).toHaveLength(1)
+    s = must(confirmPayment(s, id, first(s, id)))
+    o = findOrder(s, id)!
+    expect(o.refunds).toEqual([expect.objectContaining({ amount: 40000, reason: 'edit' })])
+  })
+
+  it('CN-48: the shop confirms the unreported rest while a report is still open', () => {
+    const [start, id] = reported()
+    let s = editTo(start, id, [...lines(start, id), thitkho])
+    s = must(confirmPayment(s, id))
+    const o = findOrder(s, id)!
+    expect(o.received).toBe(40000)
+    expect(o.reports.map((r) => r.amount)).toEqual([90000])
+    expect(toPay(o)).toBe(0)
+  })
+
+  it('CN-46: the "not found" notice clears when the shop confirms the unreported money', () => {
+    const [start, id] = reported()
+    let s = must(reportNotReceived(start, id, first(start, id)))
+    s = must(confirmPayment(s, id))
+    expect(findOrder(s, id)!.missing).toEqual([])
+  })
+
+  it('CN-46: the "not found" notice stays through an edit', () => {
+    const [start, id] = reported()
+    let s = must(reportNotReceived(start, id, first(start, id)))
+    s = editTo(s, id, [...lines(s, id), thitkho])
+    expect(findOrder(s, id)!.missing).toEqual([90000])
+  })
+
+  it('CN-41: an Underpaid order goes back to Underpaid, and there must be a report to turn down', () => {
+    const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
+    let s = start
+    s = must(confirmPayment(s, id))
+    expect(reportNotReceived(s, id, 'p-none')).toEqual({ ok: false, error: 'nothingReported' })
+    s = editTo(s, id, [...lines(s, id), thitkho])
+    s = must(reportTransfer(s, id))
+    s = must(reportNotReceived(s, id, first(s, id)))
+    expect(paymentState(findOrder(s, id)!)).toBe('underpaid')
+  })
+
+  it('AC35, CN-42: a reported order still counts as not Paid at the cutoff review', () => {
+    const [start, id] = reported()
+    let s = start
+    s = editTo(s, id, [...lines(s, id), thitkho])
+    s = must(confirmOrder(s, id))
+    const after = at(s, 23 * 60)
+    expect(reviewList(after, TODAY).map((o) => o.id)).toContain(id)
+    const o = findOrder(after, id)!
+    expect([owed(o), reportedTotal(o), toPay(o)]).toEqual([130000, 90000, 40000])
   })
 })

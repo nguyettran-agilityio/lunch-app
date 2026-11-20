@@ -36,6 +36,7 @@ export type ErrorCode =
   | 'notPreparing'
   | 'notDelivering'
   | 'nothingOwed'
+  | 'nothingReported'
   | 'cannotReject'
   | 'cannotKeep'
   | 'noRefundDue'
@@ -145,19 +146,28 @@ export const netPaid = (o: Order): number => o.received - o.refunds.reduce((sum,
  * What happened to the customer's money, for display: everything the shop confirmed it received,
  * refunds still to send back, and refunds already sent. A refund does not lower "received".
  */
-export function moneySummary(o: Order): { received: number; pendingRefund: number; refunded: number } {
+export function moneySummary(o: Order): { received: number; reported: number; pendingRefund: number; refunded: number } {
   const sum = (done: boolean) => o.refunds.filter((r) => (r.refundedAt !== null) === done).reduce((n, r) => n + r.amount, 0)
-  return { received: o.received, pendingRefund: sum(false), refunded: sum(true) }
+  return { received: o.received, reported: reportedTotal(o), pendingRefund: sum(false), refunded: sum(true) }
 }
 
+/** Money of an active order the shop has not confirmed yet; reported money is not confirmed (CN-6, CN-42). */
 export function owed(o: Order): number {
   if (!isActive(o.status)) return 0
   return Math.max(0, orderTotal(o) - netPaid(o))
 }
 
+/** All transfers reported and not yet confirmed or turned down (CN-37, CN-43). */
+export const reportedTotal = (o: Order): number => o.reports.reduce((sum, r) => sum + r.amount, 0)
+
+/** What the customer still has to transfer: not confirmed, minus what they already reported (CN-37). */
+export function toPay(o: Order): number {
+  return Math.max(0, owed(o) - reportedTotal(o))
+}
+
 export function paymentState(o: Order): PaymentState {
   if (netPaid(o) >= orderTotal(o)) return 'paid'
-  if (o.reported) return 'reported'
+  if (o.reports.length > 0) return 'reported'
   if (netPaid(o) > 0) return 'underpaid'
   return 'unpaid'
 }
@@ -258,7 +268,9 @@ export function placeOrder(s: State, date: DateStr, buildingId: string, note: st
     lines: cart,
     status: 'placed',
     received: 0,
-    reported: false,
+    reports: [],
+    missing: [],
+    endReason: null,
     refunds: [],
     kept: false,
     history: [{ kind: 'status', status: 'placed', at: now(s) }],
@@ -273,8 +285,13 @@ export function placeOrder(s: State, date: DateStr, buildingId: string, note: st
 export function reportTransfer(s: State, id: string): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
-  if (owed(o) === 0) return fail('nothingOwed')
-  return ok(patchOrder(s, id, (x) => ({ ...x, reported: true })))
+  // The amount reported is the amount the app asks for at this moment (CN-37).
+  const amount = toPay(o)
+  if (amount === 0) return fail('nothingOwed')
+  // Each tap is its own report, answered on its own by the shop (CN-43).
+  const [s2, reportId] = nextId(s, 'p')
+  const report = { id: reportId, amount, at: now(s) }
+  return ok(patchOrder(s2, id, (x) => ({ ...x, reports: [...x.reports, report], missing: [] })))
 }
 
 export function cancelOrder(s: State, id: string): Result {
@@ -282,11 +299,15 @@ export function cancelOrder(s: State, id: string): Result {
   if (!o) return fail('notFound')
   const block = customerChangeBlock(s, o)
   if (block) return fail(block)
+  // Only confirmed money is refunded now; a reported transfer waits for the shop (CN-39).
   const [s2, withR] = withRefund(s, o, netPaid(o), 'cancel')
-  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'cancelled'), reported: false })))
+  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'cancelled'), endReason: 'cancel' })))
 }
 
-/** Edit returns the order to Placed (BR-14); the money difference is topped up or refunded (BR-20). */
+/**
+ * Edit returns the order to Placed (BR-14); the money difference is topped up or refunded (BR-20).
+ * A reported transfer is kept (CN-37); refunds not yet sent are recalculated (CN-40).
+ */
 export function editOrder(s: State, id: string, lines: Line[], buildingId: string, note: string): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
@@ -303,7 +324,6 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
     lines: kept,
     buildingId,
     note: note.trim(),
-    reported: false,
     refunds: o.refunds.filter((r) => r.refundedAt !== null),
   }
   const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit')
@@ -386,21 +406,60 @@ export function confirmOrder(s: State, id: string): Result {
   return ok(patchOrder(s, id, (x) => moveTo(s, x, 'confirmed')))
 }
 
-/** Shop confirms receipt from Unpaid, Reported or Underpaid (BR-19, CN-17). */
-export function confirmPayment(s: State, id: string): Result {
+/**
+ * Shop confirms receipt from Unpaid, Reported or Underpaid (BR-19, CN-17).
+ * - With a report id: exactly that report's amount (CN-38, CN-43), also on a Cancelled or Rejected order (CN-39).
+ * - Without one: the full amount owed that the customer has not reported (CN-28, CN-48); this also
+ *   clears the "not found" notice (CN-46).
+ * Money beyond what the order now needs is recorded as Needs refund.
+ */
+export function confirmPayment(s: State, id: string, reportId?: string): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
-  const due = owed(o)
-  if (due === 0) return fail('nothingOwed')
-  return ok(patchOrder(s, id, (x) => ({ ...x, received: x.received + due, reported: false })))
+  let amount: number
+  let reports = o.reports
+  let missing = o.missing
+  if (reportId !== undefined) {
+    const report = o.reports.find((r) => r.id === reportId)
+    if (!report) return fail('nothingReported')
+    amount = report.amount
+    reports = o.reports.filter((r) => r.id !== reportId)
+  } else {
+    amount = toPay(o)
+    missing = []
+  }
+  if (amount === 0) return fail('nothingOwed')
+  const paid = { ...o, received: o.received + amount, reports, missing }
+  const active = isActive(o.status)
+  const extra = netPaid(paid) - (active ? orderTotal(paid) : 0)
+  const [s2, withR] = withRefund(s, paid, extra, active ? 'edit' : (o.endReason ?? 'reject'))
+  return ok(patchOrder(s2, id, () => withR))
+}
+
+/** The shop did not find one reported transfer: clear that report and tell the customer (CN-41, CN-43). */
+export function reportNotReceived(s: State, id: string, reportId: string): Result {
+  const o = findOrder(s, id)
+  if (!o) return fail('notFound')
+  const report = o.reports.find((r) => r.id === reportId)
+  if (!report) return fail('nothingReported')
+  const entry = { kind: 'reportMissing' as const, at: now(s), amount: report.amount }
+  return ok(
+    patchOrder(s, id, (x) => ({
+      ...x,
+      reports: x.reports.filter((r) => r.id !== reportId),
+      missing: [...x.missing, report.amount],
+      history: [...x.history, entry],
+    })),
+  )
 }
 
 export function rejectOrder(s: State, id: string, reason: RefundReason = 'reject'): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
   if (!canReject(o)) return fail(isActive(o.status) ? 'cannotReject' : 'notActive')
+  // Only confirmed money is refunded now; a reported transfer waits for the shop (CN-39).
   const [s2, withR] = withRefund(s, o, netPaid(o), reason)
-  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'rejected'), reported: false })))
+  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'rejected'), endReason: reason })))
 }
 
 /** Keep an unpaid order at the cutoff review; it leaves the list (CN-18). */
@@ -462,9 +521,14 @@ export function deliveryTimeOn(b: Building, date: DateStr): number | null {
   return best ? best.time : b.deliveryTime
 }
 
-/** Orders that declining a building would reject, with the amount each would need refunded (CN-26). */
-export function declinePreview(s: State, id: string): { order: Order; refund: number }[] {
-  return s.orders.filter((o) => o.buildingId === id && canReject(o)).map((order) => ({ order, refund: Math.max(0, netPaid(order)) }))
+/**
+ * Orders that declining a building would reject, with the amount each would need refunded (CN-26),
+ * and the amount reported but not confirmed, refunded only if the shop confirms it (CN-39).
+ */
+export function declinePreview(s: State, id: string): { order: Order; refund: number; reported: number }[] {
+  return s.orders
+    .filter((o) => o.buildingId === id && canReject(o))
+    .map((order) => ({ order, refund: Math.max(0, netPaid(order)), reported: reportedTotal(order) }))
 }
 
 /** Decline a pending building and reject its active orders, with refunds if paid (BR-17, F5). */
