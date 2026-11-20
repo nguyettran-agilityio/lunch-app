@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { DishArt, PlateArt } from '@/components/art'
 import { DayLabel } from '@/components/parts'
 import { Button, Notice, QtyStepper, cx } from '@/components/ui'
 import {
@@ -55,14 +56,13 @@ export function PlateScreen() {
     const chosen = picks.filter((p) => findDish(s, p)?.groupId === g.id)
     return Array.from({ length: g.max }, (_, i) => ({ group: g, dishId: chosen[i] ?? null, key: `${g.id}-${i}` }))
   })
-  const extraCols = Math.ceil(slots.length / 2)
 
   return (
     <>
       <Link href={back} className="mb-3 inline-block text-[15px] font-semibold text-leaf">
         ← {m.plate.back}
       </Link>
-      <h1 className="text-[26px] leading-tight font-bold tracking-tight sm:text-3xl">{m.plate.title}</h1>
+      <h1 className="font-display text-[28px] leading-[1.1] font-extrabold tracking-tight sm:text-[34px]">{m.plate.title}</h1>
       <p className="mt-1 mb-5 text-[15px] text-muted">
         <DayLabel date={date} long /> · {m.plate.intro}
       </p>
@@ -79,37 +79,33 @@ export function PlateScreen() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_1fr] lg:grid-rows-[auto_1fr]">
-        {/* The tray: the one memorable element of the prototype. */}
+        {/* The plate fills up with the chosen dishes, drawn by us (UI6); the list says the same in words. */}
         <div className="lg:col-start-1 lg:row-start-1">
-          <div
-            className="tray grid gap-2.5 rounded-[22px] p-3"
-            style={{ gridTemplateColumns: `1.3fr repeat(${extraCols}, 1fr)`, gridTemplateRows: 'repeat(2, minmax(5.5rem, auto))' }}
-            aria-label={m.plate.title}
-          >
-            <div className="tray-cell row-span-2 flex flex-col items-center justify-center rounded-2xl p-2 text-center">
-              <span aria-hidden className="mb-1 text-3xl">🍚</span>
-              <span className="text-sm font-semibold">{m.plate.rice}</span>
-            </div>
-            {slots.map(({ group, dishId, key }) => (
-              <div key={key} className="tray-cell flex flex-col justify-between rounded-2xl p-2">
-                <span className="text-[11px] font-semibold text-muted">{group.name}</span>
-                {dishId ? (
-                  <span key={dishId} className="fill-in text-[13px] leading-tight font-semibold text-leaf-dark">
-                    {dishName(s, dishId)}
-                  </span>
-                ) : (
-                  <span className="text-[13px] text-muted/70">{m.plate.empty}</span>
-                )}
-              </div>
-            ))}
+          <div className="parcel bg-leaf-soft p-3" aria-label={m.plate.title} role="group">
+            <PlateArt picks={slots.map((x) => x.dishId)} slots={slots.length} className="mx-auto w-full max-w-72" />
+            <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[13px]">
+              <li className="font-semibold">{m.plate.rice}</li>
+              {slots.map(({ group, dishId, key }) => (
+                <li key={key} className="flex min-w-0 gap-1">
+                  <span className="shrink-0 text-muted">{group.name}:</span>
+                  {dishId ? (
+                    <span key={dishId} className="fill-in truncate font-semibold text-leaf-dark">
+                      {dishName(s, dishId)}
+                    </span>
+                  ) : (
+                    <span className="text-muted/70">{m.plate.empty}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
 
         {/* Price and add: sticks above the bottom bar on phones, beside the tray on computers. */}
-        <div className="sticky bottom-16 z-10 rounded-xl bg-card p-4 shadow-[0_-4px_16px_rgb(29_36_32/0.12)] ring-1 ring-steel/70 max-sm:p-3 md:bottom-4 lg:top-4 lg:bottom-auto lg:col-start-1 lg:row-start-2 lg:self-start lg:shadow-none">
+        <div className="sticky bottom-16 z-10 rounded-2xl bg-card p-4 shadow-[0_-4px_16px_rgb(29_36_32/0.12)] ring-1 ring-steel/70 max-sm:p-3 md:bottom-4 lg:top-4 lg:bottom-auto lg:col-start-1 lg:row-start-2 lg:self-start lg:shadow-none">
             <div className="flex items-baseline justify-between">
               <span className="font-semibold">{m.plate.price}</span>
-              <span className="text-2xl font-bold tracking-tight sm:text-3xl" aria-live="polite">
+              <span className="font-display text-[26px] font-extrabold tracking-tight sm:text-[34px]" aria-live="polite">
                 {money(price)}
               </span>
             </div>
@@ -174,13 +170,14 @@ export function PlateScreen() {
                         disabled={blocked || !open}
                         onClick={() => toggle(id, g.id)}
                         className={cx(
-                          'flex min-h-14 items-center justify-between gap-3 rounded-xl px-4 py-2 text-left ring-1 transition-colors',
-                          on ? 'bg-leaf text-white ring-leaf' : 'bg-card ring-steel hover:ring-leaf',
+                          'flex min-h-14 items-center gap-3 rounded-2xl py-1.5 pr-4 pl-1.5 text-left ring-1 transition-colors',
+                          on ? 'bg-leaf text-on-leaf ring-leaf' : 'bg-card ring-steel hover:ring-leaf',
                           (blocked || !open) && 'opacity-50',
                         )}
                       >
-                        <span className="font-semibold">{dishName(s, id)}</span>
-                        <span className={cx('text-sm font-semibold', on ? 'text-white' : 'text-muted')}>
+                        <DishArt dishId={id} className="size-12 shrink-0" />
+                        <span className="flex-1 font-semibold">{dishName(s, id)}</span>
+                        <span className={cx('text-sm font-semibold', on ? 'text-on-leaf' : 'text-muted')}>
                           {d.surcharge > 0 ? m.plate.surcharge(money(d.surcharge)) : money(0)}
                         </span>
                       </button>

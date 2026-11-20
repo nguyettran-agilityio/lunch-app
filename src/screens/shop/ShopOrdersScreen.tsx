@@ -98,7 +98,7 @@ export function ShopOrdersScreen() {
 export function StartBar({ ids, onDone }: { ids: string[]; onDone: () => void }) {
   const { m } = useApp()
   return (
-    <div className="sticky bottom-4 z-10 mt-4 flex items-center justify-between gap-3 rounded-xl bg-ink p-3 pl-4 text-white shadow-lg">
+    <div className="sticky bottom-4 z-10 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-ink p-3 pl-4 text-on-ink shadow-lg">
       <span className="font-semibold">{m.shop.selected(ids.length)}</span>
       <Button
         onClick={() => {

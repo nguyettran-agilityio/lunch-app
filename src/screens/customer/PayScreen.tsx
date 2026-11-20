@@ -2,9 +2,10 @@
 
 import { useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { MoneyState } from '@/components/money'
 import { FakeQr, MissingNotice } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, OrderBadges, PageTitle } from '@/components/ui'
-import { findOrder, netPaid, paymentState, reportedTotal, reportTransfer, toPay } from '@/proto/logic'
+import { findOrder, isActive, netPaid, paymentState, reportedTotal, reportTransfer, toPay } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { useApp } from '@/proto/useApp'
 
@@ -28,13 +29,19 @@ export function PayScreen() {
   // VietQR-style content: bank account, amount, transfer note = order code (CN-5, CN-20).
   const payload = `${bank.name}|${bank.account}|${due}|${order.code}`
   // Once everything is reported, the QR is hidden before and after the cutoff, unless asked for again (CN-34).
-  const showQr = more > 0 || (reported > 0 && qrAgain)
+  // A Cancelled or Rejected order with a report open has no "Show QR again" (CN-52).
+  const active = isActive(order.status)
+  const showQr = more > 0 || (reported > 0 && qrAgain && active)
 
   return (
     <>
       <PageTitle title={m.pay.title} intro={m.detail.title(order.code)}>
         <OrderBadges order={order} />
       </PageTitle>
+      {/* The money state at a glance (docs/design.md, UI3). */}
+      <div className="mb-5 max-w-xl">
+        <MoneyState order={order} />
+      </div>
       <div className="grid gap-5 md:grid-cols-[auto_1fr] md:items-start">
         {showQr ? (
           <Card className="flex flex-col items-center gap-3 md:w-80">
@@ -43,13 +50,21 @@ export function PayScreen() {
           </Card>
         ) : null}
         <Card>
-          {more === 0 && reported > 0 && !qrAgain ? (
+          {/* The "not found" notice stays in every state, not only next to the QR (CN-41, CN-44, CN-46, CN-51). */}
+          {order.missing.length > 0 && (
+            <div className="mb-4">
+              <MissingNotice order={order} />
+            </div>
+          )}
+          {more === 0 && reported > 0 && !showQr ? (
             <>
-              <Notice tone="leaf">{m.pay.waiting(money(reported))}</Notice>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Button variant="ghost" onClick={() => setQrAgain(true)}>
-                  {m.pay.showQr}
-                </Button>
+              {/* "Transfer reported, waiting for the shop" is said in the money block above (CN-34, UI3, UI7, UI8). */}
+              <div className="flex flex-wrap gap-3">
+                {active && (
+                  <Button variant="ghost" onClick={() => setQrAgain(true)}>
+                    {m.pay.showQr}
+                  </Button>
+                )}
                 <LinkButton href={`/order?id=${order.id}`} variant="secondary">
                   {m.orders.open}
                 </LinkButton>
@@ -57,12 +72,6 @@ export function PayScreen() {
             </>
           ) : showQr ? (
             <>
-              {/* The "not found" notice is shown next to the others, never instead of them (CN-41, CN-37). */}
-              {order.missing.length > 0 && (
-                <div className="mb-4">
-                  <MissingNotice order={order} />
-                </div>
-              )}
               {/* "Transfer more after an edit" only when no report was turned down (S-C7, CN-37, CN-41). */}
               {reported > 0 && more > 0 && order.missing.length === 0 ? (
                 <div className="mb-4">
@@ -83,7 +92,7 @@ export function PayScreen() {
               <p className="mb-4 text-[15px]">{m.pay.scan}</p>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[15px]">
                 <dt className="text-muted">{m.pay.amount}</dt>
-                <dd className="text-2xl font-bold">{money(due)}</dd>
+                <dd className="font-display text-[26px] font-extrabold tracking-tight">{money(due)}</dd>
                 <dt className="text-muted">{m.pay.note}</dt>
                 <dd className="font-bold tracking-wide">{order.code}</dd>
                 <dt className="text-muted">{m.pay.bank}</dt>

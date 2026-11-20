@@ -131,3 +131,33 @@ Clicked through in the Browser pane in the first round of PR #17 (8eeeba1), on t
 | D12 | Customer: open a closed day by its URL | Ordering is refused, the day is shown as closed (AC2) | Both |
 | D13 | Every route at 375px and on desktop | No horizontal scroll (AC19) | Browser |
 | D14 | Switch VI/EN | App text changes; dish and building names stay (AC18) | Both |
+
+## 12. Design round: banana-leaf lunchbox ([design.md](design.md), UI1–UI12)
+
+Tests in `__tests__/design.test.tsx`. "Browser" here was clicked at 375px in light and dark mode.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| UI-1 | Customer: open today's menu on a phone | Each ready meal has our own drawing on a piece of leaf, beside the name and price; no page scroll sideways | Both |
+| UI-2 | Customer: build a plate with a main, a vegetable and a soup | Each dish to choose shows its drawing; the large plate fills with the chosen dishes, empty places stay dashed | Both |
+| UI-3 | Customer: cart with a plate and a ready meal | Each line has a thumbnail (the dish, or a small rice plate) | Browser |
+| UI-4 | Customer: place the order, open Payment | Money block at stop 1 "Unpaid" with the amount to transfer | Both |
+| UI-5 | Payment: tap "I have transferred" | Stop 2 "Transfer reported" with the amount, waiting for the shop | Both |
+| UI-6 | Shop: open the reported order, "Payment received" | Stop 3 "Shop received", green, on the shop's order detail | Both |
+| UI-7 | An active order edited up after payment (Underpaid) | Stays at stop 3, half filled, red "Still owed X" (UI4) | Test |
+| UI-8 | An active order with a refund pending (edit lowered the total) | The 3-stop bar and the 2-stop refund bar | Test |
+| UI-9 | Shop: open the cancelled paid order (LA…008) | Only the refund bar at "Needs refund"; once marked, "Refunded … by bank transfer" (UI5) | Both |
+| UI-10 | A rejected order with nothing to settle | One line "Nothing left to settle" (UI5) | Test |
+| UI-11 | Customer with an empty cart, and with no orders | An illustration and a way back to the week menu | Test |
+| UI-12 | Device in dark mode: week, payment, shop Orders | Text readable on every filled colour; the demo bar's controls stay readable | Browser |
+| UI-13 | Week view at 375px | No horizontal scroll (the day cards used to widen the page; fixed in this round, AC19) | Browser |
+| UI-14 | A Paid order with a report still open (CN-47) | Stop 3 green, and inside the block "Customer reported X transferred, waiting for confirmation" (UI7) | Test |
+| UI-15 | A cancelled order with a refund pending and a report still open (CN-39) | The refund bar, and inside the block "Transfer of X reported, waiting for the shop to confirm" (UI8) | Test |
+| UI-16 | An Underpaid order whose difference is reported (CN-24) | Stop 2, and the line "Shop received Y" (UI9) | Test |
+| UI-17 | Shop: open an unpaid order's detail | The block uses the shop's wording: "Customer still owes X" (UI10) | Test |
+| UI-18 | Customer: open the Payment screen of a Reported order, without "Show QR again" | No QR; the block says the transfer is reported and waiting; "Show QR again" is there (AC28, CN-34) | Test |
+| UI-19 | Customer: open the Payment screen of a cancelled order with a report open | No "Show QR again" and no QR (CN-52) | Test |
+| UI-20 | Customer: open the Payment screen of a cancelled order the shop said it did not receive | The "not found" notice is shown, though nothing is left to pay (CN-44, CN-46) | Test |
+| UI-21 | Shop: open a cancelled order with a refund pending and a report open, and a Paid order with a report open | Every line of the block in the shop's words: "To refund to the customer", "Customer reported X transferred, waiting for you to confirm" (UI12) | Test |
+| UI-22 | Shop: open the detail of a reported order edited up | No note above the report buttons; the block says the report and what is still to transfer; the rows keep the amounts (UI13, CN-42) | Test |
+| UI-23 | Shop: open any order's detail | The bar's stops read "Unpaid / Customer reported / Received" (UI14) | Test |

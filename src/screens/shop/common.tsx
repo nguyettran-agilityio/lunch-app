@@ -48,7 +48,7 @@ export function ShopDayBar() {
               onClick={() => update((st) => ({ ...st, shopDay: d }))}
               className={cx(
                 'min-h-10 rounded-lg px-3 text-sm font-semibold ring-1',
-                s.shopDay === d ? 'bg-ink text-white ring-ink' : 'bg-card text-ink ring-steel hover:ring-leaf',
+                s.shopDay === d ? 'bg-ink text-on-ink ring-ink' : 'bg-card text-ink ring-steel hover:ring-leaf',
               )}
             >
               <DayLabel date={d} />
@@ -100,7 +100,7 @@ export function ShopOrderCard({
             disabled={!selectable}
             checked={!!selected}
             onChange={(e) => onSelect?.(e.target.checked)}
-            className="mt-1 size-5 shrink-0 accent-[#2f6b3a] disabled:opacity-30"
+            className="mt-1 size-5 shrink-0 accent-leaf disabled:opacity-30"
           />
         )}
         <div className="min-w-0 flex-1">
@@ -117,7 +117,7 @@ export function ShopOrderCard({
           <p className="text-sm text-muted">
             {building?.name}
             {notApproved && (
-              <span className="font-semibold text-[#7a5104]"> ({building?.state === 'declined' ? m.buildings.declined : m.buildings.pending})</span>
+              <span className="font-semibold text-turmeric-ink"> ({building?.state === 'declined' ? m.buildings.declined : m.buildings.pending})</span>
             )}
             {order.note && ` · ${order.note}`}
           </p>
@@ -143,7 +143,7 @@ export function ReportNote({ order }: { order: Order }) {
   if (reportedTotal(order) === 0) return null
   const more = toPay(order)
   return (
-    <p className="mt-2 text-sm font-semibold text-[#7a5104]">
+    <p className="mt-2 text-sm font-semibold text-turmeric-ink">
       {/* A Paid order with a report still open: no "not confirmed 0" (CN-47). */}
       {isActive(order.status) && paymentState(order) === 'paid'
         ? m.shop.reportNotePaid(money(reportedTotal(order)))
@@ -155,7 +155,16 @@ export function ReportNote({ order }: { order: Order }) {
 }
 
 /** The shop's actions on one order: confirm, payment received, not received yet, reject (BR-19, BR-22, D20). */
-export function ShopOrderActions({ order, extra }: { order: Order; extra?: ReactNode }) {
+export function ShopOrderActions({
+  order,
+  extra,
+  reportNote = true,
+}: {
+  order: Order
+  extra?: ReactNode
+  /** The shop's Order detail says the report in its money block instead (UI13). */
+  reportNote?: boolean
+}) {
   const { s, m, money } = useApp()
   const building = findBuilding(s, order.buildingId)
   const notApproved = building?.state !== 'approved'
@@ -164,7 +173,7 @@ export function ShopOrderActions({ order, extra }: { order: Order; extra?: React
   const due = toPay(order)
   return (
     <>
-      <ReportNote order={order} />
+      {reportNote && <ReportNote order={order} />}
       {/* Each report is answered on its own: exactly its amount, also on a closed order (CN-38, CN-39, CN-41, CN-43). */}
       {order.reports.length > 0 && (
         <ul className="mt-2 flex flex-col gap-2">
@@ -205,7 +214,7 @@ export function ShopOrderActions({ order, extra }: { order: Order; extra?: React
           <ConfirmButton label={m.shop.reject} question={m.shop.rejectConfirm} onConfirm={() => run((st) => rejectOrder(st, order.id))} />
         )}
       </div>
-      {order.status === 'placed' && building?.state === 'pending' && <p className="mt-2 text-sm text-[#7a5104]">{m.shop.buildingPending}</p>}
+      {order.status === 'placed' && building?.state === 'pending' && <p className="mt-2 text-sm text-turmeric-ink">{m.shop.buildingPending}</p>}
     </>
   )
 }
