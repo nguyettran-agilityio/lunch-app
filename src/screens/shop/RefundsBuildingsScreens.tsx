@@ -64,7 +64,7 @@ export function RefundsScreen() {
                 {order.refundTo ? (
                   <RefundToView to={order.refundTo} />
                 ) : (
-                  <p className="text-sm font-semibold text-[#7a5104]">{m.refunds.noDestination}</p>
+                  <p className="text-sm font-semibold text-turmeric-ink">{m.refunds.noDestination}</p>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -218,7 +218,7 @@ function DeclineButton({ building: b }: { building: Building }) {
                   {refund === 0 && reported === 0 && ` (${m.buildings.declineNoRefund})`}
                 </span>
                 {/* Reported but not confirmed: refunded only once the shop confirms it received it (CN-39). */}
-                {reported > 0 && <span className="w-full text-right font-semibold text-[#7a5104]">{m.buildings.declineReported(money(reported))}</span>}
+                {reported > 0 && <span className="w-full text-right font-semibold text-turmeric-ink">{m.buildings.declineReported(money(reported))}</span>}
               </li>
             ))}
           </ul>

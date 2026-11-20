@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { MoneyState } from '@/components/money'
 import { DayLabel, LinesList, OrderHistory, PaidRows, PendingRefundNote, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, OrderBadges, PageTitle } from '@/components/ui'
 import { findBuilding, findCustomer, orderTotal, owed, reportedTotal, startPreparing, toPay } from '@/proto/logic'
@@ -33,6 +34,10 @@ export function ShopOrderScreen() {
       <p className="-mt-3 mb-5 text-[15px] text-muted">
         <DayLabel date={order.date} long />
       </p>
+      {/* The money state at a glance (docs/design.md, UI3). */}
+      <div className="mb-5 max-w-xl">
+        <MoneyState order={order} side="shop" />
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-5">
@@ -87,6 +92,7 @@ export function ShopOrderScreen() {
             {/* The same actions as on the Orders screen, including start preparing (S-S11, BR-24). */}
             <ShopOrderActions
               order={order}
+              reportNote={false}
               extra={
                 order.status === 'confirmed' ? (
                   <Button variant="secondary" onClick={() => run((st) => startPreparing(st, [order.id]))}>
@@ -117,7 +123,7 @@ export function ShopOrderScreen() {
                 </div>
               ) : (
                 order.refunds.some((r) => r.refundedAt === null) && (
-                  <p className="mt-3 border-t border-tray pt-3 text-sm font-semibold text-[#7a5104]">{m.refunds.noDestination}</p>
+                  <p className="mt-3 border-t border-tray pt-3 text-sm font-semibold text-turmeric-ink">{m.refunds.noDestination}</p>
                 )
               )}
             </Card>

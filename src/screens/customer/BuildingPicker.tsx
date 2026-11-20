@@ -26,7 +26,7 @@ export function BuildingPicker({ value, onChange, id }: { value: string; onChang
           </option>
         ))}
       </Select>
-      {current?.state === 'pending' && <p className="text-sm text-[#7a5104]">{m.cart.proposeNote}</p>}
+      {current?.state === 'pending' && <p className="text-sm text-turmeric-ink">{m.cart.proposeNote}</p>}
       {proposing ? (
         <div className="flex flex-col gap-2 rounded-lg bg-tray p-3">
           <TextInput label={m.cart.proposeName} value={name} onChange={(e) => setName(e.target.value)} />
