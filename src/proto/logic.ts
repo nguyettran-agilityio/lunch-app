@@ -660,3 +660,37 @@ export function deliveryList(s: State, date: DateStr): DeliveryGroup[] {
 export function refundList(s: State): { order: Order; refund: Order['refunds'][number] }[] {
   return s.orders.flatMap((order) => order.refunds.map((refund) => ({ order, refund })))
 }
+
+// ---------- Sorting and searching on the shop screens (CN-56) ----------
+
+/** The time the customer placed the order: its first history line. */
+export const placedAt = (o: Order): string => o.history[0]?.at ?? ''
+
+/** Newest order first, by the time it was placed; orders placed at the same minute keep the newest created first. */
+export function newestFirst<T>(s: State, items: T[], orderOf: (x: T) => Order): T[] {
+  const index = new Map(s.orders.map((o, i) => [o.id, i]))
+  return [...items].sort((a, b) => {
+    const oa = orderOf(a)
+    const ob = orderOf(b)
+    const byTime = stampMinutes(placedAt(ob)) - stampMinutes(placedAt(oa))
+    return byTime !== 0 ? byTime : (index.get(ob.id) ?? 0) - (index.get(oa.id) ?? 0)
+  })
+}
+
+/** Lower case without Vietnamese accents, so "binh" matches "Bình". */
+export function plain(text: string): string {
+  return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'd').toLowerCase()
+}
+
+/** Search by order code, customer name or phone number: contains, ignoring case, accents and spaces in the phone (CN-56). */
+export function matchesSearch(s: State, o: Order, query: string): boolean {
+  const q = plain(query.trim())
+  if (q === '') return true
+  const c = findCustomer(s, o.customerId)
+  const digits = q.replace(/\s/g, '')
+  return (
+    plain(o.code).includes(q) ||
+    plain(c?.name ?? '').includes(q) ||
+    (digits !== '' && (c?.phone ?? '').replace(/\s/g, '').includes(digits))
+  )
+}

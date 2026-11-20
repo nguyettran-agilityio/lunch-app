@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { DayLabel, LinesSummary, PendingRefundNote } from '@/components/parts'
-import { Button, ConfirmButton, OrderBadges, cx } from '@/components/ui'
+import { Button, ConfirmButton, OrderBadges, TextInput, cx } from '@/components/ui'
 import {
   beforeCutoff,
   canReject,
@@ -222,5 +222,20 @@ export function MarkRefundedButtons({ order, refundId }: { order: Order; refundI
         {m.refunds.markAs(m.refunds.method[other])}
       </Button>
     </div>
+  )
+}
+
+/** Search by order code, customer name or phone number (CN-56). */
+export function OrderSearch({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { m } = useApp()
+  return (
+    <TextInput
+      type="search"
+      label={m.shop.search}
+      placeholder={m.shop.searchPlaceholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="mb-4"
+    />
   )
 }

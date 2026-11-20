@@ -212,7 +212,10 @@ export function RefundState({ refund }: { refund: Refund }) {
   if (!refund.refundedAt) return <span className="font-semibold text-chili">{m.refund.needsRefund}</span>
   return (
     <span className="text-muted">
-      {m.refunds.by(money(refund.amount), m.refunds.method[refund.method ?? 'transfer'])} {m.refunds.at(refund.refundedAt.slice(11))}
+      {m.refunds.by(money(refund.amount), m.refunds.method[refund.method ?? 'transfer'])} {m.refunds.at(refundTime(refund.refundedAt))}
     </span>
   )
 }
+
+/** A refund's time, the same everywhere: "08:00, 20/11". */
+export const refundTime = (at: string): string => `${at.slice(11)}, ${dayMonth(at.slice(0, 10))}`

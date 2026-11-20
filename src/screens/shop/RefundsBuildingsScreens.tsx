@@ -2,29 +2,44 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { DayLabel, RefundToView } from '@/components/parts'
+import { DayLabel, RefundToView, refundTime } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, refundList, setDeliveryTime } from '@/proto/logic'
+import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, matchesSearch, newestFirst, refundList, setDeliveryTime } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Building } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
-import { MarkRefundedButtons } from './common'
+import { MarkRefundedButtons, OrderSearch } from './common'
 
 /** S-S10 Refunds: Needs refund with amount, reason, customer phone; mark Refunded (BR-21). */
 export function RefundsScreen() {
   const { s, m, money } = useApp()
-  const all = refundList(s)
+  const [query, setQuery] = useState('')
+  // Every day, newest order first, filtered by the search box (CN-56).
+  const all = newestFirst(
+    s,
+    refundList(s).filter((x) => matchesSearch(s, x.order, query)),
+    (x) => x.order,
+  )
   const open = all.filter((x) => x.refund.refundedAt === null)
+  const anyPending = refundList(s).some((x) => x.refund.refundedAt === null)
   const done = all.filter((x) => x.refund.refundedAt !== null)
 
   return (
     <>
       <PageTitle title={m.refunds.title} intro={m.refunds.intro} />
-      {open.length === 0 && (
+      <OrderSearch value={query} onChange={setQuery} />
+      {/* A search with no result says so; "nothing to refund" only when no refund is pending at all (CN-57). */}
+      {query.trim() !== '' && all.length === 0 ? (
         <Card>
-          <p>{m.refunds.empty}</p>
+          <p>{m.shop.noMatch}</p>
         </Card>
+      ) : (
+        !anyPending && (
+          <Card>
+            <p>{m.refunds.empty}</p>
+          </Card>
+        )
       )}
       {open.length > 0 && <h2 className="mb-2 text-lg font-bold">{m.refunds.pendingSection}</h2>}
       <ul className="grid gap-3 lg:grid-cols-2">
@@ -79,7 +94,7 @@ export function RefundsScreen() {
                 </span>
                 <span className="font-semibold">
                   {m.refunds.by(money(refund.amount), m.refunds.method[refund.method ?? 'transfer'])}{' '}
-                  <span className="font-normal text-muted">{m.refunds.at(refund.refundedAt!)}</span>
+                  <span className="font-normal text-muted">{m.refunds.at(refundTime(refund.refundedAt!))}</span>
                 </span>
               </li>
             ))}

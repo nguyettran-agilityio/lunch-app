@@ -3,9 +3,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { cancelOrder, confirmOrder, confirmPayment, editOrder, setRefundTo, reportNotReceived, reportTransfer, type Result } from '../src/proto/logic'
+import { addToCart, cancelOrder, confirmOrder, markRefunded, placeOrder, confirmPayment, editOrder, setRefundTo, reportNotReceived, reportTransfer, type Result } from '../src/proto/logic'
 import { seed } from '../src/proto/seed'
-import { vietnamNow } from '../src/proto/time'
+import { addDays, vietnamNow } from '../src/proto/time'
 import type { Line, State } from '../src/proto/types'
 
 const nav = vi.hoisted(() => ({ params: new URLSearchParams(), path: '/' }))
@@ -406,5 +406,168 @@ describe('refunds: shown, reminded, cash or transfer (CN-53, CN-54)', () => {
     show(<fresh.OrderScreen />)
     expect(screen.getByRole('button', { name: 'Tải ảnh QR' })).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Tiền mặt khi giao' })).toBeNull()
+  })
+})
+
+describe('sorting and searching on the shop screens (CN-56)', () => {
+  const must = (r: Result): State => {
+    if (!r.ok) throw new Error(r.error)
+    return r.state
+  }
+  /** Seed at 8:00 with a new order by Nguyễn Minh An (c1), placed after all the seed orders. */
+  function withNewOrder(): [State, string] {
+    let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 }, shopDay: today }
+    s = must(addToCart(s, today, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
+    const r = placeOrder(s, today, 'b-bitexco', '')
+    return [must(r), (r as { id: string }).id]
+  }
+  const codes = () => screen.queryAllByRole('link').map((l) => l.textContent).filter((c) => /^LA\d+$/.test(c ?? ''))
+
+  test('AC46, AC47: Orders: newest first; the search keeps the filter and the day', async () => {
+    const [s, id] = withNewOrder()
+    nav.path = '/shop'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { ShopOrdersScreen } = await import('../src/screens/shop/ShopOrdersScreen')
+    show(<ShopOrdersScreen />)
+    const code = (oid: string) => s.orders.find((o) => o.id === oid)!.code
+    expect(codes()[0]).toBe(code(id))
+    expect(codes()[1]).toBe(code(`o-${today}-8`))
+
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'placed' } })
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'binh' } })
+    // Bình has a Placed and a Cancelled order today: the filter keeps only the Placed one.
+    expect(codes()).toEqual([code(`o-${today}-2`)])
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: '0912345' } })
+    expect(codes()).toEqual([code(`o-${today}-2`)])
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: code(`o-${today}-4`).slice(-4) } })
+    expect(codes()).toEqual([code(`o-${today}-4`)])
+    // Saturday's order is not found from today's list.
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: s.orders.find((o) => o.date !== today)!.code } })
+    expect(codes()).toEqual([])
+  })
+
+  test('AC46: Cutoff review: newest first in each group, and the search', async () => {
+    const [s0] = withNewOrder()
+    const s = { ...s0, clock: { today, minutes: 11 * 60 } }
+    nav.path = '/shop/review'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { ReviewScreen } = await import('../src/screens/shop/ReviewScreen')
+    show(<ReviewScreen />)
+    const placedGroup = screen.getByRole('heading', { name: /Chưa xác nhận/ }).closest('section')!
+    const groupCodes = within(placedGroup).getAllByRole('link').map((l) => l.textContent)
+    const expected = s.orders.filter((o) => o.date === today && o.status === 'placed').map((o) => o.code).reverse()
+    expect(groupCodes).toEqual(expected)
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'zzz' } })
+    expect(screen.getByText('Không có đơn nào khớp.')).toBeDefined()
+  })
+
+  test('AC48: Refunds: search over every day in both parts, newest order first; one time format everywhere', async () => {
+    let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 } }
+    // Lê Thu Hà (c3) cancels her paid Saturday order; Bình's refund of today is made.
+    const sat = s.orders.find((o) => o.date === addDays(today, 1))!
+    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id))
+    const binh = s.orders.find((o) => o.id === `o-${today}-8`)!
+    s = must(markRefunded(s, binh.id, binh.refunds[0].id, 'transfer'))
+    nav.path = '/shop/refunds'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { RefundsScreen } = await import('../src/screens/shop/RefundsBuildingsScreens')
+    show(<RefundsScreen />)
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'thu ha' } })
+    expect(codes()).toEqual([sat.code])
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'binh' } })
+    expect(codes()).toEqual([binh.code])
+    expect(screen.getByText(/lúc \d\d:\d\d, \d\d\/\d\d/)).toBeDefined()
+    expect(screen.queryByText(/lúc \d{4}-/)).toBeNull()
+  })
+
+  test('AC47, CN-57: the code search keeps the filter; the search text stays when the day changes', async () => {
+    const [s] = withNewOrder()
+    nav.path = '/shop'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { ShopOrdersScreen } = await import('../src/screens/shop/ShopOrdersScreen')
+    show(<ShopOrdersScreen />)
+    const four = s.orders.find((o) => o.id === `o-${today}-4`)!
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'confirmed' } })
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: four.code.slice(-4) } })
+    expect(codes()).toEqual([four.code])
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'placed' } })
+    expect(codes()).toEqual([])
+    // Change day: the text stays and searches Saturday.
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: '' } })
+    const sat = s.orders.find((o) => o.date === addDays(today, 1))!
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'thu ha' } })
+    fireEvent.click(screen.getAllByRole('button').find((b) => b.textContent?.includes(`${sat.date.slice(8, 10)}/${sat.date.slice(5, 7)}`))!)
+    expect((screen.getByLabelText('Tìm đơn') as HTMLInputElement).value).toBe('thu ha')
+    expect(codes()).toEqual([sat.code])
+  })
+
+  test('AC46: Cutoff review: the not fully paid group is newest first too', async () => {
+    let [s] = withNewOrder()
+    // Confirm the new unpaid order so it joins Huy's unpaid order in the second group.
+    s = must(confirmOrder(s, s.orders.at(-1)!.id))
+    s = { ...s, clock: { today, minutes: 11 * 60 } }
+    nav.path = '/shop/review'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { ReviewScreen } = await import('../src/screens/shop/ReviewScreen')
+    show(<ReviewScreen />)
+    const unpaid = screen.getByRole('heading', { name: /Chưa trả đủ/ }).closest('section')!
+    expect(within(unpaid).getAllByRole('link').map((l) => l.textContent)).toEqual([s.orders.at(-1)!.code, s.orders.find((o) => o.id === `o-${today}-4`)!.code])
+  })
+
+  test('AC48, CN-57: Refunds: one customer in both parts, newest first; no result says "No order matches"', async () => {
+    let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 } }
+    // Bình's seed refund is made; he then cancels his other, paid, order of today.
+    const old = s.orders.find((o) => o.id === `o-${today}-8`)!
+    s = must(markRefunded(s, old.id, old.refunds[0].id, 'transfer'))
+    s = must(confirmPayment(s, `o-${today}-2`, 'p-seed'))
+    s = must(cancelOrder({ ...s, me: 'c2' }, `o-${today}-2`))
+    // Hà cancels her paid Saturday order, so two refunds are pending.
+    const sat = s.orders.find((o) => o.date === addDays(today, 1))!
+    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id))
+    nav.path = '/shop/refunds'
+    nav.params = new URLSearchParams()
+    const show = await load(s)
+    const { RefundsScreen } = await import('../src/screens/shop/RefundsBuildingsScreens')
+    show(<RefundsScreen />)
+    const code = (id: string) => s.orders.find((o) => o.id === id)!.code
+    // Not refunded: Saturday's order was created after order 2, at the same placed time, so it is first.
+    expect(codes()).toEqual([sat.code, code(`o-${today}-2`), old.code])
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'binh' } })
+    expect(codes()).toEqual([code(`o-${today}-2`), old.code])
+    expect(screen.getByRole('heading', { name: 'Chưa hoàn' })).toBeDefined()
+    expect(screen.getByRole('heading', { name: 'Đã hoàn' })).toBeDefined()
+    fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'zzz' } })
+    expect(screen.getByText('Không có đơn nào khớp.')).toBeDefined()
+    expect(screen.queryByText('Không có khoản nào cần hoàn.')).toBeNull()
+  })
+
+  test('CN-56: the Delivery screen has no search box', async () => {
+    nav.path = '/shop/delivery'
+    nav.params = new URLSearchParams()
+    const show = await load({ ...seed(today), shopDay: today })
+    const { DeliveryScreen } = await import('../src/screens/shop/DeliveryScreen')
+    show(<DeliveryScreen />)
+    expect(screen.queryByLabelText('Tìm đơn')).toBeNull()
+    // Its order stays by delivery time.
+    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent?.slice(0, 5))).toEqual(['11:30', '11:45', '12:00'])
+  })
+
+  test('refund time: the customer sees the same format as the shop', async () => {
+    let s: State = { ...seed(today), me: 'c2', clock: { today, minutes: 8 * 60 } }
+    const binh = s.orders.find((o) => o.id === `o-${today}-8`)!
+    s = must(markRefunded(s, binh.id, binh.refunds[0].id, 'transfer'))
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: binh.id })
+    const show = await load(s)
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    show(<OrderScreen />)
+    const [d, mo] = [today.slice(8, 10), today.slice(5, 7)]
+    expect(screen.getByText(`Đã hoàn 45.000 ₫ bằng chuyển khoản lúc 08:00, ${d}/${mo}`)).toBeDefined()
   })
 })

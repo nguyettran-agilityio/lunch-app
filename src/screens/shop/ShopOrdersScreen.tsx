@@ -2,11 +2,11 @@
 
 import { useState } from 'react'
 import { Button, Card, PageTitle, Select } from '@/components/ui'
-import { dayOrders, paymentState, startPreparing } from '@/proto/logic'
+import { dayOrders, matchesSearch, newestFirst, paymentState, startPreparing } from '@/proto/logic'
 import { run } from '@/proto/store'
 import type { PaymentState, Status } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
-import { ShopDayBar, ShopOrderCard } from './common'
+import { OrderSearch, ShopDayBar, ShopOrderCard } from './common'
 
 const STATUSES: Status[] = ['placed', 'confirmed', 'preparing', 'delivering', 'delivered', 'rejected', 'cancelled']
 const PAYMENTS: PaymentState[] = ['unpaid', 'reported', 'underpaid', 'paid']
@@ -18,9 +18,11 @@ export function ShopOrdersScreen() {
   const [payment, setPayment] = useState('')
   const [building, setBuilding] = useState('')
   const [picked, setPicked] = useState<string[]>([])
+  const [query, setQuery] = useState('')
 
   const all = dayOrders(s, s.shopDay)
-  const shown = all.filter(
+  // Newest order first; search within the selected day, together with the filters (CN-56).
+  const shown = newestFirst(s, all.filter(
     (o) =>
       (!status || o.status === status) &&
       // "Reported" lists every order with an open report, also Paid, Cancelled or Rejected ones (CN-39, CN-47).
@@ -28,8 +30,9 @@ export function ShopOrdersScreen() {
         (payment === 'reported'
           ? o.reports.length > 0
           : o.status !== 'rejected' && o.status !== 'cancelled' && paymentState(o) === payment)) &&
-      (!building || o.buildingId === building),
-  )
+      (!building || o.buildingId === building) &&
+      matchesSearch(s, o, query),
+  ), (o) => o)
   // Only Shop confirmed orders can be selected (BR-24); drop any that moved on.
   const selected = picked.filter((id) => all.some((o) => o.id === id && o.status === 'confirmed'))
 
@@ -37,6 +40,7 @@ export function ShopOrdersScreen() {
     <>
       <PageTitle title={m.nav.shopOrders} />
       <ShopDayBar />
+      <OrderSearch value={query} onChange={setQuery} />
       <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Select label={m.shop.filterStatus} value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="">{m.shop.all}</option>

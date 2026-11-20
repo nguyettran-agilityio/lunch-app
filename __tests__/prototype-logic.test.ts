@@ -5,6 +5,9 @@ import {
   addPlateToDraft,
   addToCart,
   cancelOrder,
+  matchesSearch,
+  newestFirst,
+  plain,
   cashAllowed,
   giveCashBack,
   refundReminder,
@@ -833,5 +836,35 @@ describe('refunds: never blocking, reminded, cash or transfer (CN-53, CN-54)', (
     expect(findOrder(must(markRefunded(cash, id, refundId)), id)!.refunds[0].method).toBe('cash')
     expect(findOrder(must(markRefunded(cash, id, refundId, 'transfer')), id)!.refunds[0].method).toBe('transfer')
     expect(findOrder(must(markRefunded(start, id, refundId)), id)!.refunds[0].method).toBe('transfer')
+  })
+})
+
+describe('sorting and searching orders (CN-56)', () => {
+  it('AC46: newest placed order first; orders placed at the same minute keep the newest created first', () => {
+    let s = at(seed(TODAY), 8 * 60)
+    const [s1, early] = place(s, TODAY, 'd-bunbo')
+    s = at(s1, 8 * 60 + 10)
+    const [s2, late] = place(s, TODAY, 'd-thitkho')
+    const sorted = newestFirst(s2, s2.orders.filter((o) => o.date === TODAY), (o) => o).map((o) => o.id)
+    expect(sorted.slice(0, 2)).toEqual([late, early])
+    // The seed orders were all placed at the same time: the one created last comes first.
+    expect(sorted.at(-1)).toBe(`o-${TODAY}-1`)
+  })
+
+  it('AC47: search matches code, name or phone; contains, ignoring case, accents and phone spaces', () => {
+    const s = seed(TODAY)
+    const binh = s.orders.filter((o) => o.customerId === 'c2')
+    const found = (q: string) => s.orders.filter((o) => o.date === TODAY && matchesSearch(s, o, q)).map((o) => o.id)
+    expect(found('binh')).toEqual(binh.filter((o) => o.date === TODAY).map((o) => o.id))
+    expect(found('TRẦN văn')).toEqual(found('binh'))
+    expect(found('0912345')).toEqual(found('binh'))
+    expect(found('0912 345 678')).toEqual(found('binh'))
+    // Part of the code (here its last four characters, e.g. "9004" of LA1119004), any case.
+    const code = s.orders.find((o) => o.id === `o-${TODAY}-4`)!.code
+    expect(found(code.slice(-4))).toEqual([`o-${TODAY}-4`])
+    expect(found(code.toLowerCase())).toEqual([`o-${TODAY}-4`])
+    expect(found('')).toHaveLength(s.orders.filter((o) => o.date === TODAY).length)
+    expect(found('zzz')).toEqual([])
+    expect(plain('Đặng Thị Ánh')).toBe('dang thi anh')
   })
 })
