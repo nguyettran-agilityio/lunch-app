@@ -6,10 +6,10 @@ import { useState } from 'react'
 import { DayLabel } from '@/components/parts'
 import { Button, Notice, QtyStepper, cx } from '@/components/ui'
 import {
+  addPlateToOrder,
   addToCart,
   customerChangeBlock,
   dayState,
-  editOrder,
   findDay,
   findDish,
   groupCounts,
@@ -133,8 +133,7 @@ export function PlateScreen() {
                 disabled={!valid || !open}
                 onClick={() => {
                   if (order) {
-                    const line = { id: `new-plate-${Date.now()}`, kind: 'plate' as const, picks, qty, unitPrice: price }
-                    const r = run((st) => editOrder(st, order.id, [...order.lines, line], order.buildingId, order.note))
+                    const r = run((st) => addPlateToOrder(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
                     if (!r.ok) return
                     const after = r.state.orders.find((o) => o.id === order.id)!
                     router.push(owed(after) > 0 && netPaid(after) > 0 ? `/pay?id=${order.id}` : back)

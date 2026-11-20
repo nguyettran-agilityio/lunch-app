@@ -2,6 +2,7 @@
 // Business rules of the prototype against the acceptance criteria in docs/spec.md.
 import { describe, expect, it } from 'vitest'
 import {
+  addPlateToOrder,
   addToCart,
   cancelOrder,
   confirmOrder,
@@ -309,5 +310,16 @@ describe('shop day run', () => {
     const s = seed(TODAY)
     expect(dayState(s, addDays(TODAY, 7))).toBe('outOfRange')
     expect(dayState(s, addDays(TODAY, -1))).toBe('outOfRange')
+  })
+
+  it('CN-23: plates added to an order get their own lines and send it back to Placed', () => {
+    let s = seed(TODAY)
+    const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
+    const plate = { kind: 'plate' as const, picks: ['d-thitkho', 'd-raumuong'], qty: 1, unitPrice: 35000 }
+    s = must(addPlateToOrder(must(addPlateToOrder(s, mine.id, plate)), mine.id, plate))
+    const o = findOrder(s, mine.id)!
+    expect(new Set(o.lines.map((l) => l.id)).size).toBe(3)
+    expect(o.status).toBe('placed')
+    expect(owed(o)).toBe(70000)
   })
 })

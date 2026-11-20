@@ -11,6 +11,7 @@ import type {
   Line,
   NewLine,
   Order,
+  PlateLine,
   PaymentState,
   RefundReason,
   ServiceDay,
@@ -276,6 +277,15 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
   const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit')
   const next = o.status === 'placed' ? withR : moveTo(s2, withR, 'placed')
   return ok(patchOrder(s2, id, () => next))
+}
+
+/** Add a new build-your-own plate to an order already placed, as one edit (CN-23). */
+export function addPlateToOrder(s: State, id: string, plate: Omit<PlateLine, 'id'>): Result {
+  const o = findOrder(s, id)
+  if (!o) return fail('notFound')
+  if (!plateValid(s, o.date, plate.picks)) return fail('invalidPlate')
+  const [s2, lineId] = nextId(s, 'l')
+  return editOrder(s2, id, [...o.lines, { ...plate, id: lineId }], o.buildingId, o.note)
 }
 
 // ---------- Shop actions ----------
