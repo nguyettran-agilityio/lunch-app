@@ -1,9 +1,10 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
-import { DayLabel } from '@/components/parts'
+import { DayLabel, RefundToView } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import { approveBuilding, declineBuilding, findCustomer, isActive, markRefunded, refundList, setDeliveryTime } from '@/proto/logic'
+import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, markRefunded, refundList, setDeliveryTime } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Building } from '@/proto/types'
@@ -31,7 +32,9 @@ export function RefundsScreen() {
             <li key={refund.id} className="rounded-xl bg-card p-4 ring-1 ring-chili/30">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-2xl font-bold text-chili">{money(refund.amount)}</span>
-                <span className="text-sm font-bold tracking-wide text-muted">{order.code}</span>
+                <Link href={`/shop/order?id=${order.id}`} className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2">
+                  {order.code}
+                </Link>
               </div>
               <p className="font-semibold">
                 {c?.name} · {c?.phone}
@@ -39,7 +42,23 @@ export function RefundsScreen() {
               <p className="mb-3 text-sm text-muted">
                 {m.reason[refund.reason]} · <DayLabel date={order.date} />
               </p>
-              <Button onClick={() => run((st) => markRefunded(st, order.id, refund.id))}>{m.refunds.mark}</Button>
+              {/* Where to send it, as entered by the customer; the shop can mark it refunded either way (CN-33). */}
+              <div className="mb-3">
+                {order.refundTo ? (
+                  <RefundToView to={order.refundTo} />
+                ) : (
+                  <p className="text-sm font-semibold text-[#7a5104]">{m.refunds.noDestination}</p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => run((st) => markRefunded(st, order.id, refund.id))}>{m.refunds.mark}</Button>
+                <Link
+                  href={`/shop/order?id=${order.id}`}
+                  className="inline-flex min-h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-leaf hover:bg-leaf-soft"
+                >
+                  {m.refunds.openOrder}
+                </Link>
+              </div>
             </li>
           )
         })}
@@ -51,7 +70,10 @@ export function RefundsScreen() {
             {done.map(({ order, refund }) => (
               <li key={refund.id} className="flex flex-wrap justify-between gap-2 py-3 text-[15px]">
                 <span>
-                  {order.code} · {findCustomer(s, order.customerId)?.name} · {m.reason[refund.reason]}
+                  <Link href={`/shop/order?id=${order.id}`} className="font-semibold text-leaf underline underline-offset-2">
+                    {order.code}
+                  </Link>{' '}
+                  · {findCustomer(s, order.customerId)?.name} · {m.reason[refund.reason]}
                 </span>
                 <span className="font-semibold">
                   {money(refund.amount)} <span className="font-normal text-muted">{m.refunds.at(refund.refundedAt!)}</span>
@@ -135,7 +157,7 @@ function BuildingCard({ building: b }: { building: Building }) {
             <Button disabled={minutes === null} onClick={() => run((st) => approveBuilding(st, b.id, minutes!))}>
               {m.buildings.approve}
             </Button>
-            <ConfirmButton label={m.buildings.decline} question={m.buildings.declineConfirm} onConfirm={() => run((st) => declineBuilding(st, b.id))} />
+            <DeclineButton building={b} />
           </>
         ) : (
           <Button
@@ -148,5 +170,41 @@ function BuildingCard({ building: b }: { building: Building }) {
         )}
       </div>
     </Card>
+  )
+}
+
+/** Declining shows the orders that will be rejected and each refund before anything changes (CN-26). */
+function DeclineButton({ building: b }: { building: Building }) {
+  const { s, m, money } = useApp()
+  const preview = declinePreview(s, b.id)
+  const total = preview.reduce((sum, p) => sum + p.refund, 0)
+  return (
+    <ConfirmButton
+      label={m.buildings.decline}
+      question={preview.length > 0 ? m.buildings.declineConfirm : m.buildings.declineNone}
+      onConfirm={() => run((st) => declineBuilding(st, b.id))}
+    >
+      {preview.length > 0 && (
+        <div className="w-full text-sm text-ink">
+          <ul className="mb-1 divide-y divide-chili/20">
+            {preview.map(({ order, refund }) => (
+              <li key={order.id} className="flex flex-wrap justify-between gap-2 py-1">
+                <span>
+                  <Link href={`/shop/order?id=${order.id}`} className="font-bold tracking-wide text-leaf underline underline-offset-2">
+                    {order.code}
+                  </Link>{' '}
+                  · {findCustomer(s, order.customerId)?.name} · <DayLabel date={order.date} />
+                </span>
+                <span className={refund > 0 ? 'font-semibold text-chili' : 'text-muted'}>
+                  {m.buildings.declineRefund(money(refund))}
+                  {refund === 0 && ` (${m.buildings.declineNoRefund})`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="font-semibold">{m.buildings.declineTotal(preview.length, money(total))}</p>
+        </div>
+      )}
+    </ConfirmButton>
   )
 }

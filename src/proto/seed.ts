@@ -54,13 +54,14 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
       reported: opts.reported ?? false,
       refunds: opts.refunds ?? [],
       kept: false,
-      history: path.map((s, i) => ({ status: s, at: stamp(addDays(today, -1), 17 * 60 + i * 20) })),
+      history: path.map((s, i) => ({ kind: 'status' as const, status: s, at: stamp(addDays(today, -1), 17 * 60 + i * 20) })),
       shopNote: '',
+      refundTo: null,
     }
   }
 
   return {
-    version: 1,
+    version: 2,
     lang: 'vi',
     clock: { today, minutes },
     me: 'c1',
@@ -74,21 +75,23 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
       { id: 'g-veg', name: 'Rau', min: 1, max: 1, included: 1, extraFee: 0 },
       { id: 'g-soup', name: 'Canh', min: 0, max: 1, included: 1, extraFee: 0 },
     ],
+    // A fixed dish is one complete meal for one person; its description says what comes with it (CN-30).
+    // Some dishes have an English name (CN-31); the others show the Vietnamese name in English too.
     dishes: [
-      { id: 'd-suon', name: 'Sườn ram mặn ngọt', description: 'Sườn non ram nước mắm, hành phi', price: 45000, groupId: 'g-main', surcharge: 5000 },
-      { id: 'd-thitkho', name: 'Thịt kho trứng', description: 'Ba chỉ kho nước dừa, trứng vịt', price: 40000, groupId: 'g-main', surcharge: 0 },
-      { id: 'd-cakho', name: 'Cá basa kho tộ', description: 'Kho tiêu, nước màu nhà làm', price: null, groupId: 'g-main', surcharge: 5000 },
-      { id: 'd-trung', name: 'Trứng chiên', description: 'Trứng gà chiên hành lá', price: null, groupId: 'g-main', surcharge: 0 },
-      { id: 'd-ga', name: 'Gà xào sả ớt', description: 'Đùi gà, sả, ớt sừng', price: null, groupId: 'g-main', surcharge: 5000 },
+      { id: 'd-suon', name: 'Sườn ram mặn ngọt', nameEn: 'Caramelised pork ribs', description: 'Kèm cơm trắng, canh rau. Sườn non ram nước mắm, hành phi', descriptionEn: 'With steamed rice and vegetable soup. Pork ribs in fish sauce caramel, fried shallots', price: 45000, groupId: 'g-main', surcharge: 5000 },
+      { id: 'd-thitkho', name: 'Thịt kho trứng', nameEn: 'Braised pork belly with egg', description: 'Kèm cơm trắng, dưa cải. Ba chỉ kho nước dừa, trứng vịt', descriptionEn: 'With steamed rice and pickled greens. Pork belly braised in coconut water, duck egg', price: 40000, groupId: 'g-main', surcharge: 0 },
+      { id: 'd-cakho', name: 'Cá basa kho tộ', nameEn: 'Clay-pot braised catfish', description: 'Kho tiêu, nước màu nhà làm', price: null, groupId: 'g-main', surcharge: 5000 },
+      { id: 'd-trung', name: 'Trứng chiên', nameEn: 'Fried egg', description: 'Trứng gà chiên hành lá', price: null, groupId: 'g-main', surcharge: 0 },
+      { id: 'd-ga', name: 'Gà xào sả ớt', nameEn: 'Lemongrass chilli chicken', description: 'Đùi gà, sả, ớt sừng', price: null, groupId: 'g-main', surcharge: 5000 },
       { id: 'd-dauhu', name: 'Đậu hũ sốt cà', description: 'Đậu non, cà chua, hành lá', price: null, groupId: 'g-main', surcharge: 0 },
-      { id: 'd-raumuong', name: 'Rau muống xào tỏi', description: '', price: null, groupId: 'g-veg', surcharge: 0 },
+      { id: 'd-raumuong', name: 'Rau muống xào tỏi', nameEn: 'Garlic water spinach', description: '', price: null, groupId: 'g-veg', surcharge: 0 },
       { id: 'd-caithia', name: 'Cải thìa luộc', description: 'Chấm nước mắm tỏi', price: null, groupId: 'g-veg', surcharge: 0 },
       { id: 'd-susu', name: 'Su su xào', description: '', price: null, groupId: 'g-veg', surcharge: 0 },
-      { id: 'd-canhchua', name: 'Canh chua cá', description: '', price: null, groupId: 'g-soup', surcharge: 0 },
+      { id: 'd-canhchua', name: 'Canh chua cá', nameEn: 'Sour fish soup', description: '', price: null, groupId: 'g-soup', surcharge: 0 },
       { id: 'd-canhbi', name: 'Canh bí đỏ', description: '', price: null, groupId: 'g-soup', surcharge: 0 },
-      { id: 'd-bunbo', name: 'Bún bò Huế', description: 'Giò heo, chả cua, rau sống', price: 45000, groupId: null, surcharge: 0 },
-      { id: 'd-comga', name: 'Cơm gà Hội An', description: 'Gà ta xé, cơm nghệ, đồ chua', price: 45000, groupId: null, surcharge: 0 },
-      { id: 'd-buncha', name: 'Bún chả', description: 'Chả nướng than, nước chấm chua ngọt', price: 40000, groupId: null, surcharge: 0 },
+      { id: 'd-bunbo', name: 'Bún bò Huế', nameEn: 'Hue beef noodle soup', description: 'Một tô bún: giò heo, chả cua, rau sống', descriptionEn: 'One bowl of noodles: pork knuckle, crab cake, fresh herbs', price: 45000, groupId: null, surcharge: 0 },
+      { id: 'd-comga', name: 'Cơm gà Hội An', nameEn: 'Hoi An chicken rice', description: 'Cơm nghệ, gà ta xé, đồ chua', descriptionEn: 'Turmeric rice, shredded chicken, pickles', price: 45000, groupId: null, surcharge: 0 },
+      { id: 'd-buncha', name: 'Bún chả', description: 'Kèm bún, rau sống. Chả nướng than, nước chấm chua ngọt', price: 40000, groupId: null, surcharge: 0 },
     ],
     days: [
       {
@@ -161,6 +164,7 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
       order('c3', d(1), 'b-viettel', [plate(['d-ga', 'd-raumuong', 'd-canhbi'], 1, 40000)], 'confirmed', { received: 40000 }),
     ],
     carts: {},
+    drafts: {},
     shopDay: today,
     seq: 100,
   }

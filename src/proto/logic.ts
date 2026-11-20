@@ -8,12 +8,15 @@ import type {
   DateStr,
   Dish,
   DishGroup,
+  EditChange,
+  EditDraft,
   Line,
   NewLine,
   Order,
   PlateLine,
   PaymentState,
   RefundReason,
+  RefundTo,
   ServiceDay,
   State,
   Status,
@@ -35,6 +38,8 @@ export type ErrorCode =
   | 'nothingOwed'
   | 'cannotReject'
   | 'cannotKeep'
+  | 'noRefundDue'
+  | 'refundToMissing'
   | 'notFound'
 
 export type Result = { ok: true; state: State; id?: string } | { ok: false; error: ErrorCode }
@@ -50,6 +55,19 @@ export const findBuilding = (s: State, id: string): Building | undefined => s.bu
 export const findCustomer = (s: State, id: string): Customer | undefined => s.customers.find((c) => c.id === id)
 export const findOrder = (s: State, id: string): Order | undefined => s.orders.find((o) => o.id === id)
 export const findDay = (s: State, date: DateStr): ServiceDay | undefined => s.days.find((d) => d.date === date)
+
+/** Dish name in the interface language: the optional English name in English, else the Vietnamese one (CN-31). */
+export function dishName(s: State, id: string): string {
+  const d = findDish(s, id)
+  if (!d) return ''
+  return s.lang === 'en' && d.nameEn ? d.nameEn : d.name
+}
+
+export function dishDescription(s: State, id: string): string {
+  const d = findDish(s, id)
+  if (!d) return ''
+  return s.lang === 'en' && d.descriptionEn ? d.descriptionEn : d.description
+}
 
 // ---------- Days and cutoff (BR-3, BR-4, D6) ----------
 
@@ -170,7 +188,7 @@ function patchOrder(s: State, id: string, fn: (o: Order) => Order): State {
 }
 
 function moveTo(s: State, o: Order, status: Status): Order {
-  return { ...o, status, history: [...o.history, { status, at: now(s) }] }
+  return { ...o, status, history: [...o.history, { kind: 'status', status, at: now(s) }] }
 }
 
 function withRefund(s: State, o: Order, amount: number, reason: RefundReason): [State, Order] {
@@ -206,14 +224,19 @@ export function proposeBuilding(s: State, name: string, address: string): Result
   return ok({ ...s2, buildings: [...s2.buildings, b] }, id)
 }
 
+/** Approved buildings, or a pending one proposed by this customer (BR-16, CN-25). */
+function usableBuilding(s: State, id: string): boolean {
+  const b = findBuilding(s, id)
+  return !!b && (b.state === 'approved' || (b.state === 'pending' && b.proposedBy === s.me))
+}
+
 export function placeOrder(s: State, date: DateStr, buildingId: string, note: string): Result {
   const state = dayState(s, date)
   if (state === 'pastCutoff') return fail('pastCutoff')
   if (state !== 'open') return fail('dayNotOpen')
   const cart = s.carts[date] ?? []
   if (cart.length === 0) return fail('emptyCart')
-  const b = findBuilding(s, buildingId)
-  if (!b || b.state === 'declined') return fail('buildingMissing')
+  if (!usableBuilding(s, buildingId)) return fail('buildingMissing')
   const n = s.orders.filter((o) => o.date === date).length + 1
   const [s2, id] = nextId(s, 'o')
   const order: Order = {
@@ -229,8 +252,9 @@ export function placeOrder(s: State, date: DateStr, buildingId: string, note: st
     reported: false,
     refunds: [],
     kept: false,
-    history: [{ status: 'placed', at: now(s) }],
+    history: [{ kind: 'status', status: 'placed', at: now(s) }],
     shopNote: '',
+    refundTo: null,
   }
   const carts = { ...s2.carts }
   delete carts[date]
@@ -261,8 +285,7 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
   if (block) return fail(block)
   const kept = lines.filter((l) => l.qty > 0)
   if (kept.length === 0) return fail('emptyCart')
-  const b = findBuilding(s, buildingId)
-  if (!b || b.state === 'declined') return fail('buildingMissing')
+  if (!usableBuilding(s, buildingId) && buildingId !== o.buildingId) return fail('buildingMissing')
   const newTotal = linesTotal(kept)
   // Refunds not yet paid back are recomputed from scratch: a refund is needed only while the
   // money the shop confirmed is more than the new total (section 4.3, BR-20).
@@ -275,17 +298,73 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
     refunds: o.refunds.filter((r) => r.refundedAt !== null),
   }
   const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit')
-  const next = o.status === 'placed' ? withR : moveTo(s2, withR, 'placed')
-  return ok(patchOrder(s2, id, () => next))
+  // Every saved edit is recorded with what changed, then the order is back to Placed (CN-32).
+  const entry = { kind: 'edit' as const, at: now(s), fromTotal: orderTotal(o), toTotal: newTotal, changes: editChanges(o, kept, buildingId, note.trim()) }
+  const logged = { ...withR, history: [...withR.history, entry] }
+  // The Lead's wording: "Order edited", then the line "Placed", also when it was already Placed (CN-32).
+  const next = moveTo(s2, logged, 'placed')
+  const drafts = { ...s2.drafts }
+  delete drafts[id]
+  return ok({ ...patchOrder(s2, id, () => next), drafts })
 }
 
-/** Add a new build-your-own plate to an order already placed, as one edit (CN-23). */
-export function addPlateToOrder(s: State, id: string, plate: Omit<PlateLine, 'id'>): Result {
+/** What one edit changed: lines added or removed, quantities, building, note (CN-32). */
+export function editChanges(o: Order, lines: Line[], buildingId: string, note: string): EditChange[] {
+  const changes: EditChange[] = []
+  for (const old of o.lines) {
+    const cur = lines.find((l) => l.id === old.id)
+    if (!cur) changes.push({ type: 'removed', line: old })
+    else if (cur.qty !== old.qty) changes.push({ type: 'qty', line: old, from: old.qty, to: cur.qty })
+  }
+  for (const l of lines) if (!o.lines.some((old) => old.id === l.id)) changes.push({ type: 'added', line: l })
+  if (buildingId !== o.buildingId) changes.push({ type: 'building', from: o.buildingId, to: buildingId })
+  if (note !== o.note) changes.push({ type: 'note', from: o.note, to: note })
+  return changes
+}
+
+// ---------- Edit drafts: change everything, then save once (CN-29) ----------
+
+export function startEdit(s: State, id: string): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
-  if (!plateValid(s, o.date, plate.picks)) return fail('invalidPlate')
-  const [s2, lineId] = nextId(s, 'l')
-  return editOrder(s2, id, [...o.lines, { ...plate, id: lineId }], o.buildingId, o.note)
+  const block = customerChangeBlock(s, o)
+  if (block) return fail(block)
+  if (s.drafts[id]) return ok(s)
+  return ok({ ...s, drafts: { ...s.drafts, [id]: { lines: o.lines, buildingId: o.buildingId, note: o.note } } })
+}
+
+export function setDraft(s: State, id: string, draft: EditDraft): State {
+  return { ...s, drafts: { ...s.drafts, [id]: draft } }
+}
+
+export function discardEdit(s: State, id: string): State {
+  const drafts = { ...s.drafts }
+  delete drafts[id]
+  return { ...s, drafts }
+}
+
+/** A new build-your-own plate goes into the edit in progress, not straight into the order (CN-23, CN-29). */
+export function addPlateToDraft(s: State, id: string, plate: Omit<PlateLine, 'id'>): Result {
+  const started = startEdit(s, id)
+  if (!started.ok) return started
+  const o = findOrder(started.state, id)!
+  if (!plateValid(started.state, o.date, plate.picks)) return fail('invalidPlate')
+  const [s2, lineId] = nextId(started.state, 'l')
+  const draft = s2.drafts[id]
+  return ok(setDraft(s2, id, { ...draft, lines: [...draft.lines, { ...plate, id: lineId }] }), lineId)
+}
+
+/** Where the customer wants the refund of this order sent (CN-33). */
+export function setRefundTo(s: State, id: string, to: RefundTo): Result {
+  const o = findOrder(s, id)
+  if (!o) return fail('notFound')
+  if (refundState(o) !== 'needsRefund') return fail('noRefundDue')
+  const filled =
+    to.kind === 'account' ? [to.bank, to.account, to.holder].every((v) => v.trim() !== '') : to.image.startsWith('data:image/')
+  if (!filled) return fail('refundToMissing')
+  const clean: RefundTo =
+    to.kind === 'account' ? { kind: 'account', bank: to.bank.trim(), account: to.account.trim(), holder: to.holder.trim() } : to
+  return ok(patchOrder(s, id, (x) => ({ ...x, refundTo: clean })))
 }
 
 // ---------- Shop actions ----------
@@ -372,6 +451,11 @@ export function deliveryTimeOn(b: Building, date: DateStr): number | null {
   let best: Building['past'][number] | null = null
   for (const e of b.past) if (e.until >= date && (best === null || e.until < best.until)) best = e
   return best ? best.time : b.deliveryTime
+}
+
+/** Orders that declining a building would reject, with the amount each would need refunded (CN-26). */
+export function declinePreview(s: State, id: string): { order: Order; refund: number }[] {
+  return s.orders.filter((o) => o.buildingId === id && canReject(o)).map((order) => ({ order, refund: Math.max(0, netPaid(order)) }))
 }
 
 /** Decline a pending building and reject its active orders, with refunds if paid (BR-17, F5). */

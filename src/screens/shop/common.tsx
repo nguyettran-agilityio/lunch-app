@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { DayLabel, LinesSummary } from '@/components/parts'
 import { Button, ConfirmButton, OrderBadges, cx } from '@/components/ui'
@@ -81,7 +82,6 @@ export function ShopOrderCard({
   const customer = findCustomer(s, order.customerId)
   const building = findBuilding(s, order.buildingId)
   const notApproved = building?.state !== 'approved'
-  const due = owed(order)
 
   return (
     <article className={cx('rounded-xl bg-card p-4 ring-1', selected ? 'ring-2 ring-leaf' : 'ring-steel/70')}>
@@ -98,7 +98,10 @@ export function ShopOrderCard({
         )}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-bold tracking-wide">{order.code}</span>
+            {/* Every order opens its detail, whatever its day or status (CN-35). */}
+            <Link href={`/shop/order?id=${order.id}`} className="font-bold tracking-wide text-leaf underline underline-offset-2">
+              {order.code}
+            </Link>
             <span className="text-lg font-bold">{money(orderTotal(order))}</span>
           </div>
           <p className="text-[15px] font-semibold">
@@ -120,6 +123,19 @@ export function ShopOrderCard({
           </div>
         </div>
       </div>
+      <ShopOrderActions order={order} extra={extra} />
+    </article>
+  )
+}
+
+/** The shop's actions on one order: confirm, payment received, reject (BR-19, BR-22, D20). */
+export function ShopOrderActions({ order, extra }: { order: Order; extra?: ReactNode }) {
+  const { s, m, money } = useApp()
+  const building = findBuilding(s, order.buildingId)
+  const notApproved = building?.state !== 'approved'
+  const due = owed(order)
+  return (
+    <>
       <div className="mt-3 flex flex-wrap gap-2">
         {order.status === 'placed' && (
           <Button
@@ -141,6 +157,6 @@ export function ShopOrderCard({
         )}
       </div>
       {order.status === 'placed' && building?.state === 'pending' && <p className="mt-2 text-sm text-[#7a5104]">{m.shop.buildingPending}</p>}
-    </article>
+    </>
   )
 }

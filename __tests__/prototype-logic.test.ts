@@ -2,13 +2,16 @@
 // Business rules of the prototype against the acceptance criteria in docs/spec.md.
 import { describe, expect, it } from 'vitest'
 import {
-  addPlateToOrder,
+  addPlateToDraft,
   addToCart,
   cancelOrder,
   confirmOrder,
   confirmPayment,
   dayState,
   declineBuilding,
+  declinePreview,
+  discardEdit,
+  dishName,
   deliveryList,
   editOrder,
   findOrder,
@@ -26,6 +29,10 @@ import {
   refundState,
   rejectOrder,
   reviewList,
+  canReject,
+  setDraft,
+  setRefundTo,
+  startEdit,
   startPreparing,
   type Result,
 } from '../src/proto/logic'
@@ -312,14 +319,154 @@ describe('shop day run', () => {
     expect(dayState(s, addDays(TODAY, -1))).toBe('outOfRange')
   })
 
-  it('CN-23: plates added to an order get their own lines and send it back to Placed', () => {
+  it('CN-23, CN-29: plates go into the edit in progress; the order changes once, on Save', () => {
     let s = seed(TODAY)
     const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
     const plate = { kind: 'plate' as const, picks: ['d-thitkho', 'd-raumuong'], qty: 1, unitPrice: 35000 }
-    s = must(addPlateToOrder(must(addPlateToOrder(s, mine.id, plate)), mine.id, plate))
+    s = must(addPlateToDraft(must(addPlateToDraft(s, mine.id, plate)), mine.id, plate))
+    // Nothing is saved yet: the order is unchanged and still Shop confirmed.
+    expect(findOrder(s, mine.id)).toMatchObject({ status: 'confirmed', lines: mine.lines })
+    const draft = s.drafts[mine.id]
+    expect(new Set(draft.lines.map((l) => l.id)).size).toBe(3)
+    s = must(editOrder(s, mine.id, draft.lines, draft.buildingId, draft.note))
     const o = findOrder(s, mine.id)!
-    expect(new Set(o.lines.map((l) => l.id)).size).toBe(3)
+    expect(o.lines.length).toBe(3)
     expect(o.status).toBe('placed')
     expect(owed(o)).toBe(70000)
+    expect(s.drafts[mine.id]).toBeUndefined()
+    expect(o.history.filter((h) => h.kind === 'edit').length).toBe(1)
+  })
+
+  it('CN-29: discarding an edit drops the draft and leaves the order as it was', () => {
+    let s = seed(TODAY)
+    const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
+    s = must(startEdit(s, mine.id))
+    s = setDraft(s, mine.id, { ...s.drafts[mine.id], note: 'Tầng 5' })
+    s = discardEdit(s, mine.id)
+    expect(s.drafts[mine.id]).toBeUndefined()
+    expect(findOrder(s, mine.id)!.note).toBe(mine.note)
+  })
+
+  it('a plate cannot be added to an order that is past its cutoff', () => {
+    const s = at(seed(TODAY), 9 * 60 + 31)
+    const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
+    const plate = { kind: 'plate' as const, picks: ['d-thitkho', 'd-raumuong'], qty: 1, unitPrice: 35000 }
+    expect(addPlateToDraft(s, mine.id, plate)).toEqual({ ok: false, error: 'pastCutoff' })
+  })
+
+  it('AC26, CN-32: a saved edit is recorded with the old and new total and each change, then Placed', () => {
+    let s = seed(TODAY)
+    const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
+    const [plateLine] = mine.lines
+    const lines: Line[] = [
+      { ...plateLine, qty: 2 },
+      { id: 'new-1', kind: 'fixed', dishId: 'd-buncha', qty: 1, unitPrice: 40000 },
+    ]
+    s = must(editOrder(s, mine.id, lines, 'b-viettel', 'Tầng 9'))
+    const o = findOrder(s, mine.id)!
+    const [edit, back] = o.history.slice(-2)
+    expect(edit).toMatchObject({
+      kind: 'edit',
+      fromTotal: 40000,
+      toTotal: 120000,
+      changes: [
+        { type: 'qty', from: 1, to: 2 },
+        { type: 'added', line: { dishId: 'd-buncha' } },
+        { type: 'building', from: 'b-bitexco', to: 'b-viettel' },
+        { type: 'note', from: 'Tầng 21, phòng 2103', to: 'Tầng 9' },
+      ],
+    })
+    expect(back).toMatchObject({ kind: 'status', status: 'placed' })
+  })
+
+  it('CN-32: removing a line is recorded', () => {
+    let s = seed(TODAY)
+    const huy = s.orders.find((o) => o.customerId === 'c4')!
+    s = must(editOrder(s, huy.id, [...huy.lines, { id: 'x', kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }], huy.buildingId, huy.note))
+    s = must(editOrder(s, huy.id, [findOrder(s, huy.id)!.lines[1]], huy.buildingId, huy.note))
+    const last = findOrder(s, huy.id)!.history.filter((h) => h.kind === 'edit').at(-1)!
+    expect(last).toMatchObject({ kind: 'edit', changes: [{ type: 'removed', line: { kind: 'plate' } }] })
+  })
+
+  it('AC24, CN-26: declining a building previews each order and its refund before rejecting', () => {
+    let s = seed(TODAY)
+    const lan = s.orders.find((o) => o.customerId === 'c5')!
+    s = must(addToCart({ ...s, me: 'c5' }, TOMORROW, { kind: 'fixed', dishId: 'd-comga', qty: 1, unitPrice: 45000 }))
+    const r = placeOrder(s, TOMORROW, 'b-pearl', '')
+    s = must(r)
+    const second = (r as { id: string }).id
+    s = must(confirmPayment(s, second))
+    expect(declinePreview(s, 'b-pearl')).toEqual([
+      { order: expect.objectContaining({ id: lan.id }), refund: 0 },
+      { order: expect.objectContaining({ id: second }), refund: 45000 },
+    ])
+    // The preview changes nothing.
+    expect(findOrder(s, lan.id)!.status).toBe('placed')
+    s = must(declineBuilding(s, 'b-pearl'))
+    expect(findOrder(s, lan.id)!.status).toBe('rejected')
+    expect(findOrder(s, second)!.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'building' })])
+  })
+
+  it('AC25, CN-27: an unpaid order already Preparing can be kept at the review but not rejected', () => {
+    let s = at(seed(TODAY), 9 * 60 + 31)
+    const huy = s.orders.find((o) => o.customerId === 'c4')!
+    s = must(startPreparing(s, [huy.id]))
+    const o = findOrder(s, huy.id)!
+    expect(reviewList(s, TODAY).map((x) => x.id)).toContain(huy.id)
+    expect(canReject(o)).toBe(false)
+    expect(rejectOrder(s, huy.id)).toEqual({ ok: false, error: 'cannotReject' })
+    expect(reviewList(must(keepOrder(s, huy.id)), TODAY).map((x) => x.id)).not.toContain(huy.id)
+  })
+
+  it('CN-28: payment received records the full amount owed', () => {
+    const s = seed(TODAY)
+    const binh = s.orders.find((o) => o.customerId === 'c2' && o.status === 'placed')!
+    const after = findOrder(must(confirmPayment(s, binh.id)), binh.id)!
+    expect(after.received).toBe(45000)
+    expect(paymentState(after)).toBe('paid')
+  })
+
+  it('AC27, CN-33: the customer gives a refund account or a QR photo for an order that needs a refund', () => {
+    const s = seed(TODAY)
+    const cancelled = s.orders.find((o) => o.status === 'cancelled')!
+    expect(cancelled.refundTo).toBeNull()
+    expect(setRefundTo(s, cancelled.id, { kind: 'account', bank: 'ACB', account: '', holder: 'TRAN VAN BINH' })).toEqual({
+      ok: false,
+      error: 'refundToMissing',
+    })
+    const withAccount = must(setRefundTo(s, cancelled.id, { kind: 'account', bank: ' ACB ', account: '123456', holder: 'TRAN VAN BINH' }))
+    expect(findOrder(withAccount, cancelled.id)!.refundTo).toEqual({ kind: 'account', bank: 'ACB', account: '123456', holder: 'TRAN VAN BINH' })
+    const withQr = must(setRefundTo(s, cancelled.id, { kind: 'qr', image: 'data:image/jpeg;base64,AAAA' }))
+    expect(findOrder(withQr, cancelled.id)!.refundTo).toMatchObject({ kind: 'qr' })
+    // Without a destination the shop can still mark it refunded.
+    expect(refundState(findOrder(must(markRefunded(s, cancelled.id, cancelled.refunds[0].id)), cancelled.id)!)).toBe('refunded')
+  })
+
+  it('CN-33: no refund destination for an order with nothing to refund', () => {
+    const s = seed(TODAY)
+    const mine = s.orders.find((o) => o.customerId === 'c1')!
+    expect(setRefundTo(s, mine.id, { kind: 'account', bank: 'ACB', account: '1', holder: 'A' })).toEqual({ ok: false, error: 'noRefundDue' })
+  })
+
+  it('CN-25: a pending building can be used only by the customer who proposed it', () => {
+    let s = seed(TODAY)
+    s = must(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
+    expect(placeOrder(s, TODAY, 'b-pearl', '')).toEqual({ ok: false, error: 'buildingMissing' })
+    expect(placeOrder({ ...s, me: 'c5', carts: s.carts }, TODAY, 'b-pearl', '').ok).toBe(true)
+  })
+
+  it('CN-32: editing an order that is already Placed still logs the edit then Placed', () => {
+    let s = seed(TODAY)
+    const lan = s.orders.find((o) => o.customerId === 'c7')!
+    s = must(editOrder({ ...s, me: 'c7' }, lan.id, lan.lines, lan.buildingId, 'Tầng 2'))
+    expect(findOrder(s, lan.id)!.history.slice(-2).map((h) => h.kind)).toEqual(['edit', 'status'])
+  })
+
+  it('AC29, CN-31: dishes show their English name in English when they have one', () => {
+    const s = seed(TODAY)
+    expect(dishName(s, 'd-bunbo')).toBe('Bún bò Huế')
+    const en: State = { ...s, lang: 'en' }
+    expect(dishName(en, 'd-bunbo')).toBe('Hue beef noodle soup')
+    expect(dishName(en, 'd-buncha')).toBe('Bún chả')
   })
 })

@@ -24,6 +24,8 @@ test('week view opens in Vietnamese and switches app text to English (AC18)', ()
   expect(screen.getAllByRole('listitem').length).toBe(7)
   fireEvent.click(screen.getByRole('button', { name: 'en' }))
   expect(screen.getByRole('heading', { level: 1, name: 'What’s for lunch?' })).toBeDefined()
-  // Shop-entered dish names stay as entered.
-  expect(screen.getAllByText(/Sườn ram mặn ngọt/).length).toBeGreaterThan(0)
+  // A dish with an English name shows it; one without keeps the name as entered (CN-31).
+  expect(screen.getAllByText(/Caramelised pork ribs/).length).toBeGreaterThan(0)
+  expect(screen.queryByText(/Sườn ram mặn ngọt/)).toBeNull()
+  expect(screen.getAllByText(/Bún chả/).length).toBeGreaterThan(0)
 })

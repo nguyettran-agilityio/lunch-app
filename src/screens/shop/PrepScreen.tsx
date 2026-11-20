@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Card, PageTitle } from '@/components/ui'
-import { dayOrders, findDish, prepSheet, type PrepColumn, type PrepRow } from '@/proto/logic'
+import { dishName, dayOrders, prepSheet, type PrepColumn, type PrepRow } from '@/proto/logic'
 import { useApp } from '@/proto/useApp'
 import { ShopDayBar, ShopOrderCard } from './common'
 import { StartBar } from './ShopOrdersScreen'
@@ -26,7 +26,7 @@ export function PrepScreen() {
           {list.map((r) => (
             <li key={`${r.kind}-${r.dishId}`} className="px-4 py-2.5">
               <p className="flex items-baseline justify-between gap-3">
-                <span className="font-semibold">{findDish(s, r.dishId)?.name}</span>
+                <span className="font-semibold">{dishName(s, r.dishId)}</span>
                 <span className="text-xl font-bold">{r.total}</span>
               </p>
               <p className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-muted">
@@ -61,7 +61,7 @@ export function PrepScreen() {
               {list.map((r) => (
                 <tr key={`${r.kind}-${r.dishId}`} className="border-b border-tray last:border-0">
                   <th scope="row" className="px-4 py-2.5 text-left font-semibold">
-                    {findDish(s, r.dishId)?.name}
+                    {dishName(s, r.dishId)}
                   </th>
                   {COLUMNS.map((c) => (
                     <td key={c} className={`px-2 py-2.5 text-right ${r.counts[c] === 0 ? 'text-steel' : c === 'preparing' ? 'font-bold' : ''}`}>

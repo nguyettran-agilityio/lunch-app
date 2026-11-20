@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
 import { messages } from '@/proto/i18n'
+import { refundList } from '@/proto/logic'
 import { clearError, resetData, update, useLastError, useProto } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Lang } from '@/proto/types'
@@ -29,6 +30,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const shop = pathname.startsWith('/shop')
   const m = messages[s.lang]
+  // Refunds still to send, over all days, so the shop sees them from any screen (CN-35).
+  const openRefunds = refundList(s).filter((x) => x.refund.refundedAt === null).length
   const cartCount = Object.values(s.carts).reduce((n, lines) => n + lines.reduce((k, l) => k + l.qty, 0), 0)
 
   const customerNav = [
@@ -37,11 +40,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     { href: '/orders', label: m.nav.orders, match: (p: string) => p.startsWith('/order') || p.startsWith('/pay') },
   ]
   const shopNav = [
-    { href: '/shop', label: m.nav.shopOrders, match: (p: string) => p === '/shop' },
+    { href: '/shop', label: m.nav.shopOrders, match: (p: string) => p === '/shop' || p.startsWith('/shop/order') },
     { href: '/shop/review', label: m.nav.review, match: (p: string) => p.startsWith('/shop/review') },
     { href: '/shop/prep', label: m.nav.prep, match: (p: string) => p.startsWith('/shop/prep') },
     { href: '/shop/delivery', label: m.nav.delivery, match: (p: string) => p.startsWith('/shop/delivery') },
-    { href: '/shop/refunds', label: m.nav.refunds, match: (p: string) => p.startsWith('/shop/refunds') },
+    { href: '/shop/refunds', label: m.nav.refunds, badge: openRefunds, match: (p: string) => p.startsWith('/shop/refunds') },
     { href: '/shop/buildings', label: m.nav.buildings, match: (p: string) => p.startsWith('/shop/buildings') },
   ]
 

@@ -6,15 +6,14 @@ import { useState } from 'react'
 import { DayLabel } from '@/components/parts'
 import { Button, Notice, QtyStepper, cx } from '@/components/ui'
 import {
-  addPlateToOrder,
+  addPlateToDraft,
   addToCart,
   customerChangeBlock,
   dayState,
+  dishName,
   findDay,
   findDish,
   groupCounts,
-  netPaid,
-  owed,
   platePrice,
   plateValid,
 } from '@/proto/logic'
@@ -26,7 +25,7 @@ export function PlateScreen() {
   const params = useSearchParams()
   const router = useRouter()
   const { s, m, money } = useApp()
-  // With ?order=<id> the plate is added to an order already placed (CN-23) instead of the cart.
+  // With ?order=<id> the plate goes into that order's edit in progress (CN-23, CN-29) instead of the cart.
   const order = s.orders.find((o) => o.id === params.get('order') && o.customerId === s.me)
   const date = order?.date ?? params.get('d') ?? ''
   const back = order ? `/order?id=${order.id}` : `/day?d=${date}`
@@ -65,7 +64,7 @@ export function PlateScreen() {
       </Link>
       <h1 className="text-[26px] leading-tight font-bold tracking-tight sm:text-3xl">{m.plate.title}</h1>
       <p className="mt-1 mb-5 text-[15px] text-muted">
-        <DayLabel date={date} long />
+        <DayLabel date={date} long /> · {m.plate.intro}
       </p>
 
       {order && (
@@ -96,7 +95,7 @@ export function PlateScreen() {
                 <span className="text-[11px] font-semibold text-muted">{group.name}</span>
                 {dishId ? (
                   <span key={dishId} className="fill-in text-[13px] leading-tight font-semibold text-leaf-dark">
-                    {findDish(s, dishId)?.name}
+                    {dishName(s, dishId)}
                   </span>
                 ) : (
                   <span className="text-[13px] text-muted/70">{m.plate.empty}</span>
@@ -118,7 +117,7 @@ export function PlateScreen() {
               {m.plate.base} {money(s.settings.basePrice)}
               {picks.map((id) => {
                 const d = findDish(s, id)
-                return d && d.surcharge > 0 ? ` + ${money(d.surcharge)} (${d.name})` : ''
+                return d && d.surcharge > 0 ? ` + ${money(d.surcharge)} (${dishName(s, id)})` : ''
               })}
               {s.groups.map((g) => {
                 const extra = (counts.get(g.id) ?? 0) - g.included
@@ -133,10 +132,8 @@ export function PlateScreen() {
                 disabled={!valid || !open}
                 onClick={() => {
                   if (order) {
-                    const r = run((st) => addPlateToOrder(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
-                    if (!r.ok) return
-                    const after = r.state.orders.find((o) => o.id === order.id)!
-                    router.push(owed(after) > 0 && netPaid(after) > 0 ? `/pay?id=${order.id}` : back)
+                    const r = run((st) => addPlateToDraft(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
+                    if (r.ok) router.push(back)
                     return
                   }
                   const r = run((st) => addToCart(st, date, { kind: 'plate', picks, qty, unitPrice: price }))
@@ -182,7 +179,7 @@ export function PlateScreen() {
                           (blocked || !open) && 'opacity-50',
                         )}
                       >
-                        <span className="font-semibold">{d.name}</span>
+                        <span className="font-semibold">{dishName(s, id)}</span>
                         <span className={cx('text-sm font-semibold', on ? 'text-white' : 'text-muted')}>
                           {d.surcharge > 0 ? m.plate.surcharge(money(d.surcharge)) : money(0)}
                         </span>

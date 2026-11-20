@@ -35,12 +35,15 @@ export function ConfirmButton({
   onConfirm,
   disabled,
   variant = 'danger',
+  children,
 }: {
   label: string
   question: string
   onConfirm: () => void
   disabled?: boolean
   variant?: Variant
+  /** Extra detail shown with the question, e.g. what the action will change. */
+  children?: ReactNode
 }) {
   const { m } = useApp()
   const [asking, setAsking] = useState(false)
@@ -53,6 +56,7 @@ export function ConfirmButton({
   return (
     <div role="alertdialog" aria-label={question} className="flex w-full flex-wrap items-center gap-2 rounded-lg bg-chili-soft p-3">
       <p className="w-full text-sm text-ink">{question}</p>
+      {children}
       <Button
         variant="danger"
         onClick={() => {

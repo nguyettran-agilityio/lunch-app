@@ -31,6 +31,9 @@ export type Dish = {
   id: string
   name: string
   description: string
+  /** Optional English name and description, shown when the interface is in English (CN-31). */
+  nameEn?: string
+  descriptionEn?: string
   /** Price as a fixed dish; null when not sold as one (BR-1). */
   price: number | null
   /** Group as a build-your-own component; null when not a component. */
@@ -71,7 +74,27 @@ export type Refund = {
   refundedAt: string | null
 }
 
-export type HistoryEntry = { status: Status; at: string }
+export type StatusEntry = { kind: 'status'; status: Status; at: string }
+
+/** One change inside a saved edit (CN-32). Lines are copied so the history survives later edits. */
+export type EditChange =
+  | { type: 'added'; line: Line }
+  | { type: 'removed'; line: Line }
+  | { type: 'qty'; line: Line; from: number; to: number }
+  | { type: 'building'; from: string; to: string }
+  | { type: 'note'; from: string; to: string }
+
+export type EditEntry = { kind: 'edit'; at: string; fromTotal: number; toTotal: number; changes: EditChange[] }
+
+export type HistoryEntry = StatusEntry | EditEntry
+
+/** Where the customer wants a refund sent, entered per order (CN-33). */
+export type RefundTo =
+  | { kind: 'account'; bank: string; account: string; holder: string }
+  | { kind: 'qr'; image: string }
+
+/** An edit in progress: all changes are saved together with one "Save" (CN-29). */
+export type EditDraft = { lines: Line[]; buildingId: string; note: string }
 
 export type Order = {
   id: string
@@ -91,6 +114,7 @@ export type Order = {
   kept: boolean
   history: HistoryEntry[]
   shopNote: string
+  refundTo: RefundTo | null
 }
 
 export type Settings = {
@@ -106,7 +130,7 @@ export type Clock = {
 }
 
 export type State = {
-  version: 1
+  version: 2
   lang: Lang
   clock: Clock
   me: string
@@ -119,6 +143,8 @@ export type State = {
   orders: Order[]
   /** One cart per service day (BR-11a). */
   carts: Record<DateStr, Line[]>
+  /** Edits in progress, by order id (CN-29). */
+  drafts: Record<string, EditDraft>
   /** Day the shop screens show (prototype navigation only). */
   shopDay: DateStr
   seq: number

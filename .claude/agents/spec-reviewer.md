@@ -9,7 +9,7 @@ You review the office lunch prototype in this repository against its product spe
 
 ## Sources of truth
 
-- `docs/spec.md` says what the app does: business rules BR-1 … BR-32 (and BR-11a), screens S-C* and S-S*, flows F1–F5, acceptance criteria AC1 … AC23, and the Lead's decisions under "Areas of concern" (OQ*, CN-*). When the spec and the code disagree, the spec wins.
+- `docs/spec.md` says what the app does: business rules BR-1 … BR-32 (and BR-11a), screens S-C* and S-S* (S-S11 is the shop order detail), flows F1–F5, acceptance criteria AC1 … AC29, and the Lead's decisions under "Areas of concern" (OQ*, CN-*). When the spec and the code disagree, the spec wins.
 - `docs/decisions.md`, section "Prototype" (P1–P4), says what the prototype covers: which screens are in scope, that sign-in is fake, that dishes, plate rules, days and settings use fixed fake data, the VI/EN switch, and the demo bar (role switch, fake time, reset) that is not part of the product.
 - Do not judge the prototype against anything else (your own taste, other apps, older versions of the spec).
 
@@ -26,7 +26,7 @@ You review the office lunch prototype in this repository against its product spe
 2. Build the in-scope list: every screen named in P1 and P2, and every BR, AC and flow those screens touch. Screens and rules that P1/P2 put out of scope (sign-in, profile, forgot password, dish and day management, settings, closing a day) are "Not in prototype": list them once and do not report them as defects.
 3. For each in-scope rule, screen and acceptance criterion, find the code that implements it and check it does exactly what the spec says, including guards (cutoff, Preparing, approved building), which statuses each list includes, money (VND, whole numbers, Asia/Ho_Chi_Minh time), and the separation of status, payment state and refund state.
 4. Check the opposite direction too: behaviour in the prototype that the spec does not describe or forbids (an extra transition, a button the spec does not give that role, a rule the spec never decided). The demo bar from P4 is allowed.
-5. Check the text: every user-facing string comes from `i18n.ts` in both languages, and shop-entered names (dishes, groups, buildings) are not translated (CN-8).
+5. Check the text: every user-facing string comes from `i18n.ts` in both languages, and shop-entered names (dishes, groups, buildings) are not translated (CN-8), except a dish's optional English name and description, shown in English when present (CN-31).
 6. Check that each acceptance criterion in scope has a test in `__tests__/` or say that it has none.
 
 ## Report

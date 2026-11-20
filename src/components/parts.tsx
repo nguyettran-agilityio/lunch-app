@@ -1,8 +1,8 @@
 'use client'
 
-import { findDish, lineTotal } from '@/proto/logic'
+import { dishName, findBuilding, lineTotal } from '@/proto/logic'
 import { dayMonth, weekday } from '@/proto/time'
-import type { DateStr, Line } from '@/proto/types'
+import type { DateStr, EditChange, HistoryEntry, Line, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
 
 export function DayLabel({ date, long = false }: { date: DateStr; long?: boolean }) {
@@ -18,13 +18,20 @@ export function DayLabel({ date, long = false }: { date: DateStr; long?: boolean
 
 export function LineText({ line }: { line: Line }) {
   const { s, m } = useApp()
-  if (line.kind === 'fixed') return <>{findDish(s, line.dishId)?.name}</>
+  if (line.kind === 'fixed') return <>{dishName(s, line.dishId)}</>
   return (
     <>
       <span className="font-semibold">{m.cart.plate}</span>
-      <span className="text-muted">: {line.picks.map((id) => findDish(s, id)?.name).join(', ')}</span>
+      <span className="text-muted">: {line.picks.map((id) => dishName(s, id)).join(', ')}</span>
     </>
   )
+}
+
+/** One line as plain text, for summaries and the edit history. */
+export function useLineLabel() {
+  const { s, m } = useApp()
+  return (l: Line) =>
+    l.kind === 'fixed' ? dishName(s, l.dishId) : `${m.cart.plate} (${l.picks.map((id) => dishName(s, id)).join(', ')})`
 }
 
 export function LinesList({ lines }: { lines: Line[] }) {
@@ -46,18 +53,8 @@ export function LinesList({ lines }: { lines: Line[] }) {
 
 /** Compact one-line summary for shop lists. */
 export function LinesSummary({ lines }: { lines: Line[] }) {
-  const { s, m } = useApp()
-  return (
-    <p className="text-[15px]">
-      {lines
-        .map((l) =>
-          l.kind === 'fixed'
-            ? `${l.qty}× ${findDish(s, l.dishId)?.name}`
-            : `${l.qty}× ${m.cart.plate} (${l.picks.map((id) => findDish(s, id)?.name).join(', ')})`,
-        )
-        .join(' · ')}
-    </p>
-  )
+  const label = useLineLabel()
+  return <p className="text-[15px]">{lines.map((l) => `${l.qty}× ${label(l)}`).join(' · ')}</p>
 }
 
 /**
@@ -93,5 +90,64 @@ export function FakeQr({ payload, label }: { payload: string; label: string }) {
       {finder(n - 7, 0)}
       {finder(0, n - 7)}
     </svg>
+  )
+}
+
+/** Status changes and saved edits with what changed, for customer and shop (CN-32). */
+export function OrderHistory({ history }: { history: HistoryEntry[] }) {
+  const { s, m, money } = useApp()
+  const label = useLineLabel()
+  const building = (id: string) => findBuilding(s, id)?.name ?? id
+  const change = (c: EditChange) => {
+    switch (c.type) {
+      case 'added':
+        return m.detail.chAdded(`${c.line.qty} × ${label(c.line)}`)
+      case 'removed':
+        return m.detail.chRemoved(`${c.line.qty} × ${label(c.line)}`)
+      case 'qty':
+        return m.detail.chQty(label(c.line), c.from, c.to)
+      case 'building':
+        return m.detail.chBuilding(building(c.from), building(c.to))
+      case 'note':
+        return m.detail.chNote(c.from, c.to)
+    }
+  }
+  return (
+    <ol className="relative ml-1.5 flex flex-col gap-3 border-l-2 border-steel pl-4">
+      {history.map((h, i) => (
+        <li key={i} className="relative">
+          <span
+            className={`absolute top-1.5 -left-[23px] size-3 rounded-full ring-2 ring-card ${h.kind === 'edit' ? 'bg-turmeric' : 'bg-leaf'}`}
+          />
+          {h.kind === 'edit' ? (
+            <>
+              <p className="font-semibold">{m.detail.edited(money(h.fromTotal), money(h.toTotal))}</p>
+              <ul className="mt-0.5 text-sm">
+                {h.changes.map((c, j) => (
+                  <li key={j}>· {change(c)}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p className="font-semibold">{m.status[h.status]}</p>
+          )}
+          <p className="text-sm text-muted">{h.at}</p>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+/** Where the customer asked for the refund to go (CN-33). */
+export function RefundToView({ to }: { to: RefundTo }) {
+  const { m } = useApp()
+  if (to.kind === 'qr') {
+    // eslint-disable-next-line @next/next/no-img-element -- a data URL uploaded by the customer, kept in localStorage
+    return <img src={to.image} alt={m.refunds.destQr} className="mt-1 w-full max-w-48 rounded-lg ring-1 ring-steel" />
+  }
+  return (
+    <p className="text-[15px]">
+      <span className="font-semibold">{to.bank}</span> · <span className="font-bold tracking-wide">{to.account}</span> · {to.holder}
+    </p>
   )
 }

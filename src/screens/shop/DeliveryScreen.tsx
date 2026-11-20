@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState } from 'react'
 import { LinesSummary } from '@/components/parts'
 import { Badge, Button, Card, OrderBadges, PageTitle, TextInput } from '@/components/ui'
@@ -73,7 +74,9 @@ function DeliveryRow({ order }: { order: Order }) {
             {c?.phone}
           </a>
         </span>
-        <span className="text-sm font-bold tracking-wide text-muted">{order.code}</span>
+        <Link href={`/shop/order?id=${order.id}`} className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2">
+          {order.code}
+        </Link>
       </div>
       {order.note && <p className="text-sm font-semibold">{order.note}</p>}
       <div className="my-2">

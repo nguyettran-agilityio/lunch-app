@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { DayLabel } from '@/components/parts'
 import { Badge, PageTitle, cx } from '@/components/ui'
-import { cutoffOf, dayState, findDay, findDish, week } from '@/proto/logic'
+import { cutoffOf, dayState, dishName, findDay, week } from '@/proto/logic'
 import { hhmm } from '@/proto/time'
 import { useApp } from '@/proto/useApp'
 
@@ -46,7 +46,7 @@ export function WeekScreen() {
                   <p className="mt-1 truncate text-[15px] text-muted">
                     {menuNames
                       .slice(0, 4)
-                      .map((id) => findDish(s, id)?.name)
+                      .map((id) => dishName(s, id))
                       .join(', ')}
                     {menuNames.length > 4 && '…'}
                   </p>

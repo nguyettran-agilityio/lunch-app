@@ -2,11 +2,13 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { DayLabel, LineText, LinesList } from '@/components/parts'
-import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput } from '@/components/ui'
+import { DayLabel, LineText, LinesList, OrderHistory, RefundToView } from '@/components/parts'
+import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
   cancelOrder,
   customerChangeBlock,
+  discardEdit,
+  dishName,
   editOrder,
   findBuilding,
   findDay,
@@ -15,9 +17,14 @@ import {
   netPaid,
   orderTotal,
   owed,
+  paymentState,
+  refundState,
+  setDraft,
+  setRefundTo,
+  startEdit,
 } from '@/proto/logic'
-import { run } from '@/proto/store'
-import type { Line, Order } from '@/proto/types'
+import { run, update } from '@/proto/store'
+import type { Order, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
 import { BuildingPicker } from './BuildingPicker'
 
@@ -25,12 +32,13 @@ import { BuildingPicker } from './BuildingPicker'
 export function OrderScreen() {
   const id = useSearchParams().get('id') ?? ''
   const { s, m, money } = useApp()
-  const [editing, setEditing] = useState(false)
   const order = s.orders.find((o) => o.id === id && o.customerId === s.me)
   if (!order) return <PageTitle title={m.detail.notFound} />
 
   const block = customerChangeBlock(s, order)
   const due = owed(order)
+  // An edit in progress stays open across the plate builder until it is saved or discarded (CN-29).
+  const editing = !block && !!s.drafts[order.id]
 
   return (
     <>
@@ -44,7 +52,7 @@ export function OrderScreen() {
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-5">
           {editing ? (
-            <EditOrder order={order} onDone={() => setEditing(false)} />
+            <EditOrder order={order} />
           ) : (
             <Card>
               <h2 className="mb-1 font-bold">{m.detail.lines}</h2>
@@ -75,16 +83,26 @@ export function OrderScreen() {
                   </>
                 )}
               </dl>
+              {/* Once the transfer is reported, no QR: say it waits for the shop (CN-34). */}
+              {due > 0 && paymentState(order) === 'reported' && (
+                <div className="mt-4">
+                  <Notice tone="leaf">{m.detail.waiting(money(due))}</Notice>
+                </div>
+              )}
               <div className="mt-5 flex flex-wrap gap-2">
-                {due > 0 && <LinkButton href={`/pay?id=${order.id}`}>{m.detail.pay}</LinkButton>}
+                {due > 0 &&
+                  (paymentState(order) === 'reported' ? (
+                    <LinkButton href={`/pay?id=${order.id}&qr=1`} variant="ghost">
+                      {m.pay.showQr}
+                    </LinkButton>
+                  ) : (
+                    <LinkButton href={`/pay?id=${order.id}`}>{m.detail.pay}</LinkButton>
+                  ))}
                 {!block && (
                   <>
-                    <Button variant="secondary" onClick={() => setEditing(true)}>
+                    <Button variant="secondary" onClick={() => run((st) => startEdit(st, order.id))}>
                       {m.detail.edit}
                     </Button>
-                    <LinkButton href={`/plate?order=${order.id}`} variant="secondary">
-                      + {m.detail.addPlate}
-                    </LinkButton>
                     <ConfirmButton label={m.detail.cancel} question={m.detail.cancelConfirm} onConfirm={() => run((st) => cancelOrder(st, order.id))} />
                   </>
                 )}
@@ -117,44 +135,38 @@ export function OrderScreen() {
                   </li>
                 ))}
               </ul>
+              {refundState(order) === 'needsRefund' && <RefundToForm order={order} />}
             </Card>
           )}
         </div>
 
         <Card>
           <h2 className="mb-3 font-bold">{m.detail.history}</h2>
-          <ol className="relative ml-1.5 flex flex-col gap-3 border-l-2 border-steel pl-4">
-            {order.history.map((h, i) => (
-              <li key={i} className="relative">
-                <span className="absolute top-1.5 -left-[23px] size-3 rounded-full bg-leaf ring-2 ring-card" />
-                <p className="font-semibold">{m.status[h.status]}</p>
-                <p className="text-sm text-muted">{h.at}</p>
-              </li>
-            ))}
-          </ol>
+          <OrderHistory history={order.history} />
         </Card>
       </div>
     </>
   )
 }
 
-function EditOrder({ order, onDone }: { order: Order; onDone: () => void }) {
+/** All changes of one edit are kept in a draft and saved together with one "Save" (CN-29). */
+function EditOrder({ order }: { order: Order }) {
   const { s, m, money } = useApp()
   const router = useRouter()
-  const [lines, setLines] = useState<Line[]>(order.lines)
-  const [buildingId, setBuildingId] = useState(order.buildingId)
-  const [note, setNote] = useState(order.note)
+  const draft = s.drafts[order.id]
+  const { lines, buildingId, note } = draft
   const fixed = findDay(s, order.date)?.menu?.fixed ?? []
+  const save = (patch: Partial<typeof draft>) => update((st) => setDraft(st, order.id, { ...draft, ...patch }))
   const changed =
     buildingId !== order.buildingId ||
     note.trim() !== order.note ||
     JSON.stringify(lines.filter((l) => l.qty > 0)) !== JSON.stringify(order.lines)
-  const setQty = (id: string, qty: number) => setLines(lines.map((l) => (l.id === id ? { ...l, qty } : l)))
+  const setQty = (id: string, qty: number) => save({ lines: lines.map((l) => (l.id === id ? { ...l, qty } : l)) })
   const addFixed = (dishId: string) => {
     const existing = lines.find((l) => l.kind === 'fixed' && l.dishId === dishId)
     if (existing) return setQty(existing.id, existing.qty + 1)
     // A newly added dish takes today's price; existing lines keep theirs (BR-6).
-    setLines([...lines, { id: `new-${dishId}-${lines.length}`, kind: 'fixed', dishId, qty: 1, unitPrice: findDish(s, dishId)?.price ?? 0 }])
+    save({ lines: [...lines, { id: `new-${dishId}-${lines.length}`, kind: 'fixed', dishId, qty: 1, unitPrice: findDish(s, dishId)?.price ?? 0 }] })
   }
 
   return (
@@ -164,27 +176,34 @@ function EditOrder({ order, onDone }: { order: Order; onDone: () => void }) {
         <Notice>{m.detail.editNote}</Notice>
       </div>
       <ul className="divide-y divide-tray">
-        {lines.map((l) => (
-          <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="min-w-0 flex-1 basis-48 text-[15px]">
-              <LineText line={l} />
-              <p className="text-sm text-muted">{money(l.unitPrice)}</p>
-            </div>
-            <QtyStepper value={l.qty} onChange={(v) => setQty(l.id, v)} />
-          </li>
-        ))}
+        {lines.map((l) => {
+          const isNew = !order.lines.some((o) => o.id === l.id)
+          return (
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="min-w-0 flex-1 basis-48 text-[15px]">
+                <LineText line={l} />
+                {isNew && <span className="ml-2 rounded bg-leaf-soft px-1.5 text-xs font-semibold text-leaf-dark">{m.detail.newLine}</span>}
+                <p className="text-sm text-muted">{money(l.unitPrice)}</p>
+              </div>
+              <QtyStepper value={l.qty} onChange={(v) => setQty(l.id, v)} />
+            </li>
+          )
+        })}
       </ul>
       <p className="mt-4 mb-2 text-sm font-medium text-muted">{m.detail.addDish}</p>
       <div className="flex flex-wrap gap-2">
         {fixed.map((id) => (
           <Button key={id} variant="secondary" onClick={() => addFixed(id)}>
-            + {findDish(s, id)?.name}
+            + {dishName(s, id)}
           </Button>
         ))}
+        <LinkButton href={`/plate?order=${order.id}`} variant="secondary">
+          + {m.detail.addPlate}
+        </LinkButton>
       </div>
       <div className="mt-4 flex flex-col gap-3 border-t border-tray pt-4">
-        <BuildingPicker id={`edit-${order.id}`} value={buildingId} onChange={setBuildingId} />
-        <TextInput label={m.cart.note} placeholder={m.cart.notePlaceholder} value={note} onChange={(e) => setNote(e.target.value)} />
+        <BuildingPicker id={`edit-${order.id}`} value={buildingId} onChange={(v) => save({ buildingId: v })} />
+        <TextInput label={m.cart.note} placeholder={m.cart.notePlaceholder} value={note} onChange={(e) => save({ note: e.target.value })} />
       </div>
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <p>
@@ -192,7 +211,7 @@ function EditOrder({ order, onDone }: { order: Order; onDone: () => void }) {
           <span className="text-2xl font-bold">{money(linesTotal(lines.filter((l) => l.qty > 0)))}</span>
         </p>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={onDone}>
+          <Button variant="ghost" onClick={() => update((st) => discardEdit(st, order.id))}>
             {m.detail.discard}
           </Button>
           <Button
@@ -201,7 +220,6 @@ function EditOrder({ order, onDone }: { order: Order; onDone: () => void }) {
             onClick={() => {
               const r = run((st) => editOrder(st, order.id, lines, buildingId, note))
               if (!r.ok) return
-              onDone()
               const after = r.state.orders.find((o) => o.id === order.id)
               if (after && owed(after) > 0 && netPaid(after) > 0) router.push(`/pay?id=${order.id}`)
             }}
@@ -211,5 +229,114 @@ function EditOrder({ order, onDone }: { order: Order; onDone: () => void }) {
         </div>
       </div>
     </Card>
+  )
+}
+
+/** Longest side of an uploaded QR photo, so it stays small in localStorage. */
+const QR_MAX = 480
+
+function shrinkImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const scale = Math.min(1, QR_MAX / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.round(img.width * scale)
+      canvas.height = Math.round(img.height * scale)
+      canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(url)
+      resolve(canvas.toDataURL('image/jpeg', 0.85))
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('not an image'))
+    }
+    img.src = url
+  })
+}
+
+/** Where to send this order's refund: bank, account number and holder, or a QR photo, per order (CN-33). */
+function RefundToForm({ order }: { order: Order }) {
+  const { m } = useApp()
+  const [changing, setChanging] = useState(false)
+  const current = order.refundTo
+  const [kind, setKind] = useState<RefundTo['kind']>(current?.kind ?? 'account')
+  const [bank, setBank] = useState(current?.kind === 'account' ? current.bank : '')
+  const [account, setAccount] = useState(current?.kind === 'account' ? current.account : '')
+  const [holder, setHolder] = useState(current?.kind === 'account' ? current.holder : '')
+  const [image, setImage] = useState(current?.kind === 'qr' ? current.image : '')
+
+  if (current && !changing) {
+    return (
+      <div className="mt-4 border-t border-tray pt-3">
+        <p className="mb-1 text-sm font-medium text-muted">{m.detail.refundSent}</p>
+        <RefundToView to={current} />
+        <Button variant="ghost" className="mt-2" onClick={() => setChanging(true)}>
+          {m.detail.refundChange}
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-4 border-t border-tray pt-3">
+      <h3 className="font-bold">{m.detail.refundTo}</h3>
+      <p className="mb-3 text-sm text-muted">{m.detail.refundToIntro}</p>
+      <div role="group" aria-label={m.detail.refundTo} className="mb-3 flex gap-1 rounded-lg p-0.5 ring-1 ring-steel">
+        {(['account', 'qr'] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={kind === k}
+            onClick={() => setKind(k)}
+            className={cx('min-h-10 flex-1 rounded-md text-sm font-semibold', kind === k ? 'bg-ink text-white' : 'text-muted')}
+          >
+            {k === 'account' ? m.detail.refundAccount : m.detail.refundQr}
+          </button>
+        ))}
+      </div>
+      {kind === 'account' ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <TextInput label={m.detail.refundBank} value={bank} onChange={(e) => setBank(e.target.value)} />
+          <TextInput label={m.detail.refundNumber} inputMode="numeric" value={account} onChange={(e) => setAccount(e.target.value)} />
+          <TextInput label={m.detail.refundHolder} value={holder} onChange={(e) => setHolder(e.target.value)} />
+        </div>
+      ) : (
+        <label className="flex flex-col gap-2 text-sm font-medium text-muted">
+          {m.detail.refundQrPick}
+          <input
+            type="file"
+            accept="image/*"
+            className="text-[15px] text-ink file:mr-3 file:min-h-11 file:rounded-lg file:border-0 file:bg-leaf-soft file:px-4 file:font-semibold file:text-leaf-dark"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              try {
+                setImage(await shrinkImage(file))
+              } catch {
+                setImage('')
+              }
+            }}
+          />
+          {image && <RefundToView to={{ kind: 'qr', image }} />}
+        </label>
+      )}
+      <div className="mt-3 flex gap-2">
+        <Button
+          onClick={() => {
+            const to: RefundTo = kind === 'account' ? { kind, bank, account, holder } : { kind, image }
+            if (run((st) => setRefundTo(st, order.id, to)).ok) setChanging(false)
+          }}
+        >
+          {m.detail.refundSave}
+        </Button>
+        {current && (
+          <Button variant="ghost" onClick={() => setChanging(false)}>
+            {m.detail.discard}
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }
