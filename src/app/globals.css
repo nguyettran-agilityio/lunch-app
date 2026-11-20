@@ -1,26 +1,58 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Cơm Lá prototype tokens: banana leaf green, chili for cutoffs and refusals,
+   turmeric for waiting states, stainless-steel tray greys. Light theme only. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-leaf: #2f6b3a;
+  --color-leaf-dark: #22512b;
+  --color-leaf-soft: #e6f0e4;
+  --color-chili: #b8321f;
+  --color-chili-soft: #fbe9e5;
+  --color-turmeric: #b97a06;
+  --color-turmeric-soft: #fbf0d6;
+  --color-ink: #1d2420;
+  --color-muted: #5b655f;
+  --color-steel: #d5dbd6;
+  --color-tray: #e8ece8;
+  --color-paper: #f5f7f4;
+  --color-card: #ffffff;
+  --font-sans: var(--font-be-vietnam), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" 1;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-turmeric);
+  outline-offset: 2px;
+}
+
+/* Stainless tray compartments for the plate builder. */
+.tray {
+  background: linear-gradient(160deg, #eef1ee, #d9dfda);
+  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgb(29 36 32 / 0.18);
+}
+.tray-cell {
+  background: #f4f6f4;
+  box-shadow: inset 0 2px 5px rgb(29 36 32 / 0.18), inset 0 -1px 0 #fff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fill-in {
+    animation: fill-in 220ms ease-out;
+  }
+  @keyframes fill-in {
+    from {
+      transform: scale(0.92);
+      opacity: 0;
+    }
+  }
 }
