@@ -63,6 +63,12 @@ Rule used, as in phase 0: a mistake seen 2 times goes into `CLAUDE.md`; a mistak
 
 Not chosen: a `CLAUDE.md` line for asking one case at a time; `ask-lead` covers it.
 
+Added by the user after reviewing the proposals:
+
+- The exceptions of the coverage test hold for the prototype only; in the Code step every acceptance criterion must have a test (X7).
+- Both skill descriptions keep a Vietnamese trigger phrase, as an exception to X2 like `open-pr` (G12, G13).
+- A known defect is fixed right away, not only written into the PR; if it cannot be fixed, Claude asks the user. In "How to work here" in `CLAUDE.md`, and `check-and-push` fixes every defect whatever its severity (G15).
+
 ## Not checked
 
 - The new skills and the changed agent load only in a new session; they were not run in this one.

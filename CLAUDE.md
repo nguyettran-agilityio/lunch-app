@@ -10,6 +10,7 @@ Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product in
 - If a requirement is unclear or not covered by `docs/`, ask the user before acting. Do not guess.
 - Do not add React Compiler, call paid AI APIs, use REA, or turn on Dependabot (see `docs/decisions.md`).
 - When the user makes a new decision, add it to `docs/decisions.md` (technical/process) or tell them it belongs in `docs/intent.md` (product).
+- Fix a known defect right away; do not only write it down in the PR (for example under "Not checked"). If you cannot fix it, ask the user (see `docs/decisions.md` G15).
 
 ## Check (same as CI)
 

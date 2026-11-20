@@ -1,6 +1,6 @@
 ---
 name: ask-lead
-description: Review a whole group of related cases the spec does not decide, ask the Lead (the user) with 2-3 options per question, then write the answers into docs/spec.md and docs/test-scenarios.md. Use when the user asks to check a group of cases and ask them before writing the spec, when the Lead raises a case the spec does not cover, or when spec-reviewer reports points that are not in the spec.
+description: Review a whole group of related cases the spec does not decide, ask the Lead (the user) with 2-3 options per question, then write the answers into docs/spec.md and docs/test-scenarios.md. Use when the user asks to check a group of cases and ask them before writing the spec, when the Lead raises a case the spec does not cover, or when spec-reviewer reports points that are not in the spec, or when the user says "rà cả nhóm, hỏi mình kèm lựa chọn rồi ghi spec".
 argument-hint: "[topic, Lead feedback or spec-reviewer open points]"
 ---
 

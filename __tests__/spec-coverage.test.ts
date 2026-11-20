@@ -8,6 +8,8 @@ const ROOT = path.resolve(__dirname, '..')
 const TESTS = path.join(ROOT, '__tests__')
 
 // Acceptance criteria with no automated test on purpose, each with its reason.
+// These exceptions hold for the prototype only (decision X7): in the Code step every
+// acceptance criterion must have a test, and this list must be emptied.
 const NO_AUTOMATED_TEST: Record<string, string> = {
   AC13: 'Closing a day is not in the prototype (P1, P2)',
   AC15: 'Dish management is not in the prototype; dishes are fixed fake data (P2)',
