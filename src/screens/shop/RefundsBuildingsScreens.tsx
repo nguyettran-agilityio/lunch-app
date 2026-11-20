@@ -4,11 +4,12 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { DayLabel, RefundToView } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, markRefunded, refundList, setDeliveryTime } from '@/proto/logic'
+import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, refundList, setDeliveryTime } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Building } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
+import { MarkRefundedButtons } from './common'
 
 /** S-S10 Refunds: Needs refund with amount, reason, customer phone; mark Refunded (BR-21). */
 export function RefundsScreen() {
@@ -25,6 +26,7 @@ export function RefundsScreen() {
           <p>{m.refunds.empty}</p>
         </Card>
       )}
+      {open.length > 0 && <h2 className="mb-2 text-lg font-bold">{m.refunds.pendingSection}</h2>}
       <ul className="grid gap-3 lg:grid-cols-2">
         {open.map(({ order, refund }) => {
           const c = findCustomer(s, order.customerId)
@@ -51,7 +53,7 @@ export function RefundsScreen() {
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => run((st) => markRefunded(st, order.id, refund.id))}>{m.refunds.mark}</Button>
+                <MarkRefundedButtons order={order} refundId={refund.id} />
                 <Link
                   href={`/shop/order?id=${order.id}`}
                   className="inline-flex min-h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-leaf hover:bg-leaf-soft"
@@ -76,7 +78,8 @@ export function RefundsScreen() {
                   · {findCustomer(s, order.customerId)?.name} · {m.reason[refund.reason]}
                 </span>
                 <span className="font-semibold">
-                  {money(refund.amount)} <span className="font-normal text-muted">{m.refunds.at(refund.refundedAt!)}</span>
+                  {m.refunds.by(money(refund.amount), m.refunds.method[refund.method ?? 'transfer'])}{' '}
+                  <span className="font-normal text-muted">{m.refunds.at(refund.refundedAt!)}</span>
                 </span>
               </li>
             ))}

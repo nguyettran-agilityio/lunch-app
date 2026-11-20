@@ -5,6 +5,10 @@ import {
   addPlateToDraft,
   addToCart,
   cancelOrder,
+  cashAllowed,
+  giveCashBack,
+  refundReminder,
+  seeRefundReminder,
   confirmOrder,
   confirmPayment,
   dayState,
@@ -742,5 +746,92 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
     expect(reviewList(after, TODAY).map((o) => o.id)).toContain(id)
     const o = findOrder(after, id)!
     expect([owed(o), reportedTotal(o), toPay(o)]).toEqual([130000, 90000, 40000])
+  })
+})
+
+describe('refunds: never blocking, reminded, cash or transfer (CN-53, CN-54)', () => {
+  /** A paid 90,000 order (two Bún bò Huế) edited down to 45,000 at 9:00: 45,000 Needs refund. Seed refunds already made. */
+  function editedDown(): [State, string] {
+    let s = at(seed(TODAY), 8 * 60)
+    for (const o of s.orders) for (const r of o.refunds) s = must(markRefunded(s, o.id, r.id))
+    const [placed, id] = place(s, TODAY, 'd-bunbo', 2)
+    s = at(must(confirmPayment(placed, id)), 9 * 60)
+    const line = findOrder(s, id)!.lines[0]
+    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', ''))
+    return [s, id]
+  }
+
+  it('AC41, CN-53: a pending refund does not block confirming, cooking or delivering the order', () => {
+    const [start, id] = editedDown()
+    expect(refundState(findOrder(start, id)!)).toBe('needsRefund')
+    let s = must(confirmOrder(start, id))
+    s = must(startPreparing(s, [id]))
+    s = must(markDelivering(s, [id]))
+    s = must(markDelivered(s, [id]))
+    // Delivered does not record the refund (CN-54).
+    expect(refundState(findOrder(s, id)!)).toBe('needsRefund')
+  })
+
+  it('AC42, CN-53: the reminder shows one hour after the refund, hides for an hour after "Seen", and stops once refunded', () => {
+    const [s, id] = editedDown()
+    expect(refundReminder(at(s, 9 * 60 + 59))).toBeNull()
+    expect(refundReminder(at(s, 10 * 60))).toEqual({ orders: 1, total: 45000 })
+    const seen = seeRefundReminder(at(s, 10 * 60))
+    expect(refundReminder(at(seen, 10 * 60 + 59))).toBeNull()
+    expect(refundReminder(at(seen, 11 * 60))).toEqual({ orders: 1, total: 45000 })
+    const done = must(markRefunded(at(seen, 11 * 60), id, findOrder(seen, id)!.refunds[0].id))
+    expect(refundReminder(at(done, 12 * 60))).toBeNull()
+  })
+
+  it('CN-55: once one refund is an hour old, the reminder counts every refund not made, new ones too', () => {
+    const [start] = editedDown()
+    let s = at(start, 10 * 60)
+    // A second paid order cancelled at 10:00: its refund is new, and still counted.
+    const [placed, id2] = place(at(s, 9 * 60 + 10), TODAY, 'd-thitkho')
+    s = must(cancelOrder(must(confirmPayment(placed, id2)), id2))
+    expect(refundReminder(at(s, 10 * 60))).toEqual({ orders: 2, total: 85000 })
+  })
+
+  it('CN-53: a refund recalculated by another edit keeps its time, so the reminder does not restart', () => {
+    const [start, id] = editedDown()
+    let s = at(start, 9 * 60 + 20)
+    s = must(editOrder(s, id, findOrder(s, id)!.lines, 'b-bitexco', 'Tầng 2'))
+    expect(findOrder(s, id)!.refunds[0].createdAt).toBe(`${TODAY} 09:00`)
+    expect(refundReminder(at(s, 10 * 60))).not.toBeNull()
+  })
+
+  it('AC43, CN-54: cash only for an order still to be delivered; a rejected order goes back to not chosen', () => {
+    const [start, id] = editedDown()
+    expect(cashAllowed(findOrder(start, id)!)).toBe(true)
+    let s = must(setRefundTo(start, id, { kind: 'cash' }))
+    expect(findOrder(s, id)!.refundTo).toEqual({ kind: 'cash' })
+    s = must(rejectOrder(s, id))
+    expect(findOrder(s, id)!.refundTo).toBeNull()
+    expect(setRefundTo(s, id, { kind: 'cash' })).toEqual({ ok: false, error: 'cashNotAllowed' })
+    expect(setRefundTo(s, id, { kind: 'account', bank: 'ACB', account: '1', holder: 'A' }).ok).toBe(true)
+  })
+
+  it('AC43, CN-54: a delivered order offers bank transfer only', () => {
+    const [start, id] = editedDown()
+    let s = must(confirmOrder(start, id))
+    s = must(markDelivering(must(startPreparing(s, [id])), [id]))
+    expect(cashAllowed(findOrder(s, id)!)).toBe(false)
+    expect(setRefundTo(s, id, { kind: 'cash' })).toEqual({ ok: false, error: 'cashNotAllowed' })
+  })
+
+  it('AC44, CN-54: "Cash given back" marks the pending refund Refunded by cash', () => {
+    const [start, id] = editedDown()
+    const s = must(giveCashBack(start, id))
+    expect(findOrder(s, id)!.refunds[0]).toMatchObject({ method: 'cash', refundedAt: `${TODAY} 09:00` })
+    expect(giveCashBack(s, id)).toEqual({ ok: false, error: 'noRefundDue' })
+  })
+
+  it('AC45, CN-54: the shop records how it refunded; the default follows the customer', () => {
+    const [start, id] = editedDown()
+    const cash = must(setRefundTo(start, id, { kind: 'cash' }))
+    const refundId = findOrder(cash, id)!.refunds[0].id
+    expect(findOrder(must(markRefunded(cash, id, refundId)), id)!.refunds[0].method).toBe('cash')
+    expect(findOrder(must(markRefunded(cash, id, refundId, 'transfer')), id)!.refunds[0].method).toBe('transfer')
+    expect(findOrder(must(markRefunded(start, id, refundId)), id)!.refunds[0].method).toBe('transfer')
   })
 })

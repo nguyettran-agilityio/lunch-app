@@ -2,7 +2,7 @@
 
 import { dishName, findBuilding, lineTotal, moneySummary, owed } from '@/proto/logic'
 import { dayMonth, weekday } from '@/proto/time'
-import type { DateStr, EditChange, HistoryEntry, Line, Order, RefundTo } from '@/proto/types'
+import type { DateStr, EditChange, HistoryEntry, Line, Order, Refund, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
 import { Notice } from './ui'
 
@@ -144,6 +144,7 @@ export function OrderHistory({ history }: { history: HistoryEntry[] }) {
 /** Where the customer asked for the refund to go (CN-33). */
 export function RefundToView({ to }: { to: RefundTo }) {
   const { m } = useApp()
+  if (to.kind === 'cash') return <p className="text-[15px] font-semibold">{m.refunds.destCash}</p>
   if (to.kind === 'qr') {
     // eslint-disable-next-line @next/next/no-img-element -- a data URL uploaded by the customer, kept in localStorage
     return <img src={to.image} alt={m.refunds.destQr} className="mt-1 w-full max-w-48 rounded-lg ring-1 ring-steel" />
@@ -194,4 +195,24 @@ export function MissingNotice({ order }: { order: Order }) {
   // A closed order, or a Paid one, owes nothing: no transfer is asked for (CN-44, CN-51).
   const closed = order.status === 'cancelled' || order.status === 'rejected' || owed(order) === 0
   return <Notice tone="chili">{closed ? m.detail.reportMissingClosed(amounts) : m.detail.reportMissing(amounts)}</Notice>
+}
+
+/** A pending refund, always shown to the shop, with how the customer wants it (CN-53, CN-54). */
+export function PendingRefundNote({ order }: { order: Order }) {
+  const { m, money } = useApp()
+  const pending = order.refunds.filter((r) => r.refundedAt === null).reduce((n, r) => n + r.amount, 0)
+  if (pending === 0) return null
+  const how = !order.refundTo ? m.refunds.howNone : order.refundTo.kind === 'cash' ? m.refunds.howCash : m.refunds.howTransfer
+  return <p className="mt-2 rounded-md bg-chili-soft px-2 py-1 text-sm font-semibold text-chili">{m.refunds.pending(money(pending), how)}</p>
+}
+
+/** "Refunded X by bank transfer / cash", or the pending state (CN-54). */
+export function RefundState({ refund }: { refund: Refund }) {
+  const { m, money } = useApp()
+  if (!refund.refundedAt) return <span className="font-semibold text-chili">{m.refund.needsRefund}</span>
+  return (
+    <span className="text-muted">
+      {m.refunds.by(money(refund.amount), m.refunds.method[refund.method ?? 'transfer'])} {m.refunds.at(refund.refundedAt.slice(11))}
+    </span>
+  )
 }

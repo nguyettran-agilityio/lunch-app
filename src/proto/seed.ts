@@ -63,7 +63,7 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
   }
 
   return {
-    version: 3,
+    version: 4,
     lang: 'vi',
     clock: { today, minutes },
     me: 'c1',
@@ -161,13 +161,14 @@ export function seed(today: DateStr, minutes = 9 * 60): State {
       order('c7', d(0), 'b-etown', [fixed('d-thitkho', 1, 40000)], 'placed'),
       order('c2', d(0), 'b-bitexco', [fixed('d-comga', 1, 45000)], 'cancelled', {
         received: 45000,
-        refunds: [{ id: 'r1', amount: 45000, reason: 'cancel', refundedAt: null }],
+        refunds: [{ id: 'r1', amount: 45000, reason: 'cancel', createdAt: stamp(addDays(today, -1), 17 * 60 + 40), refundedAt: null, method: null }],
       }),
       order('c3', d(1), 'b-viettel', [plate(['d-ga', 'd-raumuong', 'd-canhbi'], 1, 40000)], 'confirmed', { received: 40000 }),
     ],
     carts: {},
     drafts: {},
     shopDay: today,
+    refundReminderSeen: null,
     seq: 100,
   }
 }

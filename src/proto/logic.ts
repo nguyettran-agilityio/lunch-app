@@ -1,7 +1,7 @@
 // Business rules of docs/spec.md as pure functions on the prototype state.
 // Every action returns a new state or an error code; nothing is mutated.
 import { orderCode } from './seed'
-import { addDays, stamp } from './time'
+import { addDays, stamp, stampMinutes } from './time'
 import type {
   Building,
   Customer,
@@ -13,8 +13,9 @@ import type {
   Line,
   NewLine,
   Order,
-  PlateLine,
   PaymentState,
+  PlateLine,
+  RefundMethod,
   RefundReason,
   RefundTo,
   ServiceDay,
@@ -41,6 +42,7 @@ export type ErrorCode =
   | 'cannotKeep'
   | 'noRefundDue'
   | 'refundToMissing'
+  | 'cashNotAllowed'
   | 'notFound'
 
 export type Result = { ok: true; state: State; id?: string } | { ok: false; error: ErrorCode }
@@ -210,11 +212,20 @@ function moveTo(s: State, o: Order, status: Status): Order {
   return { ...o, status, history: [...o.history, { kind: 'status', status, at: now(s) }] }
 }
 
-function withRefund(s: State, o: Order, amount: number, reason: RefundReason): [State, Order] {
+function withRefund(s: State, o: Order, amount: number, reason: RefundReason, createdAt = now(s)): [State, Order] {
   if (amount <= 0) return [s, o]
   const [s2, id] = nextId(s, 'r')
-  return [s2, { ...o, refunds: [...o.refunds, { id, amount, reason, refundedAt: null }] }]
+  return [s2, { ...o, refunds: [...o.refunds, { id, amount, reason, createdAt, refundedAt: null, method: null }] }]
 }
+
+/** Cash at delivery can be chosen only for an order still to be delivered (CN-54). */
+export const cashAllowed = (o: Order): boolean => o.status === 'placed' || o.status === 'confirmed' || o.status === 'preparing'
+
+/** A closed order is not delivered: a cash choice goes back to not chosen (CN-54). */
+const dropCash = (o: Order): Order => (o.refundTo?.kind === 'cash' ? { ...o, refundTo: null } : o)
+
+/** How the customer wants the refund, as the default way the shop records it (CN-54). */
+export const customerRefundMethod = (o: Order): RefundMethod => (o.refundTo?.kind === 'cash' ? 'cash' : 'transfer')
 
 // ---------- Customer actions ----------
 
@@ -301,7 +312,7 @@ export function cancelOrder(s: State, id: string): Result {
   if (block) return fail(block)
   // Only confirmed money is refunded now; a reported transfer waits for the shop (CN-39).
   const [s2, withR] = withRefund(s, o, netPaid(o), 'cancel')
-  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'cancelled'), endReason: 'cancel' })))
+  return ok(patchOrder(s2, id, () => dropCash({ ...moveTo(s2, withR, 'cancelled'), endReason: 'cancel' })))
 }
 
 /**
@@ -326,7 +337,9 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
     note: note.trim(),
     refunds: o.refunds.filter((r) => r.refundedAt !== null),
   }
-  const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit')
+  // A refund recalculated by the edit keeps the time the earliest dropped one was recorded, so the reminder does not restart (CN-53).
+  const dropped = o.refunds.filter((r) => r.refundedAt === null).map((r) => r.createdAt).sort()[0]
+  const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit', dropped ?? now(s))
   // Every saved edit is recorded with what changed, then the order is back to Placed (CN-32).
   const entry = { kind: 'edit' as const, at: now(s), fromTotal: orderTotal(o), toTotal: newTotal, changes: editChanges(o, kept, buildingId, note.trim()) }
   const logged = { ...withR, history: [...withR.history, entry] }
@@ -383,11 +396,12 @@ export function addPlateToDraft(s: State, id: string, plate: Omit<PlateLine, 'id
   return ok(setDraft(s2, id, { ...draft, lines: [...draft.lines, { ...plate, id: lineId }] }), lineId)
 }
 
-/** Where the customer wants the refund of this order sent (CN-33). */
+/** How the customer wants the refund of this order: an account or QR photo (CN-33), or cash at delivery (CN-54). */
 export function setRefundTo(s: State, id: string, to: RefundTo): Result {
   const o = findOrder(s, id)
   if (!o) return fail('notFound')
   if (refundState(o) !== 'needsRefund') return fail('noRefundDue')
+  if (to.kind === 'cash') return cashAllowed(o) ? ok(patchOrder(s, id, (x) => ({ ...x, refundTo: to }))) : fail('cashNotAllowed')
   const filled =
     to.kind === 'account' ? [to.bank, to.account, to.holder].every((v) => v.trim() !== '') : to.image.startsWith('data:image/')
   if (!filled) return fail('refundToMissing')
@@ -459,7 +473,7 @@ export function rejectOrder(s: State, id: string, reason: RefundReason = 'reject
   if (!canReject(o)) return fail(isActive(o.status) ? 'cannotReject' : 'notActive')
   // Only confirmed money is refunded now; a reported transfer waits for the shop (CN-39).
   const [s2, withR] = withRefund(s, o, netPaid(o), reason)
-  return ok(patchOrder(s2, id, () => ({ ...moveTo(s2, withR, 'rejected'), endReason: reason })))
+  return ok(patchOrder(s2, id, () => dropCash({ ...moveTo(s2, withR, 'rejected'), endReason: reason })))
 }
 
 /** Keep an unpaid order at the cutoff review; it leaves the list (CN-18). */
@@ -487,14 +501,50 @@ export const markDelivering = (s: State, ids: string[]) => moveMany(s, ids, 'pre
 export const markDelivered = (s: State, ids: string[], note?: string) =>
   moveMany(s, ids, 'delivering', 'delivered', 'notDelivering', note)
 
-export function markRefunded(s: State, orderId: string, refundId: string): Result {
-  if (!findOrder(s, orderId)) return fail('notFound')
+/** Mark a refund made, recording how: bank transfer or cash, by default the customer's choice (CN-54). */
+export function markRefunded(s: State, orderId: string, refundId: string, method?: RefundMethod): Result {
+  const o = findOrder(s, orderId)
+  if (!o) return fail('notFound')
+  const how = method ?? customerRefundMethod(o)
   return ok(
-    patchOrder(s, orderId, (o) => ({
-      ...o,
-      refunds: o.refunds.map((r) => (r.id === refundId && r.refundedAt === null ? { ...r, refundedAt: now(s) } : r)),
+    patchOrder(s, orderId, (x) => ({
+      ...x,
+      refunds: x.refunds.map((r) => (r.id === refundId && r.refundedAt === null ? { ...r, refundedAt: now(s), method: how } : r)),
     })),
   )
+}
+
+/** Money still to give back on an order. */
+export const pendingRefund = (o: Order): number => o.refunds.filter((r) => r.refundedAt === null).reduce((n, r) => n + r.amount, 0)
+
+/** "Cash given back" on the delivery list: every pending refund of the order is made in cash (CN-54). */
+export function giveCashBack(s: State, id: string): Result {
+  const o = findOrder(s, id)
+  if (!o) return fail('notFound')
+  if (pendingRefund(o) === 0) return fail('noRefundDue')
+  let next = s
+  for (const r of o.refunds) {
+    if (r.refundedAt !== null) continue
+    const res = markRefunded(next, id, r.id, 'cash')
+    if (res.ok) next = res.state
+  }
+  return ok(next)
+}
+
+/**
+ * The shop's reminder (CN-53): shown once any refund has been pending for an hour, hidden for an hour
+ * after "Seen". Counts every order not refunded, with the total.
+ */
+export function refundReminder(s: State): { orders: number; total: number } | null {
+  const at = stampMinutes(now(s))
+  const pending = s.orders.flatMap((o) => o.refunds.filter((r) => r.refundedAt === null).map((r) => ({ o, r })))
+  if (!pending.some(({ r }) => at - stampMinutes(r.createdAt) >= 60)) return null
+  if (s.refundReminderSeen && at - stampMinutes(s.refundReminderSeen) < 60) return null
+  return { orders: new Set(pending.map(({ o }) => o.id)).size, total: pending.reduce((n, { r }) => n + r.amount, 0) }
+}
+
+export function seeRefundReminder(s: State): State {
+  return { ...s, refundReminderSeen: now(s) }
 }
 
 export function approveBuilding(s: State, id: string, deliveryTime: number): Result {

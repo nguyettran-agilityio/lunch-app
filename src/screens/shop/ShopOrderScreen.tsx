@@ -1,12 +1,12 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { DayLabel, LinesList, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
+import { DayLabel, LinesList, OrderHistory, PaidRows, PendingRefundNote, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, OrderBadges, PageTitle } from '@/components/ui'
-import { findBuilding, findCustomer, markRefunded, orderTotal, owed, reportedTotal, startPreparing, toPay } from '@/proto/logic'
+import { findBuilding, findCustomer, orderTotal, owed, reportedTotal, startPreparing, toPay } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { useApp } from '@/proto/useApp'
-import { ShopOrderActions } from './common'
+import { MarkRefundedButtons, ShopOrderActions } from './common'
 
 /** S-S11 Order detail for the shop: any order of any day, including Cancelled and Rejected (CN-35). */
 export function ShopOrderScreen() {
@@ -83,6 +83,7 @@ export function ShopOrderScreen() {
                 </>
               )}
             </dl>
+            <PendingRefundNote order={order} />
             {/* The same actions as on the Orders screen, including start preparing (S-S11, BR-24). */}
             <ShopOrderActions
               order={order}
@@ -105,13 +106,7 @@ export function ShopOrderScreen() {
                     <span>
                       {money(r.amount)} · {m.reason[r.reason]}
                     </span>
-                    {r.refundedAt ? (
-                      <span className="text-muted">
-                        {m.refund.refunded} {m.refunds.at(r.refundedAt)}
-                      </span>
-                    ) : (
-                      <Button onClick={() => run((st) => markRefunded(st, order.id, r.id))}>{m.refunds.mark}</Button>
-                    )}
+                    {r.refundedAt ? <RefundState refund={r} /> : <MarkRefundedButtons order={order} refundId={r.id} />}
                   </li>
                 ))}
               </ul>

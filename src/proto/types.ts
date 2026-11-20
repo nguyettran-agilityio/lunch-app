@@ -66,12 +66,19 @@ export type Status = 'placed' | 'confirmed' | 'preparing' | 'delivering' | 'deli
 export type PaymentState = 'unpaid' | 'reported' | 'paid' | 'underpaid'
 export type RefundReason = 'cancel' | 'edit' | 'reject' | 'closedDay' | 'building'
 
+/** How a refund is given back (CN-54). */
+export type RefundMethod = 'transfer' | 'cash'
+
 export type Refund = {
   id: string
   amount: number
   reason: RefundReason
+  /** Demo time it was recorded as Needs refund; the reminder starts one hour later (CN-53). */
+  createdAt: string
   /** Demo time of the shop's "refunded" mark; null while Needs refund. */
   refundedAt: string | null
+  /** How the shop actually refunded it (CN-54); null while Needs refund. */
+  method: RefundMethod | null
 }
 
 /** One tap on "I have transferred", kept apart from the others so the shop answers each (CN-43). */
@@ -94,10 +101,11 @@ export type ReportMissingEntry = { kind: 'reportMissing'; at: string; amount: nu
 
 export type HistoryEntry = StatusEntry | EditEntry | ReportMissingEntry
 
-/** Where the customer wants a refund sent, entered per order (CN-33). */
+/** How the customer wants a refund, entered per order: bank transfer (CN-33) or cash at delivery (CN-54). */
 export type RefundTo =
   | { kind: 'account'; bank: string; account: string; holder: string }
   | { kind: 'qr'; image: string }
+  | { kind: 'cash' }
 
 /** An edit in progress: all changes are saved together with one "Save" (CN-29). */
 export type EditDraft = { lines: Line[]; buildingId: string; note: string }
@@ -143,7 +151,7 @@ export type Clock = {
 }
 
 export type State = {
-  version: 3
+  version: 4
   lang: Lang
   clock: Clock
   me: string
@@ -160,5 +168,7 @@ export type State = {
   drafts: Record<string, EditDraft>
   /** Day the shop screens show (prototype navigation only). */
   shopDay: DateStr
+  /** Demo time the shop tapped "Seen" on the refund reminder; hidden for one hour after (CN-53). */
+  refundReminderSeen: string | null
   seq: number
 }

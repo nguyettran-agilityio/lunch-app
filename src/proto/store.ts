@@ -7,7 +7,7 @@ import { seed } from './seed'
 import { vietnamNow } from './time'
 import type { State } from './types'
 
-const KEY = 'lunch-prototype-v4'
+const KEY = 'lunch-prototype-v5'
 
 let state: State | null = null
 let lastError: { code: ErrorCode; at: number } | null = null
@@ -23,7 +23,7 @@ function load(): State {
     const raw = window.localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as State
-      if (parsed.version === 3) return parsed
+      if (parsed.version === 4) return parsed
     }
   } catch {
     // Storage blocked or broken: start from the fake data.

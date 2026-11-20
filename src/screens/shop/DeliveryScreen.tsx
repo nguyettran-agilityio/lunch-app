@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { LinesSummary } from '@/components/parts'
+import { LinesSummary, PendingRefundNote } from '@/components/parts'
 import { Badge, Button, Card, OrderBadges, PageTitle, TextInput } from '@/components/ui'
-import { deliveryList, findCustomer, markDelivered, markDelivering } from '@/proto/logic'
+import { deliveryList, findCustomer, giveCashBack, markDelivered, markDelivering, pendingRefund } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm } from '@/proto/time'
 import type { Order } from '@/proto/types'
@@ -62,9 +62,11 @@ export function DeliveryScreen() {
 }
 
 function DeliveryRow({ order }: { order: Order }) {
-  const { s, m } = useApp()
+  const { s, m, money } = useApp()
   const [note, setNote] = useState('')
   const c = findCustomer(s, order.customerId)
+  // Cash to give back unless the customer asked for a bank transfer (CN-54).
+  const cashDue = order.refundTo && order.refundTo.kind !== 'cash' ? 0 : pendingRefund(order)
   return (
     <li className="rounded-xl bg-card p-4 ring-1 ring-steel/70">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -86,6 +88,13 @@ function DeliveryRow({ order }: { order: Order }) {
         <OrderBadges order={order} />
         {order.status === 'confirmed' && <Badge tone="steel">{m.delivery.notCooked}</Badge>}
       </div>
+      {/* Pending refund: how much to give back, and how (CN-53, CN-54). */}
+      <PendingRefundNote order={order} />
+      {cashDue > 0 && (
+        <Button variant="secondary" className="mt-2" onClick={() => run((st) => giveCashBack(st, order.id))}>
+          {m.delivery.cashBack(money(cashDue))}
+        </Button>
+      )}
       {order.shopNote && <p className="mt-2 text-sm text-muted">{order.shopNote}</p>}
       {order.status === 'preparing' && (
         <Button variant="secondary" className="mt-3" onClick={() => run((st) => markDelivering(st, [order.id]))}>

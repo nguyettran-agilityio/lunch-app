@@ -2,10 +2,11 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
-import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundToView } from '@/components/parts'
+import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
   cancelOrder,
+  cashAllowed,
   customerChangeBlock,
   discardEdit,
   dishName,
@@ -139,9 +140,7 @@ export function OrderScreen() {
                     <span>
                       {money(r.amount)} · {m.reason[r.reason]}
                     </span>
-                    <span className={r.refundedAt ? 'text-muted' : 'font-semibold text-chili'}>
-                      {r.refundedAt ? `${m.refund.refunded} ${m.refunds.at(r.refundedAt.slice(11))}` : m.refund.needsRefund}
-                    </span>
+                    <RefundState refund={r} />
                   </li>
                 ))}
               </ul>
@@ -272,7 +271,8 @@ function RefundToForm({ order }: { order: Order }) {
   const { m } = useApp()
   const [changing, setChanging] = useState(false)
   const current = order.refundTo
-  const [kind, setKind] = useState<RefundTo['kind']>(current?.kind ?? 'account')
+  // Cash chosen earlier but the order is no longer to be delivered: start from an account instead (CN-54).
+  const [kind, setKind] = useState<RefundTo['kind']>(current?.kind === 'cash' && !cashAllowed(order) ? 'account' : (current?.kind ?? 'account'))
   const [bank, setBank] = useState(current?.kind === 'account' ? current.bank : '')
   const [account, setAccount] = useState(current?.kind === 'account' ? current.account : '')
   const [holder, setHolder] = useState(current?.kind === 'account' ? current.holder : '')
@@ -295,7 +295,8 @@ function RefundToForm({ order }: { order: Order }) {
       <h3 className="font-bold">{m.detail.refundTo}</h3>
       <p className="mb-3 text-sm text-muted">{m.detail.refundToIntro}</p>
       <div role="group" aria-label={m.detail.refundTo} className="mb-3 flex gap-1 rounded-lg p-0.5 ring-1 ring-steel">
-        {(['account', 'qr'] as const).map((k) => (
+        {/* Cash at delivery only for an order still to be delivered (CN-54). */}
+        {(cashAllowed(order) ? (['account', 'qr', 'cash'] as const) : (['account', 'qr'] as const)).map((k) => (
           <button
             key={k}
             type="button"
@@ -303,11 +304,13 @@ function RefundToForm({ order }: { order: Order }) {
             onClick={() => setKind(k)}
             className={cx('min-h-10 flex-1 rounded-md text-sm font-semibold', kind === k ? 'bg-ink text-white' : 'text-muted')}
           >
-            {k === 'account' ? m.detail.refundAccount : m.detail.refundQr}
+            {k === 'account' ? m.detail.refundAccount : k === 'qr' ? m.detail.refundQr : m.detail.refundCash}
           </button>
         ))}
       </div>
-      {kind === 'account' ? (
+      {kind === 'cash' ? (
+        <p className="text-sm">{m.detail.refundCashNote}</p>
+      ) : kind === 'account' ? (
         <div className="grid gap-3 sm:grid-cols-3">
           <TextInput label={m.detail.refundBank} value={bank} onChange={(e) => setBank(e.target.value)} />
           <TextInput label={m.detail.refundNumber} inputMode="numeric" value={account} onChange={(e) => setAccount(e.target.value)} />
@@ -336,7 +339,7 @@ function RefundToForm({ order }: { order: Order }) {
       <div className="mt-3 flex gap-2">
         <Button
           onClick={() => {
-            const to: RefundTo = kind === 'account' ? { kind, bank, account, holder } : { kind, image }
+            const to: RefundTo = kind === 'account' ? { kind, bank, account, holder } : kind === 'qr' ? { kind, image } : { kind: 'cash' }
             if (run((st) => setRefundTo(st, order.id, to)).ok) setChanging(false)
           }}
         >

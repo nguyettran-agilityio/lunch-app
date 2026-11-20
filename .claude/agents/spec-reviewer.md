@@ -9,7 +9,7 @@ You review the office lunch prototype in this repository against its product spe
 
 ## Sources of truth
 
-- `docs/spec.md` says what the app does: business rules BR-1 … BR-32 (and BR-11a), screens S-C* and S-S* (S-S11 is the shop order detail), flows F1–F5, acceptance criteria AC1 … AC40, and the Lead's decisions under "Areas of concern" (OQ*, CN-*). When the spec and the code disagree, the spec wins.
+- `docs/spec.md` says what the app does: business rules BR-1 … BR-32 (and BR-11a), screens S-C* and S-S* (S-S11 is the shop order detail), flows F1–F5, acceptance criteria AC1 … AC45, and the Lead's decisions under "Areas of concern" (OQ*, CN-*). When the spec and the code disagree, the spec wins.
 - `docs/decisions.md`, section "Prototype" (P1–P4), says what the prototype covers: which screens are in scope, that sign-in is fake, that dishes, plate rules, days and settings use fixed fake data, the VI/EN switch, and the demo bar (role switch, fake time, reset) that is not part of the product.
 - Do not judge the prototype against anything else (your own taste, other apps, older versions of the spec).
 

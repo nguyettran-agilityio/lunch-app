@@ -2,19 +2,21 @@
 
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { DayLabel, LinesSummary } from '@/components/parts'
+import { DayLabel, LinesSummary, PendingRefundNote } from '@/components/parts'
 import { Button, ConfirmButton, OrderBadges, cx } from '@/components/ui'
 import {
   beforeCutoff,
   canReject,
   confirmOrder,
   confirmPayment,
+  customerRefundMethod,
   cutoffOf,
   dayOrders,
   dayState,
   findBuilding,
   findCustomer,
   isActive,
+  markRefunded,
   orderTotal,
   owed,
   paymentState,
@@ -126,6 +128,8 @@ export function ShopOrderCard({
             <OrderBadges order={order} />
             {order.kept && <span className="text-xs font-semibold text-muted">{m.shop.kept}</span>}
           </div>
+          {/* A pending refund never blocks the order, but is always shown (CN-53). */}
+          <PendingRefundNote order={order} />
         </div>
       </div>
       <ShopOrderActions order={order} extra={extra} />
@@ -203,5 +207,20 @@ export function ShopOrderActions({ order, extra }: { order: Order; extra?: React
       </div>
       {order.status === 'placed' && building?.state === 'pending' && <p className="mt-2 text-sm text-[#7a5104]">{m.shop.buildingPending}</p>}
     </>
+  )
+}
+
+/** Mark a refund made, by bank transfer or cash; the customer's choice comes first (CN-54). */
+export function MarkRefundedButtons({ order, refundId }: { order: Order; refundId: string }) {
+  const { m } = useApp()
+  const first = customerRefundMethod(order)
+  const other = first === 'cash' ? 'transfer' : 'cash'
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button onClick={() => run((st) => markRefunded(st, order.id, refundId, first))}>{m.refunds.markAs(m.refunds.method[first])}</Button>
+      <Button variant="secondary" onClick={() => run((st) => markRefunded(st, order.id, refundId, other))}>
+        {m.refunds.markAs(m.refunds.method[other])}
+      </Button>
+    </div>
   )
 }

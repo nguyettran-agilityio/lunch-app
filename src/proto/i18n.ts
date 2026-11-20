@@ -2,7 +2,7 @@
 // Dish, group and building names are shop-entered and are not translated (CN-8); a dish's optional
 // English name is shown in English (CN-31, see dishName in logic.ts).
 import type { ErrorCode, RefundState } from './logic'
-import type { Lang, PaymentState, RefundReason, Status } from './types'
+import type { Lang, PaymentState, RefundMethod, RefundReason, Status } from './types'
 
 const vi = {
   appName: 'Cơm Lá',
@@ -159,6 +159,8 @@ const vi = {
     refundToIntro: 'Cho shop biết chuyển tiền hoàn vào đâu, cho riêng đơn này.',
     refundAccount: 'Nhập tài khoản',
     refundQr: 'Tải ảnh QR',
+    refundCash: 'Tiền mặt khi giao',
+    refundCashNote: 'Shop trả lại tiền mặt khi giao đơn. Nếu không có sẵn, shop sẽ liên hệ rồi chuyển khoản.',
     refundBank: 'Ngân hàng',
     refundNumber: 'Số tài khoản',
     refundHolder: 'Chủ tài khoản',
@@ -257,6 +259,7 @@ const vi = {
     queueEmpty: 'Không có đơn đã xác nhận nào đang chờ nấu.',
   },
   delivery: {
+    cashBack: (v: string) => `Đã trả tiền mặt · ${v}`,
     title: 'Giao theo tòa',
     intro: 'Theo giờ giao của từng tòa. Chỉ đơn đang nấu mới chuyển sang đang giao được.',
     at: (t: string) => `Giao ${t}`,
@@ -279,6 +282,18 @@ const vi = {
     openOrder: 'Xem đơn',
     done: 'Đã hoàn',
     at: (t: string) => `lúc ${t}`,
+    pendingSection: 'Chưa hoàn',
+    destCash: 'Tiền mặt khi giao',
+    markAs: (how: string) => `Đã hoàn · ${how}`,
+    method: { transfer: 'chuyển khoản', cash: 'tiền mặt' } satisfies Record<RefundMethod, string>,
+    by: (v: string, how: string) => `Đã hoàn ${v} bằng ${how}`,
+    pending: (v: string, how: string) => `Chờ hoàn ${v} · ${how}`,
+    howTransfer: 'chuyển khoản',
+    howCash: 'trả tiền mặt khi giao',
+    howNone: 'khách chưa chọn cách nhận',
+    reminder: (n: number, v: string) => `Còn ${n} đơn chưa hoàn, tổng ${v}`,
+    reminderOpen: 'Xem mục chưa hoàn',
+    reminderSeen: 'Đã xem',
   },
   buildings: {
     title: 'Tòa nhà',
@@ -314,6 +329,7 @@ const vi = {
     notDelivering: 'Chỉ đơn đang giao mới đánh dấu đã giao được.',
     nothingOwed: 'Đơn không còn nợ tiền.',
     nothingReported: 'Đơn không có lần báo chuyển nào đang chờ.',
+    cashNotAllowed: 'Chỉ đơn còn giao mới nhận hoàn bằng tiền mặt.',
     cannotReject: 'Đơn đã vào bếp: không từ chối được nữa.',
     cannotKeep: 'Chỉ giữ được đơn đã xác nhận nhưng chưa trả đủ, sau giờ chốt.',
     noRefundDue: 'Đơn này không có khoản nào cần hoàn.',
@@ -489,6 +505,8 @@ const en: Messages = {
     refundToIntro: 'Tell the shop where to send the refund for this order.',
     refundAccount: 'Enter an account',
     refundQr: 'Upload a QR photo',
+    refundCash: 'Cash at delivery',
+    refundCashNote: 'The shop gives the money back in cash at delivery. If it has none ready, it contacts you and transfers.',
     refundBank: 'Bank',
     refundNumber: 'Account number',
     refundHolder: 'Account holder',
@@ -577,6 +595,7 @@ const en: Messages = {
     queueEmpty: 'No Shop confirmed order is waiting to be prepared.',
   },
   delivery: {
+    cashBack: (v) => `Cash given back · ${v}`,
     title: 'Delivery by building',
     intro: 'In each building’s delivery time order. Only Preparing orders can move to Delivering.',
     at: (t) => `Delivery ${t}`,
@@ -599,6 +618,18 @@ const en: Messages = {
     openOrder: 'View order',
     done: 'Refunded',
     at: (t) => `at ${t}`,
+    pendingSection: 'Not refunded',
+    destCash: 'Cash at delivery',
+    markAs: (how) => `Refunded · ${how}`,
+    method: { transfer: 'bank transfer', cash: 'cash' },
+    by: (v, how) => `Refunded ${v} by ${how}`,
+    pending: (v, how) => `Refund pending ${v} · ${how}`,
+    howTransfer: 'bank transfer',
+    howCash: 'cash back at delivery',
+    howNone: 'customer has not chosen how to receive it',
+    reminder: (n, v) => `${n} ${n === 1 ? 'order' : 'orders'} not refunded, ${v} in total`,
+    reminderOpen: 'Open not refunded',
+    reminderSeen: 'Seen',
   },
   buildings: {
     title: 'Buildings',
@@ -634,6 +665,7 @@ const en: Messages = {
     notDelivering: 'Only Delivering orders can be marked delivered.',
     nothingOwed: 'Nothing is owed on this order.',
     nothingReported: 'This order has no transfer report waiting.',
+    cashNotAllowed: 'Cash is only possible for an order still to be delivered.',
     cannotReject: 'The order is in the kitchen: it can no longer be rejected.',
     cannotKeep: 'Only a confirmed, not fully paid order can be kept, after the cutoff.',
     noRefundDue: 'This order has nothing to refund.',

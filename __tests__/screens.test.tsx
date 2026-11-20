@@ -3,7 +3,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { cancelOrder, confirmPayment, editOrder, reportNotReceived, reportTransfer, type Result } from '../src/proto/logic'
+import { cancelOrder, confirmOrder, confirmPayment, editOrder, setRefundTo, reportNotReceived, reportTransfer, type Result } from '../src/proto/logic'
 import { seed } from '../src/proto/seed'
 import { vietnamNow } from '../src/proto/time'
 import type { Line, State } from '../src/proto/types'
@@ -16,7 +16,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => nav.params,
 }))
 
-const KEY = 'lunch-prototype-v4'
+const KEY = 'lunch-prototype-v5'
 const today = vietnamNow(new Date()).today
 
 /** Store a state, then load fresh modules so the store reads it (the store caches its state). */
@@ -100,10 +100,13 @@ describe('paid order cancelled by the customer', () => {
     expect(row('Shop đã nhận')).toBe('45.000 ₫')
     expect(row('Đang chờ hoàn')).toBe('45.000 ₫')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Đánh dấu đã hoàn' }))
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · khách chưa chọn cách nhận')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Đã hoàn · chuyển khoản' }))
     expect(row('Shop đã nhận')).toBe('45.000 ₫')
     expect(row('Đang chờ hoàn')).toBeNull()
     expect(row('Đã hoàn')).toBe('45.000 ₫')
+    // AC45, CN-54: how it was refunded is shown.
+    expect(screen.getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
   })
 })
 
@@ -271,5 +274,137 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
     expect(screen.queryByRole('link', { name: 'Thanh toán' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Xem lại QR' })).toBeNull()
     expect(row('Đang chờ hoàn')).toBeNull()
+  })
+})
+
+describe('refunds: shown, reminded, cash or transfer (CN-53, CN-54)', () => {
+  // Seed: Lê Thu Hà (c3) paid 90,000 for two Cơm gà; edited down to one, the order is confirmed again.
+  const haId = `o-${today}-3`
+  const cancelledId = `o-${today}-8`
+  const must = (r: Result): State => {
+    if (!r.ok) throw new Error(r.error)
+    return r.state
+  }
+  function editedDown(): State {
+    const s0: State = { ...seed(today), me: 'c3', clock: { today, minutes: 8 * 60 }, shopDay: today }
+    const o = s0.orders.find((x) => x.id === haId)!
+    return must(confirmOrder(must(editOrder(s0, haId, [{ ...o.lines[0], qty: 1 }], o.buildingId, o.note)), haId))
+  }
+
+  test('AC41, AC44, CN-53, CN-54: the delivery list shows the cash to give back; "Cash given back" records it', async () => {
+    nav.path = '/shop/delivery'
+    nav.params = new URLSearchParams()
+    const show = await load(must(setRefundTo(editedDown(), haId, { kind: 'cash' })))
+    const { DeliveryScreen } = await import('../src/screens/shop/DeliveryScreen')
+    show(<DeliveryScreen />)
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · trả tiền mặt khi giao')).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Đã trả tiền mặt · 45.000 ₫' }))
+    expect(screen.queryByText(/Chờ hoàn 45\.000/)).toBeNull()
+    const stored = JSON.parse(window.localStorage.getItem(KEY)!) as State
+    expect(stored.orders.find((o) => o.id === haId)!.refunds[0].method).toBe('cash')
+  })
+
+  test('AC44, CN-54: with no choice yet the delivery list says so, and still offers cash', async () => {
+    nav.path = '/shop/delivery'
+    nav.params = new URLSearchParams()
+    const show = await load(editedDown())
+    const { DeliveryScreen } = await import('../src/screens/shop/DeliveryScreen')
+    show(<DeliveryScreen />)
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · khách chưa chọn cách nhận')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Đã trả tiền mặt · 45.000 ₫' })).toBeDefined()
+  })
+
+  test('AC41, CN-53: the Orders screen shows the pending refund on the order', async () => {
+    nav.path = '/shop'
+    nav.params = new URLSearchParams()
+    const show = await load(must(setRefundTo(editedDown(), haId, { kind: 'account', bank: 'ACB', account: '123', holder: 'LE THU HA' })))
+    const { ShopOrdersScreen } = await import('../src/screens/shop/ShopOrdersScreen')
+    show(<ShopOrdersScreen />)
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · chuyển khoản')).toBeDefined()
+  })
+
+  test('CN-55: no "Cash given back" on the delivery list when the customer chose bank transfer', async () => {
+    nav.path = '/shop/delivery'
+    nav.params = new URLSearchParams()
+    const show = await load(must(setRefundTo(editedDown(), haId, { kind: 'account', bank: 'ACB', account: '123', holder: 'LE THU HA' })))
+    const { DeliveryScreen } = await import('../src/screens/shop/DeliveryScreen')
+    show(<DeliveryScreen />)
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · chuyển khoản')).toBeDefined()
+    expect(screen.queryByRole('button', { name: /Đã trả tiền mặt/ })).toBeNull()
+  })
+
+  test('AC42, CN-53: the reminder bar shows on shop screens and "Seen" hides it', async () => {
+    nav.path = '/shop/refunds'
+    nav.params = new URLSearchParams()
+    // The seed's refund was recorded yesterday, so it is more than an hour old.
+    const show = await load({ ...seed(today), clock: { today, minutes: 8 * 60 } })
+    const { RefundsScreen } = await import('../src/screens/shop/RefundsBuildingsScreens')
+    show(<RefundsScreen />)
+    expect(screen.getByRole('link', { name: /Còn 1 đơn chưa hoàn, tổng 45\.000 ₫/ })).toBeDefined()
+    fireEvent.click(screen.getByRole('button', { name: 'Đã xem' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  test('AC41, AC45, CN-53, CN-54: the shop detail shows the pending refund; marked from the Refunds screen, both sides see how', async () => {
+    const s = must(setRefundTo(editedDown(), haId, { kind: 'cash' }))
+    nav.path = '/shop/order'
+    nav.params = new URLSearchParams({ id: haId })
+    let show = await load(s)
+    const { ShopOrderScreen } = await import('../src/screens/shop/ShopOrderScreen')
+    show(<ShopOrderScreen />)
+    expect(screen.getByText('Chờ hoàn 45.000 ₫ · trả tiền mặt khi giao')).toBeDefined()
+    cleanup()
+
+    // The shipper had no cash: the shop transfers and records it from the Refunds screen.
+    nav.path = '/shop/refunds'
+    nav.params = new URLSearchParams()
+    show = await load(s)
+    const { RefundsScreen } = await import('../src/screens/shop/RefundsBuildingsScreens')
+    show(<RefundsScreen />)
+    const card = screen.getByRole('link', { name: s.orders.find((o) => o.id === haId)!.code }).closest('li')!
+    expect(within(card).getByRole('button', { name: 'Đã hoàn · tiền mặt' })).toBeDefined()
+    fireEvent.click(within(card).getByRole('button', { name: 'Đã hoàn · chuyển khoản' }))
+    expect(screen.getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
+    cleanup()
+
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: haId })
+    show = await load(JSON.parse(window.localStorage.getItem(KEY)!) as State)
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    show(<OrderScreen />)
+    expect(screen.getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
+  })
+
+  test('CN-54: cash chosen, order now delivering: changing the choice starts from an account', async () => {
+    let s = must(setRefundTo(editedDown(), haId, { kind: 'cash' }))
+    const { startPreparing, markDelivering } = await import('../src/proto/logic')
+    s = must(markDelivering(must(startPreparing(s, [haId])), [haId]))
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: haId })
+    const show = await load(s)
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    show(<OrderScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Đổi' }))
+    expect(screen.getByRole('button', { name: 'Nhập tài khoản' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByLabelText('Ngân hàng')).toBeDefined()
+  })
+
+  test('AC43, CN-54: the customer can choose cash for an order still to be delivered, not for a cancelled one', async () => {
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: haId })
+    let show = await load(editedDown())
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    show(<OrderScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Tiền mặt khi giao' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Gửi cho shop' }))
+    expect(screen.getByText('Tiền mặt khi giao', { selector: 'p' })).toBeDefined()
+    cleanup()
+
+    nav.params = new URLSearchParams({ id: cancelledId })
+    show = await load({ ...seed(today), me: 'c2' })
+    const fresh = await import('../src/screens/customer/OrderScreen')
+    show(<fresh.OrderScreen />)
+    expect(screen.getByRole('button', { name: 'Tải ảnh QR' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Tiền mặt khi giao' })).toBeNull()
   })
 })

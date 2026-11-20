@@ -54,3 +54,10 @@ export function stamp(today: DateStr, minutes: number): string {
 export function dayMonth(date: DateStr): string {
   return `${date.slice(8, 10)}/${date.slice(5, 7)}`
 }
+
+/** Minutes since 1970 of a demo timestamp, to compare stamps across days. */
+export function stampMinutes(at: string): number {
+  const [date, time] = at.split(' ')
+  const [y, mo, d] = date.split('-').map(Number)
+  return Date.UTC(y, mo - 1, d) / 60000 + (parseHhmm(time) ?? 0)
+}

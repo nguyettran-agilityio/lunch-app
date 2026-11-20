@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { messages } from '@/proto/i18n'
-import { refundList } from '@/proto/logic'
+import { messages, money as formatMoney } from '@/proto/i18n'
+import { refundList, refundReminder, seeRefundReminder } from '@/proto/logic'
 import { clearError, resetData, update, useLastError, useProto } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Lang } from '@/proto/types'
@@ -32,6 +32,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const m = messages[s.lang]
   // Refunds still to send, over all days, so the shop sees them from any screen (CN-35).
   const openRefunds = refundList(s).filter((x) => x.refund.refundedAt === null).length
+  const reminder = refundReminder(s)
+  const money = (v: number) => formatMoney(v, s.lang)
   const cartCount = Object.values(s.carts).reduce((n, lines) => n + lines.reduce((k, l) => k + l.qty, 0), 0)
 
   const customerNav = [
@@ -76,7 +78,24 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
       </header>
 
-      <main className={cx('mx-auto w-full max-w-6xl flex-1 px-4 pt-6', shop ? 'pb-16' : 'pb-28 md:pb-16')}>{children}</main>
+      <main className={cx('mx-auto w-full max-w-6xl flex-1 px-4 pt-6', shop ? 'pb-16' : 'pb-28 md:pb-16')}>
+        {shop && reminder && (
+          // Hourly reminder of refunds not made, on every shop screen (CN-53).
+          <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-chili px-4 py-3 text-white">
+            <Link href="/shop/refunds" className="font-bold underline underline-offset-2">
+              {m.refunds.reminder(reminder.orders, money(reminder.total))} · {m.refunds.reminderOpen}
+            </Link>
+            <button
+              type="button"
+              onClick={() => update(seeRefundReminder)}
+              className="min-h-10 rounded-lg bg-white/15 px-3 text-sm font-semibold hover:bg-white/25"
+            >
+              {m.refunds.reminderSeen}
+            </button>
+          </div>
+        )}
+        {children}
+      </main>
 
       {!shop && (
         <nav
