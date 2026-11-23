@@ -106,7 +106,9 @@ describe('paid order cancelled by the customer', () => {
     expect(row('Đang chờ hoàn')).toBeNull()
     expect(row('Đã hoàn')).toBe('45.000 ₫')
     // AC45, CN-54: how it was refunded is shown.
+    // Said in the refund list and, since the design round, in the money block in the shop's words (UI5, UI12).
     expect(screen.getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
+    expect(within(screen.getByTestId('money-state')).getByText('Bạn đã hoàn 45.000 ₫ bằng chuyển khoản')).toBeDefined()
   })
 })
 
@@ -141,7 +143,8 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
     const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
     show(<OrderScreen />)
     expect(row('Đã báo chuyển, chờ shop xác nhận')).toBe('45.000 ₫')
-    expect(screen.getByText('Đã báo chuyển 45.000 ₫, chờ shop xác nhận.')).toBeDefined()
+    // Said in the money block since the design round (CN-39, UI8).
+    expect(within(screen.getByTestId('money-state')).getByText('Đã báo chuyển 45.000 ₫, chờ shop xác nhận')).toBeDefined()
     expect(row('Đang chờ hoàn')).toBeNull()
     // CN-52: a closed order asks for no transfer, so no "Show QR again".
     expect(screen.queryByRole('link', { name: 'Xem lại QR' })).toBeNull()
@@ -155,7 +158,13 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
     const show = await load(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note)))
     const { ShopOrderScreen } = await import('../src/screens/shop/ShopOrderScreen')
     show(<ShopOrderScreen />)
-    expect(screen.getByText('Chưa xác nhận 85.000 ₫ · khách báo đã chuyển 45.000 ₫, còn thiếu 40.000 ₫')).toBeDefined()
+    // UI13: on the detail the note above the buttons is gone; the block and the rows give the same amounts (CN-42).
+    expect(screen.queryByText('Chưa xác nhận 85.000 ₫ · khách báo đã chuyển 45.000 ₫, còn thiếu 40.000 ₫')).toBeNull()
+    const block = within(screen.getByTestId('money-state'))
+    expect(block.getByText('Khách báo đã chuyển 45.000 ₫, chờ bạn xác nhận')).toBeDefined()
+    expect(block.getByText('Khách còn phải chuyển 40.000 ₫')).toBeDefined()
+    // UI14: the shop's own stop labels.
+    expect(block.getByText('Khách báo chuyển')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Đã nhận tiền · 45.000 ₫' })).toBeDefined()
     // CN-48: the unreported 40,000 can be confirmed on its own.
     expect(screen.getByRole('button', { name: 'Đã nhận phần còn lại · 40.000 ₫' })).toBeDefined()
@@ -372,7 +381,9 @@ describe('refunds: shown, reminded, cash or transfer (CN-53, CN-54)', () => {
     show = await load(JSON.parse(window.localStorage.getItem(KEY)!) as State)
     const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
     show(<OrderScreen />)
-    expect(screen.getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
+    // Said in the refund list and, since the design round, in the money block too (UI5).
+    expect(screen.getAllByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toHaveLength(2)
+    expect(within(screen.getByTestId('money-state')).getByText(/Đã hoàn 45\.000 ₫ bằng chuyển khoản/)).toBeDefined()
   })
 
   test('CN-54: cash chosen, order now delivering: changing the choice starts from an account', async () => {

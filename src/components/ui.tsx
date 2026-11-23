@@ -11,14 +11,14 @@ const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).jo
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost'
 
 const variants: Record<Variant, string> = {
-  primary: 'bg-leaf text-white hover:bg-leaf-dark disabled:bg-steel disabled:text-muted',
+  primary: 'bg-leaf text-on-leaf hover:bg-leaf-dark disabled:bg-steel disabled:text-muted',
   secondary: 'bg-card text-ink ring-1 ring-steel hover:ring-leaf disabled:text-muted disabled:ring-steel',
   danger: 'bg-card text-chili ring-1 ring-chili/40 hover:bg-chili-soft disabled:text-muted disabled:ring-steel',
   ghost: 'text-leaf hover:bg-leaf-soft disabled:text-muted',
 }
 
 const base =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed'
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed'
 
 export function Button({ variant = 'primary', className, ...props }: ComponentProps<'button'> & { variant?: Variant }) {
   return <button type="button" className={cx(base, variants[variant], className)} {...props} />
@@ -54,7 +54,7 @@ export function ConfirmButton({
       </Button>
     )
   return (
-    <div role="alertdialog" aria-label={question} className="flex w-full flex-wrap items-center gap-2 rounded-lg bg-chili-soft p-3">
+    <div role="alertdialog" aria-label={question} className="flex w-full flex-wrap items-center gap-2 rounded-xl bg-chili-soft p-3">
       <p className="w-full text-sm text-ink">{question}</p>
       {children}
       <Button
@@ -78,13 +78,13 @@ type Tone = 'leaf' | 'chili' | 'turmeric' | 'steel' | 'ink'
 const tones: Record<Tone, string> = {
   leaf: 'bg-leaf-soft text-leaf-dark',
   chili: 'bg-chili-soft text-chili',
-  turmeric: 'bg-turmeric-soft text-[#7a5104]',
+  turmeric: 'bg-turmeric-soft text-turmeric-ink',
   steel: 'bg-tray text-muted',
-  ink: 'bg-ink text-white',
+  ink: 'bg-ink text-on-ink',
 }
 
 export function Badge({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return <span className={cx('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold', tones[tone])}>{children}</span>
+  return <span className={cx('inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold', tones[tone])}>{children}</span>
 }
 
 const statusTone: Record<Status, Tone> = {
@@ -161,7 +161,7 @@ export function PageTitle({ title, intro, children }: { title: string; intro?: s
   return (
     <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div className="max-w-2xl">
-        <h1 className="text-[26px] leading-tight font-bold tracking-tight sm:text-3xl">{title}</h1>
+        <h1 className="font-display text-[28px] leading-[1.1] font-extrabold tracking-tight sm:text-[34px]">{title}</h1>
         {intro && <p className="mt-1.5 text-[15px] text-muted">{intro}</p>}
       </div>
       {children}
@@ -179,7 +179,7 @@ export function Notice({ tone = 'turmeric', children }: { tone?: 'turmeric' | 'c
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={cx('rounded-xl bg-card p-4 ring-1 ring-steel/70 sm:p-5', className)}>{children}</section>
+  return <section className={cx('rounded-2xl bg-card p-4 ring-1 ring-steel/70 sm:p-5', className)}>{children}</section>
 }
 
 export function Select({ label, className, children, ...props }: ComponentProps<'select'> & { label: string }) {

@@ -13,7 +13,7 @@ export function WeekScreen() {
   return (
     <>
       <PageTitle title={m.week.title} intro={m.week.intro} />
-      <ol className="grid gap-3 lg:grid-cols-2">
+      <ol className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {week(s).map((date) => {
           const state = dayState(s, date)
           const day = findDay(s, date)
@@ -25,12 +25,12 @@ export function WeekScreen() {
             <div className="flex gap-4">
               <div
                 className={cx(
-                  'flex w-16 shrink-0 flex-col items-center justify-center rounded-lg py-2',
-                  state === 'open' ? 'bg-leaf text-white' : 'bg-tray text-muted',
+                  'flex w-16 shrink-0 flex-col items-center justify-center rounded-2xl py-2',
+                  state === 'open' ? 'bg-leaf text-on-leaf' : 'bg-tray text-muted',
                 )}
               >
                 <span className="text-[13px] font-semibold">{m.weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]}</span>
-                <span className="text-2xl leading-none font-bold">{date.slice(8, 10)}</span>
+                <span className="font-display text-[28px] leading-none font-extrabold">{date.slice(8, 10)}</span>
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -65,12 +65,12 @@ export function WeekScreen() {
               {clickable ? (
                 <Link
                   href={`/day?d=${date}`}
-                  className="block rounded-xl bg-card p-3 ring-1 ring-steel/70 transition-shadow hover:ring-2 hover:ring-leaf"
+                  className="parcel block bg-card p-3 ring-1 ring-steel/70 transition-shadow hover:ring-2 hover:ring-leaf"
                 >
                   {body}
                 </Link>
               ) : (
-                <div className="rounded-xl bg-card/60 p-3 ring-1 ring-steel/50">{body}</div>
+                <div className="parcel bg-card/60 p-3 ring-1 ring-steel/50">{body}</div>
               )}
             </li>
           )

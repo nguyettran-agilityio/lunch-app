@@ -4,6 +4,7 @@ import { dishName, findBuilding, lineTotal, moneySummary, owed } from '@/proto/l
 import { dayMonth, weekday } from '@/proto/time'
 import type { DateStr, EditChange, HistoryEntry, Line, Order, Refund, RefundTo } from '@/proto/types'
 import { useApp } from '@/proto/useApp'
+import { LineArt } from './art'
 import { Notice } from './ui'
 
 export function DayLabel({ date, long = false }: { date: DateStr; long?: boolean }) {
@@ -35,13 +36,15 @@ export function useLineLabel() {
     l.kind === 'fixed' ? dishName(s, l.dishId) : `${m.cart.plate} (${l.picks.map((id) => dishName(s, id)).join(', ')})`
 }
 
-export function LinesList({ lines }: { lines: Line[] }) {
+/** The lines of an order; `art` adds a drawn thumbnail to each line (customer screens, UI6). */
+export function LinesList({ lines, art = false }: { lines: Line[]; art?: boolean }) {
   const { money } = useApp()
   return (
     <ul className="divide-y divide-tray">
       {lines.map((l) => (
-        <li key={l.id} className="flex items-baseline justify-between gap-3 py-2 text-[15px]">
-          <span>
+        <li key={l.id} className={`flex justify-between gap-3 py-2 text-[15px] ${art ? 'items-center' : 'items-baseline'}`}>
+          {art && <LineArt dishId={l.kind === 'fixed' ? l.dishId : undefined} picks={l.kind === 'plate' ? l.picks : undefined} className="size-12 shrink-0" />}
+          <span className={art ? 'flex-1' : undefined}>
             <span className="font-semibold">{l.qty} × </span>
             <LineText line={l} />
           </span>

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { EmptyArt, LineArt } from '@/components/art'
 import { DayLabel, LineText } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, PageTitle, QtyStepper, TextInput } from '@/components/ui'
 import { cutoffOf, dayState, findCustomer, lineTotal, linesTotal, placeOrder, setCartQty } from '@/proto/logic'
@@ -22,7 +23,8 @@ export function CartScreen() {
     <>
       <PageTitle title={m.cart.title} intro={m.cart.intro} />
       {dates.length === 0 ? (
-        <Card>
+        <Card className="flex flex-col items-start">
+          <EmptyArt kind="cart" className="mb-2 w-48 text-ink" />
           <p className="mb-4 text-[15px]">{m.cart.empty}</p>
           <LinkButton href="/">{m.cart.goWeek}</LinkButton>
         </Card>
@@ -49,7 +51,7 @@ function DayCart({ date }: { date: DateStr }) {
   return (
     <Card>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold">
+        <h2 className="font-display text-xl font-bold">
           <DayLabel date={date} long />
         </h2>
         <span className="text-sm text-muted">{m.day.cutoffAt(hhmm(cutoffOf(s, date)))}</span>
@@ -61,14 +63,17 @@ function DayCart({ date }: { date: DateStr }) {
       )}
       <ul className="divide-y divide-tray">
         {lines.map((l) => (
-          <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="min-w-0 flex-1 basis-48 text-[15px]">
-              <LineText line={l} />
-              <p className="text-sm text-muted">
-                {money(l.unitPrice)} × {l.qty} = <span className="font-semibold text-ink">{money(lineTotal(l))}</span>
-              </p>
+          <li key={l.id} className="flex items-start gap-3 py-3">
+            <LineArt dishId={l.kind === 'fixed' ? l.dishId : undefined} picks={l.kind === 'plate' ? l.picks : undefined} className="size-16 shrink-0" />
+            <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="min-w-0 basis-44 text-[15px] sm:flex-1">
+                <LineText line={l} />
+                <p className="text-sm text-muted">
+                  {money(l.unitPrice)} × {l.qty} = <span className="font-semibold text-ink">{money(lineTotal(l))}</span>
+                </p>
+              </div>
+              <QtyStepper value={l.qty} onChange={(v) => run((st) => setCartQty(st, date, l.id, v))} />
             </div>
-            <QtyStepper value={l.qty} onChange={(v) => run((st) => setCartQty(st, date, l.id, v))} />
           </li>
         ))}
       </ul>
@@ -84,7 +89,7 @@ function DayCart({ date }: { date: DateStr }) {
       <div className="mt-5 flex items-center justify-between gap-3">
         <p>
           <span className="text-sm text-muted">{m.cart.total} </span>
-          <span className="text-2xl font-bold">{money(linesTotal(lines))}</span>
+          <span className="font-display text-[26px] font-extrabold tracking-tight">{money(linesTotal(lines))}</span>
         </p>
         <Button
           onClick={() => {

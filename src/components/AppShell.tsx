@@ -53,12 +53,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <DemoBar shop={shop} />
-      <header className="border-b border-steel bg-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href={shop ? '/shop' : '/'} className="flex items-baseline gap-2">
+      {/* The banana-leaf band: the one bold element of the design (docs/design.md, UI1). */}
+      <header className="leaf-band">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
+          <Link href={shop ? '/shop' : '/'} className="flex items-center gap-2">
             <Leaf />
-            <span className="text-xl font-bold tracking-tight text-leaf">{m.appName}</span>
-            <span className="hidden text-sm text-muted sm:inline">{shop ? m.demo.shop : m.tagline}</span>
+            <span className="font-display text-[26px] leading-none font-extrabold tracking-tight">{m.appName}</span>
+            <span className="hidden self-end pb-0.5 text-sm text-white/75 sm:inline">{shop ? m.demo.shop : m.tagline}</span>
           </Link>
           {!shop && (
             <nav aria-label={m.common.mainNav} className="hidden gap-1 md:flex">
@@ -81,14 +82,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className={cx('mx-auto w-full max-w-6xl flex-1 px-4 pt-6', shop ? 'pb-16' : 'pb-28 md:pb-16')}>
         {shop && reminder && (
           // Hourly reminder of refunds not made, on every shop screen (CN-53).
-          <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-chili px-4 py-3 text-white">
+          <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-chili px-4 py-3 text-on-chili">
             <Link href="/shop/refunds" className="font-bold underline underline-offset-2">
               {m.refunds.reminder(reminder.orders, money(reminder.total))} · {m.refunds.reminderOpen}
             </Link>
             <button
               type="button"
               onClick={() => update(seeRefundReminder)}
-              className="min-h-10 rounded-lg bg-white/15 px-3 text-sm font-semibold hover:bg-white/25"
+              className="min-h-10 rounded-xl bg-on-chili/15 px-3 text-sm font-semibold hover:bg-on-chili/25"
             >
               {m.refunds.reminderSeen}
             </button>
@@ -115,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className={cx('mb-1 h-1 w-8 rounded-full', item.match(pathname) ? 'bg-leaf' : 'bg-transparent')} />
               <span>
                 {item.label}
-                {item.badge ? <span className="ml-1 rounded-full bg-chili px-1.5 text-[11px] text-white">{item.badge}</span> : null}
+                {item.badge ? <span className="ml-1 rounded-full bg-chili px-1.5 text-[11px] text-on-chili">{item.badge}</span> : null}
               </span>
             </Link>
           ))}
@@ -132,26 +133,26 @@ function NavLink({ href, label, active, badge }: { href: string; label: string; 
       href={href}
       aria-current={active ? 'page' : undefined}
       className={cx(
-        'flex min-h-10 items-center justify-center rounded-lg px-3 text-center text-[14px] font-semibold',
-        active ? 'bg-leaf text-white' : 'text-ink hover:bg-leaf-soft',
+        'flex min-h-10 items-center justify-center rounded-full px-3.5 text-center text-[14px] font-semibold',
+        active ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/90 hover:bg-white/10',
       )}
     >
       {label}
-      {badge ? <span className="ml-1.5 rounded-full bg-chili px-1.5 text-[11px] text-white">{badge}</span> : null}
+      {badge ? <span className="ml-1.5 rounded-full bg-[#e0523b] px-1.5 text-[11px] text-white">{badge}</span> : null}
     </Link>
   )
 }
 
 function LangSwitch({ lang }: { lang: Lang }) {
   return (
-    <div role="group" aria-label={messages[lang].common.language} className="flex rounded-lg p-0.5 ring-1 ring-steel">
+    <div role="group" aria-label={messages[lang].common.language} className="flex rounded-full p-0.5 ring-1 ring-white/35">
       {(['vi', 'en'] as const).map((l) => (
         <button
           key={l}
           type="button"
           aria-pressed={lang === l}
           onClick={() => update((s) => ({ ...s, lang: l }))}
-          className={cx('min-h-9 min-w-10 rounded-md text-sm font-bold uppercase', lang === l ? 'bg-ink text-white' : 'text-muted')}
+          className={cx('min-h-9 min-w-10 rounded-full text-sm font-bold uppercase', lang === l ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/80')}
         >
           {l}
         </button>
@@ -172,7 +173,7 @@ function DemoBar({ shop }: { shop: boolean }) {
   return (
     <div className="bg-[repeating-linear-gradient(135deg,#1d2420_0_14px,#232c27_14px_28px)] text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 text-sm sm:gap-x-4">
-        <span className="rounded bg-turmeric px-1.5 py-0.5 text-xs font-bold text-ink">{m.demo.label}</span>
+        <span className="rounded bg-[#e9b44c] px-1.5 py-0.5 text-xs font-bold text-[#17231b]">{m.demo.label}</span>
         <div role="group" aria-label={m.common.role} className="flex rounded-md bg-white/10 p-0.5">
           {[
             { label: m.demo.customer, href: '/', on: !shop },
@@ -183,7 +184,7 @@ function DemoBar({ shop }: { shop: boolean }) {
               type="button"
               aria-pressed={r.on}
               onClick={() => router.push(r.href)}
-              className={cx('min-h-8 rounded px-3 font-semibold', r.on ? 'bg-white text-ink' : 'text-white/80')}
+              className={cx('min-h-8 rounded px-3 font-semibold', r.on ? 'bg-white text-[#17231b]' : 'text-white/80')}
             >
               {r.label}
             </button>
@@ -204,7 +205,7 @@ function DemoBar({ shop }: { shop: boolean }) {
               const v = parseHhmm(e.target.value)
               if (v !== null) setMinutes(v)
             }}
-            className="min-h-8 rounded-md bg-white px-1.5 font-semibold text-ink"
+            className="min-h-8 rounded-md bg-white px-1.5 font-semibold text-[#17231b] [color-scheme:light]"
           />
           <button type="button" className={step} onClick={() => setMinutes(s.clock.minutes + 30)}>
             +30′
@@ -250,7 +251,7 @@ function ErrorToast() {
   if (!err) return null
   const m = messages[s.lang]
   return (
-    <div role="alert" className="fixed inset-x-4 bottom-20 z-30 mx-auto flex max-w-md items-start gap-3 rounded-xl bg-chili p-4 text-white shadow-lg md:bottom-6">
+    <div role="alert" className="fixed inset-x-4 bottom-20 z-30 mx-auto flex max-w-md items-start gap-3 rounded-2xl bg-chili p-4 text-on-chili shadow-lg md:bottom-6">
       <p className="flex-1 text-[15px] font-medium">{m.errors[err.code]}</p>
       <button type="button" onClick={clearError} className="text-sm font-semibold underline">
         {m.common.close}
@@ -261,9 +262,9 @@ function ErrorToast() {
 
 function Leaf() {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden className="size-6 self-center text-leaf">
-      <path fill="currentColor" d="M20 3C10 3 4 8.5 4 15c0 2 .6 3.7 1.6 5L4 21.6 5.4 23 7 21.4C8.3 22.4 10 23 12 23c6.5 0 9-7 9-14 0-2-.3-4-1-6Z" opacity=".9" />
-      <path fill="#fff" d="M7.5 19.5 17 8l-.9-.7L6.6 18.8z" />
+    <svg viewBox="0 0 24 24" aria-hidden className="size-7 text-[#8fd09b]">
+      <path fill="currentColor" d="M20 3C10 3 4 8.5 4 15c0 2 .6 3.7 1.6 5L4 21.6 5.4 23 7 21.4C8.3 22.4 10 23 12 23c6.5 0 9-7 9-14 0-2-.3-4-1-6Z" />
+      <path fill="#1d4a29" d="M7.5 19.5 17 8l-.9-.7L6.6 18.8z" />
     </svg>
   )
 }

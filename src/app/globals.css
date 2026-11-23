@@ -1,48 +1,102 @@
 @import "tailwindcss";
 
-/* Cơm Lá prototype tokens: banana leaf green, chili for cutoffs and refusals,
-   turmeric for waiting states, stainless-steel tray greys. Light theme only. */
-@theme inline {
-  --color-leaf: #2f6b3a;
-  --color-leaf-dark: #22512b;
-  --color-leaf-soft: #e6f0e4;
-  --color-chili: #b8321f;
-  --color-chili-soft: #fbe9e5;
-  --color-turmeric: #b97a06;
-  --color-turmeric-soft: #fbf0d6;
-  --color-ink: #1d2420;
-  --color-muted: #5b655f;
-  --color-steel: #d5dbd6;
-  --color-tray: #e8ece8;
-  --color-paper: #f5f7f4;
-  --color-card: #ffffff;
-  --font-sans: var(--font-be-vietnam), system-ui, sans-serif;
+/* Cơm Lá prototype tokens, "banana-leaf lunchbox" direction (docs/design.md, UI1).
+   Light and dark follow the device (UI2): the values live on :root and the theme points at them.
+   Every filled colour has an on-… text colour so text keeps its contrast in both modes. */
+:root {
+  color-scheme: light dark;
+  --leaf-deep: #1d4a29;
+  --leaf-vein: #2b6338;
+  --leaf: #2e6b3c;
+  --leaf-dark: #22512b;
+  --leaf-soft: #e2eedd;
+  --on-leaf: #ffffff;
+  --chili: #b8321f;
+  --chili-soft: #fbe8e3;
+  --on-chili: #ffffff;
+  --turmeric: #b97a06;
+  --turmeric-ink: #7a5104;
+  --turmeric-soft: #fbf0d4;
+  --ink: #17231b;
+  --on-ink: #ffffff;
+  --muted: #566259;
+  --steel: #d3ddd2;
+  --tray: #e7eee5;
+  --paper: #f2f6f0;
+  --card: #ffffff;
 }
 
-:root {
-  color-scheme: light;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --leaf-deep: #13301b;
+    --leaf-vein: #1d4527;
+    --leaf: #6dbb7c;
+    --leaf-dark: #8fd09b;
+    --leaf-soft: #1c3323;
+    --on-leaf: #0c1a10;
+    --chili: #f08a72;
+    --chili-soft: #3a1a14;
+    --on-chili: #1f0b06;
+    --turmeric: #e9b44c;
+    --turmeric-ink: #f0c873;
+    --turmeric-soft: #33270e;
+    --ink: #e6eee6;
+    --on-ink: #0f1611;
+    --muted: #9db0a2;
+    --steel: #2f3f33;
+    --tray: #1f2b22;
+    --paper: #0f1611;
+    --card: #18221b;
+  }
+}
+
+@theme inline {
+  --color-leaf-deep: var(--leaf-deep);
+  --color-leaf: var(--leaf);
+  --color-leaf-dark: var(--leaf-dark);
+  --color-leaf-soft: var(--leaf-soft);
+  --color-on-leaf: var(--on-leaf);
+  --color-chili: var(--chili);
+  --color-chili-soft: var(--chili-soft);
+  --color-on-chili: var(--on-chili);
+  --color-turmeric: var(--turmeric);
+  --color-turmeric-ink: var(--turmeric-ink);
+  --color-turmeric-soft: var(--turmeric-soft);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-muted: var(--muted);
+  --color-steel: var(--steel);
+  --color-tray: var(--tray);
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --font-sans: var(--font-be-vietnam), system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-be-vietnam), system-ui, sans-serif;
 }
 
 body {
-  background: var(--color-paper);
-  color: var(--color-ink);
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-sans);
   font-feature-settings: "tnum" 1;
 }
 
 :focus-visible {
-  outline: 3px solid var(--color-turmeric);
+  outline: 3px solid var(--turmeric);
   outline-offset: 2px;
 }
 
-/* Stainless tray compartments for the plate builder. */
-.tray {
-  background: linear-gradient(160deg, #eef1ee, #d9dfda);
-  box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgb(29 36 32 / 0.18);
+/* The banana-leaf band: deep green with side veins running into a midrib along the bottom edge (UI1),
+   so the veins never cross the text in the band. */
+.leaf-band {
+  background-color: var(--leaf-deep);
+  background-image: repeating-linear-gradient(118deg, transparent 0 26px, var(--leaf-vein) 26px 28px);
+  border-bottom: 4px solid var(--leaf-vein);
+  color: #f4f8f1;
 }
-.tray-cell {
-  background: #f4f6f4;
-  box-shadow: inset 0 2px 5px rgb(29 36 32 / 0.18), inset 0 -1px 0 #fff;
+
+/* A leaf-parcel card: larger radius than controls, so the radius shows hierarchy. */
+.parcel {
+  border-radius: 1.5rem 1.5rem 1.5rem 0.5rem;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -52,6 +106,17 @@ body {
   @keyframes fill-in {
     from {
       transform: scale(0.92);
+      opacity: 0;
+    }
+  }
+  .drop-in {
+    animation: drop-in 320ms cubic-bezier(0.2, 0.9, 0.3, 1.25);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes drop-in {
+    from {
+      transform: translateY(-14px) scale(0.6);
       opacity: 0;
     }
   }

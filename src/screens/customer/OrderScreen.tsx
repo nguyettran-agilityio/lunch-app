@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
+import { MoneyState } from '@/components/money'
 import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
@@ -52,6 +53,10 @@ export function OrderScreen() {
       <p className="-mt-3 mb-5 text-[15px] text-muted">
         <DayLabel date={order.date} long />
       </p>
+      {/* The money state at a glance (docs/design.md, UI3). */}
+      <div className="mb-5 max-w-xl">
+        <MoneyState order={order} />
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-5">
@@ -60,7 +65,7 @@ export function OrderScreen() {
           ) : (
             <Card>
               <h2 className="mb-1 font-bold">{m.detail.lines}</h2>
-              <LinesList lines={order.lines} />
+              <LinesList lines={order.lines} art />
               <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-tray pt-3 text-[15px]">
                 <dt className="text-muted">{m.detail.total}</dt>
                 <dd className="text-right text-lg font-bold">{money(orderTotal(order))}</dd>
@@ -86,12 +91,7 @@ export function OrderScreen() {
                   </>
                 )}
               </dl>
-              {/* Once the transfer is reported, no QR: say it waits for the shop (CN-34), also when cancelled or rejected (CN-39). */}
-              {reportedTotal(order) > 0 && (
-                <div className="mt-4">
-                  <Notice tone="leaf">{m.detail.waiting(money(reportedTotal(order)))}</Notice>
-                </div>
-              )}
+              {/* "Transfer reported, waiting for the shop" is said in the money block above (CN-34, CN-39, UI7, UI8). */}
               {/* The shop did not find the last transfer reported (CN-41). */}
               {order.missing.length > 0 && (
                 <div className="mt-4">
@@ -302,7 +302,7 @@ function RefundToForm({ order }: { order: Order }) {
             type="button"
             aria-pressed={kind === k}
             onClick={() => setKind(k)}
-            className={cx('min-h-10 flex-1 rounded-md text-sm font-semibold', kind === k ? 'bg-ink text-white' : 'text-muted')}
+            className={cx('min-h-10 flex-1 rounded-md text-sm font-semibold', kind === k ? 'bg-ink text-on-ink' : 'text-muted')}
           >
             {k === 'account' ? m.detail.refundAccount : k === 'qr' ? m.detail.refundQr : m.detail.refundCash}
           </button>
