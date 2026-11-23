@@ -270,6 +270,58 @@ describe('.env* files', () => {
   })
 })
 
+// Phase 3 retro, item 4: in the Plan session the guard blocked five commands that read or wrote
+// no .env* file. git check-ignore and git check-attr only compare names; text inside a string
+// literal of inline or here-document code is text. A .env* path in code, a shell call in code,
+// and a command substitution in an unquoted here-document are still blocked.
+describe('.env* names that are not file access (phase 3 retro)', () => {
+  it.each([
+    // git compares the name with .gitignore / .gitattributes; it does not open the file.
+    'git check-ignore -v .env.example',
+    'git check-ignore -q .env.local',
+    'git -C apps/web check-ignore .env',
+    'git check-attr -a .env',
+    // Text written into docs by a script (the blocked commands of the Plan session).
+    "python3 - <<'EOF'\np = 'docs/decisions.md'\ns = open(p, encoding='utf8').read()\ns = s.replace('old', 'There is no `.env.example` in the repo')\nopen(p, 'w', encoding='utf8').write(s)\nEOF",
+    "python3 - \"$D\" <<'EOF'\nimport sys\ns = open(sys.argv[1] + '/body.md').read()\ns = s.replace('B1–B20', 'B1–B26').replace('the .env.example file', 'the example environment file')\nEOF",
+    "python3 - <<'EOF'\ntext = '''Variables are listed in section 3.\nThere is no .env.example file.'''\nopen('docs/plan.md', 'a').write(text)\nEOF",
+    'python3 - <<"EOF"\nprint("Copy .env.example by hand")\nEOF',
+    'python3 -c "print(\'Copy .env.example by hand\')"',
+    'node -e "console.log(\'Never commit .env files\')"',
+    "node <<'EOF'\nconst s = 'The example .env.example file is dropped'\nrequire('fs').writeFileSync('docs/x.md', s)\nEOF",
+  ])('allows: %s', (cmd) => {
+    expectAllowed(bash(cmd))
+  })
+
+  it.each([
+    // git commands that do read or stage the file, and redirections next to check-ignore.
+    'git add -f .env',
+    'git add .env.local',
+    'git check-ignore .env > .env.list',
+    'git check-ignore --stdin < .env',
+    'git check-ignore -q .env && cat .env',
+    // A .env* path in code, even next to text that names it.
+    "python3 - <<'EOF'\nprint(open('.env').read())\nEOF",
+    "python3 - <<'EOF'\nprint(open(\".env.local\").read())\nEOF",
+    "python3 - <<'EOF'\nimport os\nprint(open(os.path.join(os.getcwd(), '.env')).read())\nEOF",
+    "python3 - <<'EOF'\nnote = 'text about .env files'\nprint(open('.env').read())\nEOF",
+    "python3 - <<'EOF'\nprint(open('my notes/.env').read())\nEOF",
+    "python3 -c \"print(open('.env').read())\"",
+    "node -e \"console.log(require('fs').readFileSync('apps/web/.env.local', 'utf8'))\"",
+    // A shell call in code runs its string as a command.
+    "python3 - <<'EOF'\nimport os\nos.system('cat .env')\nEOF",
+    "python3 -c \"import subprocess; subprocess.run('cat .env.local', shell=True)\"",
+    "python3 - <<'EOF'\nexec(\"print(open('docs/x').read() + ' .env')\")\nEOF",
+    "node -e \"require('child_process').execSync('cat .env')\"",
+    "ruby -e 'puts `cat .env`'",
+    // An unquoted here-document: the shell runs $(...) and `...` before the code sees it.
+    'python3 - <<EOF\nprint("$(cat .env)")\nEOF',
+    'python3 - <<EOF\nprint("`cat .env`")\nEOF',
+  ])('still blocks: %s', (cmd) => {
+    expectBlocked(bash(cmd), /\.env\* files/)
+  })
+})
+
 describe('production deploys', () => {
   it.each([
     'vercel --prod',
