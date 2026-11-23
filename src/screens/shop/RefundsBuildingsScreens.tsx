@@ -4,7 +4,18 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { DayLabel, RefundToView, refundTime } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import { addBuilding, approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, matchesSearch, newestFirst, refundList, setDeliveryTime } from '@/proto/logic'
+import {
+  addBuilding,
+  approveBuilding,
+  declineBuilding,
+  declinePreview,
+  findCustomer,
+  isActive,
+  matchesSearch,
+  newestFirst,
+  refundList,
+  setDeliveryTime,
+} from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Building } from '@/proto/types'
@@ -49,7 +60,10 @@ export function RefundsScreen() {
             <li key={refund.id} className="rounded-xl bg-card p-4 ring-1 ring-chili/30">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-2xl font-bold text-chili">{money(refund.amount)}</span>
-                <Link href={`/shop/order?id=${order.id}`} className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2">
+                <Link
+                  href={`/shop/order?id=${order.id}`}
+                  className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2"
+                >
                   {order.code}
                 </Link>
               </div>
@@ -251,7 +265,9 @@ function DeclineButton({ building: b }: { building: Building }) {
                   {refund === 0 && reported === 0 && ` (${m.buildings.declineNoRefund})`}
                 </span>
                 {/* Reported but not confirmed: refunded only once the shop confirms it received it (CN-39). */}
-                {reported > 0 && <span className="w-full text-right font-semibold text-turmeric-ink">{m.buildings.declineReported(money(reported))}</span>}
+                {reported > 0 && (
+                  <span className="w-full text-right font-semibold text-turmeric-ink">{m.buildings.declineReported(money(reported))}</span>
+                )}
               </li>
             ))}
           </ul>

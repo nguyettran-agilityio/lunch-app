@@ -338,10 +338,19 @@ export function editOrder(s: State, id: string, lines: Line[], buildingId: strin
     refunds: o.refunds.filter((r) => r.refundedAt !== null),
   }
   // A refund recalculated by the edit keeps the time the earliest dropped one was recorded, so the reminder does not restart (CN-53).
-  const dropped = o.refunds.filter((r) => r.refundedAt === null).map((r) => r.createdAt).sort()[0]
+  const dropped = o.refunds
+    .filter((r) => r.refundedAt === null)
+    .map((r) => r.createdAt)
+    .sort()[0]
   const [s2, withR] = withRefund(s, edited, netPaid(edited) - newTotal, 'edit', dropped ?? now(s))
   // Every saved edit is recorded with what changed, then the order is back to Placed (CN-32).
-  const entry = { kind: 'edit' as const, at: now(s), fromTotal: orderTotal(o), toTotal: newTotal, changes: editChanges(o, kept, buildingId, note.trim()) }
+  const entry = {
+    kind: 'edit' as const,
+    at: now(s),
+    fromTotal: orderTotal(o),
+    toTotal: newTotal,
+    changes: editChanges(o, kept, buildingId, note.trim()),
+  }
   const logged = { ...withR, history: [...withR.history, entry] }
   // The Lead's wording: "Order edited", then the line "Placed", also when it was already Placed (CN-32).
   const next = moveTo(s2, logged, 'placed')
@@ -402,8 +411,7 @@ export function setRefundTo(s: State, id: string, to: RefundTo): Result {
   if (!o) return fail('notFound')
   if (refundState(o) !== 'needsRefund') return fail('noRefundDue')
   if (to.kind === 'cash') return cashAllowed(o) ? ok(patchOrder(s, id, (x) => ({ ...x, refundTo: to }))) : fail('cashNotAllowed')
-  const filled =
-    to.kind === 'account' ? [to.bank, to.account, to.holder].every((v) => v.trim() !== '') : to.image.startsWith('data:image/')
+  const filled = to.kind === 'account' ? [to.bank, to.account, to.holder].every((v) => v.trim() !== '') : to.image.startsWith('data:image/')
   if (!filled) return fail('refundToMissing')
   const clean: RefundTo =
     to.kind === 'account' ? { kind: 'account', bank: to.bank.trim(), account: to.account.trim(), holder: to.holder.trim() } : to
@@ -498,8 +506,7 @@ function moveMany(s: State, ids: string[], from: Status, to: Status, error: Erro
 /** Each selected Shop confirmed order moves on its own; Placed orders cannot move (BR-24). */
 export const startPreparing = (s: State, ids: string[]) => moveMany(s, ids, 'confirmed', 'preparing', 'notConfirmed')
 export const markDelivering = (s: State, ids: string[]) => moveMany(s, ids, 'preparing', 'delivering', 'notPreparing')
-export const markDelivered = (s: State, ids: string[], note?: string) =>
-  moveMany(s, ids, 'delivering', 'delivered', 'notDelivering', note)
+export const markDelivered = (s: State, ids: string[], note?: string) => moveMany(s, ids, 'delivering', 'delivered', 'notDelivering', note)
 
 /** Mark a refund made, recording how: bank transfer or cash, by default the customer's choice (CN-54). */
 export function markRefunded(s: State, orderId: string, refundId: string, method?: RefundMethod): Result {
@@ -611,9 +618,7 @@ export function dayOrders(s: State, date: DateStr): Order[] {
 /** Cutoff review (BR-22, BR-23, AC9): after the cutoff, orders still Placed and unpaid orders not yet kept. */
 export function reviewList(s: State, date: DateStr): Order[] {
   if (beforeCutoff(s, date)) return []
-  return dayOrders(s, date).filter(
-    (o) => isActive(o.status) && (o.status === 'placed' || (paymentState(o) !== 'paid' && !o.kept)),
-  )
+  return dayOrders(s, date).filter((o) => isActive(o.status) && (o.status === 'placed' || (paymentState(o) !== 'paid' && !o.kept)))
 }
 
 export type PrepColumn = 'preparing' | 'confirmed' | 'placed' | 'done'
@@ -697,8 +702,6 @@ export function matchesSearch(s: State, o: Order, query: string): boolean {
   const c = findCustomer(s, o.customerId)
   const digits = q.replace(/\s/g, '')
   return (
-    plain(o.code).includes(q) ||
-    plain(c?.name ?? '').includes(q) ||
-    (digits !== '' && (c?.phone ?? '').replace(/\s/g, '').includes(digits))
+    plain(o.code).includes(q) || plain(c?.name ?? '').includes(q) || (digits !== '' && (c?.phone ?? '').replace(/\s/g, '').includes(digits))
   )
 }

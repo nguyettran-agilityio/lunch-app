@@ -64,7 +64,11 @@ function DayCart({ date }: { date: DateStr }) {
       <ul className="divide-y divide-tray">
         {lines.map((l) => (
           <li key={l.id} className="flex items-start gap-3 py-3">
-            <LineArt dishId={l.kind === 'fixed' ? l.dishId : undefined} picks={l.kind === 'plate' ? l.picks : undefined} className="size-16 shrink-0" />
+            <LineArt
+              dishId={l.kind === 'fixed' ? l.dishId : undefined}
+              picks={l.kind === 'plate' ? l.picks : undefined}
+              className="size-16 shrink-0"
+            />
             <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className="min-w-0 basis-44 text-[15px] sm:flex-1">
                 <LineText line={l} />

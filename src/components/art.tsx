@@ -108,10 +108,21 @@ const DRAWINGS: Record<string, Drawing> = {
         {rib(55, 49, -20)}
         {rib(63, 62, 12)}
         {rib(54, 74, -6)}
-        {[[44, 58], [70, 50], [72, 74], [48, 82]].map(([x, y], i) => (
+        {[
+          [44, 58],
+          [70, 50],
+          [72, 74],
+          [48, 82],
+        ].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={1.7} fill="#d7a256" />
         ))}
-        <Scallions at={[[66, 44], [41, 68], [76, 66]]} />
+        <Scallions
+          at={[
+            [66, 44],
+            [41, 68],
+            [76, 66],
+          ]}
+        />
       </>
     ),
   },
@@ -136,10 +147,21 @@ const DRAWINGS: Record<string, Drawing> = {
         <path d="M24 48 L14 44 M96 48 L106 44" stroke="#5a2e17" strokeWidth={6} strokeLinecap="round" />
         {fishSteak(50, 54, -15)}
         {fishSteak(70, 66, 20)}
-        {[[42, 72], [58, 78], [78, 48], [64, 42], [46, 40]].map(([x, y], i) => (
+        {[
+          [42, 72],
+          [58, 78],
+          [78, 48],
+          [64, 42],
+          [46, 40],
+        ].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={1.2} fill="#1b0f08" />
         ))}
-        <ChiliRings at={[[78, 76], [40, 62]]} />
+        <ChiliRings
+          at={[
+            [78, 76],
+            [40, 62],
+          ]}
+        />
       </>
     ),
   },
@@ -155,7 +177,14 @@ const DRAWINGS: Record<string, Drawing> = {
         />
         <circle cx={58} cy={58} r={11} fill="#f5b00b" />
         <ellipse cx={54} cy={54} rx={3.5} ry={2.4} fill="#fbd864" />
-        <Scallions at={[[74, 52], [44, 70], [70, 72], [46, 48]]} />
+        <Scallions
+          at={[
+            [74, 52],
+            [44, 70],
+            [70, 72],
+            [46, 48],
+          ]}
+        />
       </>
     ),
   },
@@ -175,10 +204,22 @@ const DRAWINGS: Record<string, Drawing> = {
             <ellipse cx={x - 1} cy={y - 1} rx={rx - 3} ry={ry - 3} fill="#d4924f" />
           </g>
         ))}
-        {[[60, 40], [36, 56], [82, 56], [64, 80], [50, 80]].map(([x, y], i) => (
+        {[
+          [60, 40],
+          [36, 56],
+          [82, 56],
+          [64, 80],
+          [50, 80],
+        ].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={2.2} fill="#ece6a6" stroke="#c2b964" strokeWidth={0.8} />
         ))}
-        <ChiliRings at={[[58, 54], [80, 76], [38, 44]]} />
+        <ChiliRings
+          at={[
+            [58, 54],
+            [80, 76],
+            [38, 44],
+          ]}
+        />
       </>
     ),
   },
@@ -199,7 +240,14 @@ const DRAWINGS: Record<string, Drawing> = {
             <rect x={x - 7} y={y - 7} width={14} height={4} rx={2} fill="#fff6dd" />
           </g>
         ))}
-        <Scallions at={[[78, 48], [40, 70], [74, 78], [50, 40]]} />
+        <Scallions
+          at={[
+            [78, 48],
+            [40, 70],
+            [74, 78],
+            [50, 40],
+          ]}
+        />
       </>
     ),
   },
@@ -226,7 +274,13 @@ const DRAWINGS: Record<string, Drawing> = {
         ].map(([x, y, r], i) => (
           <ellipse key={i} cx={x} cy={y} rx={9} ry={4} transform={`rotate(${r} ${x} ${y})`} fill={C.herb} />
         ))}
-        {[[56, 58], [48, 44], [72, 50], [60, 80], [36, 74]].map(([x, y], i) => (
+        {[
+          [56, 58],
+          [48, 44],
+          [72, 50],
+          [60, 80],
+          [36, 74],
+        ].map(([x, y], i) => (
           <circle key={i} cx={x} cy={y} r={2} fill="#f3e7c4" />
         ))}
       </>
@@ -265,7 +319,17 @@ const DRAWINGS: Record<string, Drawing> = {
           [42, 70, -30],
           [62, 80, 15],
         ].map(([x, y, r], i) => (
-          <ellipse key={i} cx={x} cy={y} rx={10} ry={6} transform={`rotate(${r} ${x} ${y})`} fill="#c3df92" stroke="#9cc06a" strokeWidth={1.2} />
+          <ellipse
+            key={i}
+            cx={x}
+            cy={y}
+            rx={10}
+            ry={6}
+            transform={`rotate(${r} ${x} ${y})`}
+            fill="#c3df92"
+            stroke="#9cc06a"
+            strokeWidth={1.2}
+          />
         ))}
         {[
           [52, 40, 30],
@@ -291,13 +355,34 @@ const DRAWINGS: Record<string, Drawing> = {
         ].map(([x, y, r], i) => (
           <path key={i} d={`M${x} ${y} l9 0 a9 9 0 0 1 -9 9 z`} transform={`rotate(${r} ${x} ${y})`} fill="#d8432c" />
         ))}
-        {[[78, 60], [58, 80]].map(([x, y], i) => (
+        {[
+          [78, 60],
+          [58, 80],
+        ].map(([x, y], i) => (
           <path key={i} d={`M${x - 5} ${y + 4} L${x} ${y - 5} L${x + 5} ${y + 4} Z`} fill="#f2c94c" />
         ))}
-        {[[40, 50, 30], [62, 38, -20], [80, 74, 60]].map(([x, y, r], i) => (
-          <line key={i} x1={x - 5} y1={y} x2={x + 5} y2={y} transform={`rotate(${r} ${x} ${y})`} stroke="#fbf6e6" strokeWidth={1.8} strokeLinecap="round" />
+        {[
+          [40, 50, 30],
+          [62, 38, -20],
+          [80, 74, 60],
+        ].map(([x, y, r], i) => (
+          <line
+            key={i}
+            x1={x - 5}
+            y1={y}
+            x2={x + 5}
+            y2={y}
+            transform={`rotate(${r} ${x} ${y})`}
+            stroke="#fbf6e6"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
         ))}
-        {[[36, 62, 20], [70, 40, -40], [50, 84, 70]].map(([x, y, r], i) => (
+        {[
+          [36, 62, 20],
+          [70, 40, -40],
+          [50, 84, 70],
+        ].map(([x, y, r], i) => (
           <ellipse key={i} cx={x} cy={y} rx={5} ry={2.5} transform={`rotate(${r} ${x} ${y})`} fill={C.herb} />
         ))}
       </>
@@ -320,7 +405,15 @@ const DRAWINGS: Record<string, Drawing> = {
             <rect x={x - 6} y={y + 3} width={12} height={3} rx={1} fill="#5d7f2e" />
           </g>
         ))}
-        <Scallions at={[[60, 38], [80, 52], [52, 80], [38, 56], [70, 78]]} />
+        <Scallions
+          at={[
+            [60, 38],
+            [80, 52],
+            [52, 80],
+            [38, 56],
+            [70, 78],
+          ]}
+        />
       </>
     ),
   },
@@ -349,7 +442,11 @@ const DRAWINGS: Record<string, Drawing> = {
         <circle cx={72} cy={64} r={4} fill="#c98f5a" />
         <rect x={42} y={66} width={14} height={9} rx={2} fill="#e9b36a" />
         <path d="M76 42 a8 8 0 0 1 8 8 l-8 0 z" fill="#9bc94f" />
-        {[[58, 78, 30], [38, 56, -30], [82, 76, 10]].map(([x, y, r], i) => (
+        {[
+          [58, 78, 30],
+          [38, 56, -30],
+          [82, 76, 10],
+        ].map(([x, y, r], i) => (
           <ellipse key={i} cx={x} cy={y} rx={5.5} ry={2.6} transform={`rotate(${r} ${x} ${y})`} fill={C.herb} />
         ))}
       </>
@@ -375,9 +472,21 @@ const DRAWINGS: Record<string, Drawing> = {
           [52, 84, -10, '#f3e7c4'],
           [60, 82, 30, '#e8803a'],
         ].map(([x, y, r, f], i) => (
-          <rect key={i} x={(x as number) - 6} y={(y as number) - 1.3} width={12} height={2.6} rx={1.3} transform={`rotate(${r} ${x} ${y})`} fill={f as string} />
+          <rect
+            key={i}
+            x={(x as number) - 6}
+            y={(y as number) - 1.3}
+            width={12}
+            height={2.6}
+            rx={1.3}
+            transform={`rotate(${r} ${x} ${y})`}
+            fill={f as string}
+          />
         ))}
-        {[[80, 74, 30], [72, 36, -30]].map(([x, y, r], i) => (
+        {[
+          [80, 74, 30],
+          [72, 36, -30],
+        ].map(([x, y, r], i) => (
           <ellipse key={i} cx={x} cy={y} rx={6} ry={2.6} transform={`rotate(${r} ${x} ${y})`} fill={C.herb} />
         ))}
         <ChiliRings at={[[70, 80]]} />
@@ -395,7 +504,11 @@ const DRAWINGS: Record<string, Drawing> = {
         <ellipse cx={30} cy={34} rx={9} ry={4} fill={C.herb} />
         <circle cx={78} cy={62} r={28} fill={C.bowl} stroke={C.bowlBand} strokeWidth={2.4} />
         <circle cx={78} cy={62} r={22} fill="#e7b46b" />
-        {[[70, 56], [86, 54], [78, 70]].map(([x, y], i) => (
+        {[
+          [70, 56],
+          [86, 54],
+          [78, 70],
+        ].map(([x, y], i) => (
           <g key={i}>
             <circle cx={x} cy={y} r={6} fill="#6e3416" />
             <circle cx={x - 1.5} cy={y - 1.5} r={2.5} fill="#8f4a1c" />
@@ -563,7 +676,13 @@ export function EmptyArt({ kind, className }: { kind: EmptyKind; className?: str
             <path key={x} d={`M${x} 92 Q${80 + (x - 80) * 0.6} 46 80 30`} stroke="#b58c4e" strokeWidth={1.4} fill="none" />
           ))}
           {[48, 62, 76].map((y) => (
-            <path key={y} d={`M${34 - (y - 48) * 0.3} ${y + 14} Q80 ${y - 6} ${126 + (y - 48) * 0.3} ${y + 14}`} stroke="#b58c4e" strokeWidth={1.4} fill="none" />
+            <path
+              key={y}
+              d={`M${34 - (y - 48) * 0.3} ${y + 14} Q80 ${y - 6} ${126 + (y - 48) * 0.3} ${y + 14}`}
+              stroke="#b58c4e"
+              strokeWidth={1.4}
+              fill="none"
+            />
           ))}
           <circle cx={80} cy={26} r={6} fill="#a87b45" />
         </>

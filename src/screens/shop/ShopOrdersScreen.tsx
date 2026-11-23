@@ -22,17 +22,21 @@ export function ShopOrdersScreen() {
 
   const all = dayOrders(s, s.shopDay)
   // Newest order first; search within the selected day, together with the filters (CN-56).
-  const shown = newestFirst(s, all.filter(
-    (o) =>
-      (!status || o.status === status) &&
-      // "Reported" lists every order with an open report, also Paid, Cancelled or Rejected ones (CN-39, CN-47).
-      (!payment ||
-        (payment === 'reported'
-          ? o.reports.length > 0
-          : o.status !== 'rejected' && o.status !== 'cancelled' && paymentState(o) === payment)) &&
-      (!building || o.buildingId === building) &&
-      matchesSearch(s, o, query),
-  ), (o) => o)
+  const shown = newestFirst(
+    s,
+    all.filter(
+      (o) =>
+        (!status || o.status === status) &&
+        // "Reported" lists every order with an open report, also Paid, Cancelled or Rejected ones (CN-39, CN-47).
+        (!payment ||
+          (payment === 'reported'
+            ? o.reports.length > 0
+            : o.status !== 'rejected' && o.status !== 'cancelled' && paymentState(o) === payment)) &&
+        (!building || o.buildingId === building) &&
+        matchesSearch(s, o, query),
+    ),
+    (o) => o,
+  )
   // Only Shop confirmed orders can be selected (BR-24); drop any that moved on.
   const selected = picked.filter((id) => all.some((o) => o.id === id && o.status === 'confirmed'))
 

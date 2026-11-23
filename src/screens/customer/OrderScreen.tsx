@@ -127,7 +127,11 @@ export function OrderScreen() {
                     <Button variant="secondary" onClick={() => run((st) => startEdit(st, order.id))}>
                       {m.detail.edit}
                     </Button>
-                    <ConfirmButton label={m.detail.cancel} question={m.detail.cancelConfirm} onConfirm={() => run((st) => cancelOrder(st, order.id))} />
+                    <ConfirmButton
+                      label={m.detail.cancel}
+                      question={m.detail.cancelConfirm}
+                      onConfirm={() => run((st) => cancelOrder(st, order.id))}
+                    />
                   </>
                 )}
               </div>
@@ -188,7 +192,9 @@ function EditOrder({ order }: { order: Order }) {
     const existing = lines.find((l) => l.kind === 'fixed' && l.dishId === dishId)
     if (existing) return setQty(existing.id, existing.qty + 1)
     // A newly added dish takes today's price; existing lines keep theirs (BR-6).
-    save({ lines: [...lines, { id: `new-${dishId}-${lines.length}`, kind: 'fixed', dishId, qty: 1, unitPrice: findDish(s, dishId)?.price ?? 0 }] })
+    save({
+      lines: [...lines, { id: `new-${dishId}-${lines.length}`, kind: 'fixed', dishId, qty: 1, unitPrice: findDish(s, dishId)?.price ?? 0 }],
+    })
   }
 
   return (
@@ -295,7 +301,9 @@ function RefundToForm({ order }: { order: Order }) {
   const [changing, setChanging] = useState(false)
   const current = order.refundTo
   // Cash chosen earlier but the order is no longer to be delivered: start from an account instead (CN-54).
-  const [kind, setKind] = useState<RefundTo['kind']>(current?.kind === 'cash' && !cashAllowed(order) ? 'account' : (current?.kind ?? 'account'))
+  const [kind, setKind] = useState<RefundTo['kind']>(
+    current?.kind === 'cash' && !cashAllowed(order) ? 'account' : (current?.kind ?? 'account'),
+  )
   const [bank, setBank] = useState(current?.kind === 'account' ? current.bank : '')
   const [account, setAccount] = useState(current?.kind === 'account' ? current.account : '')
   const [holder, setHolder] = useState(current?.kind === 'account' ? current.holder : '')

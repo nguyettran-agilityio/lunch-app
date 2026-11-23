@@ -48,9 +48,7 @@ export function PlateScreen() {
     if (g.max === 1) setPicks([...picks.filter((p) => !inGroup.includes(p)), dishId])
   }
 
-  const problems = s.groups
-    .filter((g) => (counts.get(g.id) ?? 0) < g.min)
-    .map((g) => m.plate.tooFew(g.name, g.min))
+  const problems = s.groups.filter((g) => (counts.get(g.id) ?? 0) < g.min).map((g) => m.plate.tooFew(g.name, g.min))
 
   const slots = s.groups.flatMap((g) => {
     const chosen = picks.filter((p) => findDish(s, p)?.groupId === g.id)
@@ -103,43 +101,43 @@ export function PlateScreen() {
 
         {/* Price and add: sticks above the bottom bar on phones, beside the tray on computers. */}
         <div className="sticky bottom-16 z-10 rounded-2xl bg-card p-4 shadow-[0_-4px_16px_rgb(29_36_32/0.12)] ring-1 ring-steel/70 max-sm:p-3 md:bottom-4 lg:top-4 lg:bottom-auto lg:col-start-1 lg:row-start-2 lg:self-start lg:shadow-none">
-            <div className="flex items-baseline justify-between">
-              <span className="font-semibold">{m.plate.price}</span>
-              <span className="font-display text-[26px] font-extrabold tracking-tight sm:text-[34px]" aria-live="polite">
-                {money(price)}
-              </span>
-            </div>
-            <p className="mt-1 hidden text-sm text-muted sm:block">
-              {m.plate.base} {money(s.settings.basePrice)}
-              {picks.map((id) => {
-                const d = findDish(s, id)
-                return d && d.surcharge > 0 ? ` + ${money(d.surcharge)} (${dishName(s, id)})` : ''
-              })}
-              {s.groups.map((g) => {
-                const extra = (counts.get(g.id) ?? 0) - g.included
-                return extra > 0 && g.extraFee > 0 ? ` + ${g.name}: ${extra} × ${m.plate.extraFee(money(g.extraFee))}` : ''
-              })}
-            </p>
-            <div className="mt-2 flex items-center justify-between gap-2 sm:mt-4 sm:gap-3">
-              <span className="flex items-center gap-2 text-[15px] font-medium">
-                <span className="max-sm:sr-only">{m.plate.qty}</span> <QtyStepper value={qty} onChange={setQty} min={1} />
-              </span>
-              <Button
-                disabled={!valid || !open}
-                onClick={() => {
-                  if (order) {
-                    const r = run((st) => addPlateToDraft(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
-                    if (r.ok) router.push(back)
-                    return
-                  }
-                  const r = run((st) => addToCart(st, date, { kind: 'plate', picks, qty, unitPrice: price }))
+          <div className="flex items-baseline justify-between">
+            <span className="font-semibold">{m.plate.price}</span>
+            <span className="font-display text-[26px] font-extrabold tracking-tight sm:text-[34px]" aria-live="polite">
+              {money(price)}
+            </span>
+          </div>
+          <p className="mt-1 hidden text-sm text-muted sm:block">
+            {m.plate.base} {money(s.settings.basePrice)}
+            {picks.map((id) => {
+              const d = findDish(s, id)
+              return d && d.surcharge > 0 ? ` + ${money(d.surcharge)} (${dishName(s, id)})` : ''
+            })}
+            {s.groups.map((g) => {
+              const extra = (counts.get(g.id) ?? 0) - g.included
+              return extra > 0 && g.extraFee > 0 ? ` + ${g.name}: ${extra} × ${m.plate.extraFee(money(g.extraFee))}` : ''
+            })}
+          </p>
+          <div className="mt-2 flex items-center justify-between gap-2 sm:mt-4 sm:gap-3">
+            <span className="flex items-center gap-2 text-[15px] font-medium">
+              <span className="max-sm:sr-only">{m.plate.qty}</span> <QtyStepper value={qty} onChange={setQty} min={1} />
+            </span>
+            <Button
+              disabled={!valid || !open}
+              onClick={() => {
+                if (order) {
+                  const r = run((st) => addPlateToDraft(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
                   if (r.ok) router.push(back)
-                }}
-              >
-                {order ? m.detail.plateToOrder : m.plate.add}
-              </Button>
-            </div>
-            {problems.length > 0 && <p className="mt-2 text-sm sm:mt-3 font-medium text-chili">{problems.join(' · ')}</p>}
+                  return
+                }
+                const r = run((st) => addToCart(st, date, { kind: 'plate', picks, qty, unitPrice: price }))
+                if (r.ok) router.push(back)
+              }}
+            >
+              {order ? m.detail.plateToOrder : m.plate.add}
+            </Button>
+          </div>
+          {problems.length > 0 && <p className="mt-2 text-sm sm:mt-3 font-medium text-chili">{problems.join(' · ')}</p>}
         </div>
 
         <div className="flex flex-col gap-5 lg:col-start-2 lg:row-span-2 lg:row-start-1">

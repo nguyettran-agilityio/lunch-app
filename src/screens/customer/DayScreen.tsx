@@ -111,11 +111,7 @@ export function DayScreen() {
             <PlateArt picks={[]} slots={s.groups.reduce((n, g) => n + g.max, 0)} className="float-right -mt-1 -mr-1 ml-2 size-24" />
             <h2 className="font-display text-xl font-bold">{m.day.buildTitle}</h2>
             <p className="mt-1 text-[15px]">{m.day.buildIntro(money(s.settings.basePrice))}</p>
-            <p className="mt-2 text-sm text-muted">
-              {day.menu.components
-                .map((id) => dishName(s, id))
-                .join(', ')}
-            </p>
+            <p className="mt-2 text-sm text-muted">{day.menu.components.map((id) => dishName(s, id)).join(', ')}</p>
             <div className="mt-4">
               {state === 'open' ? (
                 <LinkButton href={`/plate?d=${date}`} className="w-full">

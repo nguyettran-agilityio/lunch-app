@@ -32,8 +32,7 @@ export function LineText({ line }: { line: Line }) {
 /** One line as plain text, for summaries and the edit history. */
 export function useLineLabel() {
   const { s, m } = useApp()
-  return (l: Line) =>
-    l.kind === 'fixed' ? dishName(s, l.dishId) : `${m.cart.plate} (${l.picks.map((id) => dishName(s, id)).join(', ')})`
+  return (l: Line) => (l.kind === 'fixed' ? dishName(s, l.dishId) : `${m.cart.plate} (${l.picks.map((id) => dishName(s, id)).join(', ')})`)
 }
 
 /** The lines of an order; `art` adds a drawn thumbnail to each line (customer screens, UI6). */
@@ -43,7 +42,13 @@ export function LinesList({ lines, art = false }: { lines: Line[]; art?: boolean
     <ul className="divide-y divide-tray">
       {lines.map((l) => (
         <li key={l.id} className={`flex justify-between gap-3 py-2 text-[15px] ${art ? 'items-center' : 'items-baseline'}`}>
-          {art && <LineArt dishId={l.kind === 'fixed' ? l.dishId : undefined} picks={l.kind === 'plate' ? l.picks : undefined} className="size-12 shrink-0" />}
+          {art && (
+            <LineArt
+              dishId={l.kind === 'fixed' ? l.dishId : undefined}
+              picks={l.kind === 'plate' ? l.picks : undefined}
+              className="size-12 shrink-0"
+            />
+          )}
           <span className={art ? 'flex-1' : undefined}>
             <span className="font-semibold">{l.qty} × </span>
             <LineText line={l} />
@@ -206,7 +211,9 @@ export function PendingRefundNote({ order }: { order: Order }) {
   const pending = order.refunds.filter((r) => r.refundedAt === null).reduce((n, r) => n + r.amount, 0)
   if (pending === 0) return null
   const how = !order.refundTo ? m.refunds.howNone : order.refundTo.kind === 'cash' ? m.refunds.howCash : m.refunds.howTransfer
-  return <p className="mt-2 rounded-md bg-chili-soft px-2 py-1 text-sm font-semibold text-chili">{m.refunds.pending(money(pending), how)}</p>
+  return (
+    <p className="mt-2 rounded-md bg-chili-soft px-2 py-1 text-sm font-semibold text-chili">{m.refunds.pending(money(pending), how)}</p>
+  )
 }
 
 /** "Refunded X by bank transfer / cash", or the pending state (CN-54). */

@@ -117,7 +117,10 @@ export function ShopOrderCard({
           <p className="text-sm text-muted">
             {building?.name}
             {notApproved && (
-              <span className="font-semibold text-turmeric-ink"> ({building?.state === 'declined' ? m.buildings.declined : m.buildings.pending})</span>
+              <span className="font-semibold text-turmeric-ink">
+                {' '}
+                ({building?.state === 'declined' ? m.buildings.declined : m.buildings.pending})
+              </span>
             )}
             {order.note && ` · ${order.note}`}
           </p>
@@ -148,8 +151,8 @@ export function ReportNote({ order }: { order: Order }) {
       {isActive(order.status) && paymentState(order) === 'paid'
         ? m.shop.reportNotePaid(money(reportedTotal(order)))
         : isActive(order.status)
-        ? m.shop.reportNote(money(owed(order)), money(reportedTotal(order)), more > 0 ? money(more) : null)
-        : m.shop.reportNoteClosed(money(reportedTotal(order)))}
+          ? m.shop.reportNote(money(owed(order)), money(reportedTotal(order)), more > 0 ? money(more) : null)
+          : m.shop.reportNoteClosed(money(reportedTotal(order)))}
     </p>
   )
 }
@@ -214,7 +217,9 @@ export function ShopOrderActions({
           <ConfirmButton label={m.shop.reject} question={m.shop.rejectConfirm} onConfirm={() => run((st) => rejectOrder(st, order.id))} />
         )}
       </div>
-      {order.status === 'placed' && building?.state === 'pending' && <p className="mt-2 text-sm text-turmeric-ink">{m.shop.buildingPending}</p>}
+      {order.status === 'placed' && building?.state === 'pending' && (
+        <p className="mt-2 text-sm text-turmeric-ink">{m.shop.buildingPending}</p>
+      )}
     </>
   )
 }

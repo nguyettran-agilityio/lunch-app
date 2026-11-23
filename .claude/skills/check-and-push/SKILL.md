@@ -20,7 +20,7 @@ What changed, from the user: $ARGUMENTS
    - **Last run**: if any file changed after the last `spec-reviewer` run, run it again before step 4. Commit only after a run on the final files reports no defect.
    - **Untested acceptance criteria**: add the missing tests. A test you cannot write: stop and ask the user (G15).
 3. **Update the scenarios.** In `docs/test-scenarios.md`, set "How run" of each scenario run in this change ("Browser", "Test" or "Both"); a scenario still "Planned" goes to "Not checked". Click through the "Browser" ones in the Browser pane at 375px before you set them.
-4. **Run the full check** from the **Check** section of `CLAUDE.md`: every command, in that order (five once `npm run test:e2e` exists, see `CLAUDE.md`). If any fails, fix it and run them all again; if you cannot fix it, stop and ask the user. Never push after running only some of them.
+4. **Run the full check** from the **Check** section of `CLAUDE.md`: every command, in that order (six once `npm run test:e2e` exists, see `CLAUDE.md`). If any fails, fix it and run them all again; if you cannot fix it, stop and ask the user. Never push after running only some of them.
 5. **Commit** the files of this change only (`git add <paths>`, never `git add -A`), with a message that follows the Git rules in `CLAUDE.md`.
 6. **Push**: `git push -u origin HEAD`. If a hook blocks it, tell the user the reason and stop.
 7. **Open or update the PR.** If no PR is open for the branch (`gh pr view`), open it with the `open-pr` skill. If one is open, update its description with `gh pr edit <number> --body-file <file>` (file outside the repo) so every section of the template covers this change too, in particular "Changes", "How tested" and "Not checked".
