@@ -96,6 +96,19 @@ function isEnvName(p) {
 // A .env* name inside inline interpreter code (node -e, python -c, ...), which can open files.
 const ENV_IN_CODE = /(^|[^\w.$-])\.env[\w.*-]*/
 
+// String literals in code ('…', "…", '''…''', """…"""). A literal with whitespace is text, unless
+// it holds a .env* path (…/.env). Code that runs a string as code or as a shell command is
+// checked whole.
+const STRING_LITERAL = /'''[\s\S]*?'''|"""[\s\S]*?"""|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g
+const RUNS_STRING = /\b(system|popen|Popen|subprocess|exec\w*|spawn\w*|eval|child_process|shell_exec|passthru|qx)\b|%x/
+
+// Does inline or here-document code name a .env* file?
+function codeNamesEnv(code) {
+  if (RUNS_STRING.test(code)) return ENV_IN_CODE.test(code)
+  const kept = code.replace(STRING_LITERAL, (lit) => (/\s/.test(lit) && !/\/\.env/.test(lit) ? '""' : lit))
+  return ENV_IN_CODE.test(kept)
+}
+
 // Commands whose arguments are text, not files (redirections are still checked).
 const TEXT_COMMANDS = new Set(['echo', 'printf', ':', 'true', 'false'])
 // Commands whose first positional argument is a pattern or program, not a file.
@@ -138,7 +151,7 @@ function checkEnvFiles(words, redirects) {
   if (head in INTERPRETERS) {
     args.forEach((a, i) => {
       if (INTERPRETERS[head].includes(a) && args[i + 1] !== undefined) {
-        if (ENV_IN_CODE.test(args[i + 1])) block(ENV_REASON)
+        if (codeNamesEnv(args[i + 1])) block(ENV_REASON)
         skip.add(i + 1)
       }
     })
@@ -147,6 +160,19 @@ function checkEnvFiles(words, redirects) {
     args.forEach((a, i) => {
       if (TEXT_FLAGS[head].has(a)) skip.add(i + 1)
     })
+  }
+  if (head === 'git') {
+    // check-ignore and check-attr compare names with .gitignore/.gitattributes; they do not open the
+    // file. Redirections are still checked above.
+    let j = 0
+    while (j < args.length && args[j].startsWith('-')) {
+      j += ['-C', '-c', '--git-dir', '--work-tree', '--namespace'].includes(args[j]) ? 2 : 1
+    }
+    if (['check-ignore', 'check-attr'].includes(args[j])) {
+      args.forEach((_a, k) => {
+        if (k > j) skip.add(k)
+      })
+    }
   }
   if (PATTERN_FIRST.has(head)) {
     // -e gives the pattern inline (skipped); -f gives it in a file (still checked). Either way
@@ -176,7 +202,7 @@ function splitHeredocs(src) {
     if (pending.length) {
       const d = pending[0]
       if ((d.dash ? line.replace(/^\t+/, '') : line) === d.word) {
-        bodies.push({ opener: d.opener, body: d.lines.join('\n') })
+        bodies.push({ opener: d.opener, body: d.lines.join('\n'), quoted: d.quoted })
         pending.shift()
       } else {
         d.lines.push(line)
@@ -184,14 +210,14 @@ function splitHeredocs(src) {
       continue
     }
     out.push(
-      line.replace(/(?<!<)<<(?!<)(-?)\s*(['"]?)([A-Za-z_][\w.-]*)\2/g, (_m, dash, _q, word) => {
-        pending.push({ dash: dash === '-', word, opener: line, lines: [] })
+      line.replace(/(?<!<)<<(?!<)(-?)\s*(['"]?)([A-Za-z_][\w.-]*)\2/g, (_m, dash, q, word) => {
+        pending.push({ dash: dash === '-', word, quoted: q !== '', opener: line, lines: [] })
         return ' '
       }),
     )
   }
   // An unterminated here-document runs to the end of the input.
-  for (const d of pending) bodies.push({ opener: d.opener, body: d.lines.join('\n') })
+  for (const d of pending) bodies.push({ opener: d.opener, body: d.lines.join('\n'), quoted: d.quoted })
   return { text: out.join('\n'), bodies }
 }
 
@@ -633,9 +659,13 @@ function checkGitGuardFiles(sub, rest, dir) {
 function checkShell(source, cwd, depth = 0) {
   if (depth > 5) block('command nesting is too deep to check; failing closed.')
   const { text: command, bodies } = splitHeredocs(source)
-  for (const { opener, body } of bodies) {
+  for (const { opener, body, quoted } of bodies) {
     if (SHELL_OPENER.test(opener)) checkShell(body, cwd, depth + 1)
-    else if (CODE_OPENER.test(opener) && ENV_IN_CODE.test(body)) block(ENV_REASON)
+    else if (CODE_OPENER.test(opener)) {
+      // In an unquoted here-document the shell runs $(…) and `…` first: check the whole body.
+      const expands = !quoted && /\$\(|`/.test(body)
+      if (expands ? ENV_IN_CODE.test(body) : codeNamesEnv(body)) block(ENV_REASON)
+    }
   }
   for (const inner of substitutions(command)) checkShell(inner, cwd, depth + 1)
   for (const { words: raw, redirects, outputs } of splitCommands(command)) {
