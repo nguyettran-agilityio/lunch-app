@@ -14,6 +14,7 @@ Each milestone is a **vertical slice**: when it is merged, a person can run its 
 - **Reused** prototype files.
 - **Tests** and **scenarios**: scenarios are written in [test-scenarios.md](test-scenarios.md) as "Planned" before the code (X6).
 - **Lead setup**: what the Lead creates by hand (keys, accounts, settings). Claude never creates or sees a key (B10).
+- **Open for the Lead**: cases the spec does not decide yet that this milestone is the first to need, found earlier by `spec-reviewer`, `ask-lead`, `check-and-push` or Claude's zero-questions test (`CLAUDE.md`) (X9); they are asked with `ask-lead` when the milestone starts, before any code. "None" when empty.
 - **Pull requests**: small, one concern each; each PR is green on CI and deployable, follows the Git rules of `CLAUDE.md`, and runs `check-and-push` and `open-pr`.
 
 Every PR starts by reading the relevant guide in `node_modules/next/dist/docs/` (AGENTS.md, T5); for sign-in read `01-app/02-guides/authentication.md` and `authentication-with-cache-components.md`, for writes `01-app/01-getting-started/07-mutating-data.md`.
@@ -227,6 +228,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Tests.** `domain/phone.ts` (normalize, display 4-3-3) and `password.ts`; each action on PGlite with a fake Supabase client (duplicate and unconfirmed phone and email, messages, linking guard, role, shop email refused, 60-second wait); Playwright: A1–A13, A15, A16, P6–P10, P15, Q7, Q8, V5, V6, W1–W3, X1–X9, X11–X17; X10 as a Vitest test on the template files. Each test names the AC id it covers, not only the CN id, because several ACs cite the same CN (X7). Scenarios that need an email link or a Google callback (A1, A5–A7, A10, A12, A16, P8, P15, Q8, V5, V6, W2, W3, X3, X5–X7, X11–X13, X16, X17) run in CI against the test sign-in mode, which also issues confirmation, reset and email-change links (kept in a test mailbox table read by the test) and simulates a Google callback for a given email and identity set; each is also tried once by the Lead on the preview with the real Supabase, Google and Resend (section 7).
 **Lead setup.** Before M1-2: create the preview Supabase project; copy its URL, keys and pooler URL into Vercel (preview) and `.env.local`; set `SHOP_EMAILS`; run `npm run db:migrate`; set the Site URL and the redirect URLs. After M1-2 is merged: paste the three email templates of `supabase/templates/` into Supabase. Before M1-3: create the Google OAuth client and enter it in Supabase; add the preview redirect URLs. Before M1-4: create the Resend account, enter its SMTP in Supabase and raise the auth email rate limit. Then the two-email trial of section 7.
 
+**Open for the Lead.** None.
+
 **Pull requests.**
 1. **M1-1 Foundation**: move `src/proto` rules, types, time and i18n to `src/domain`, with the prototype-only fields in a prototype type, `orderCode` in `src/domain/code.ts` and `nextId` taking an id generator (B24); split the layouts (B23); move all prototype pages under `src/app/proto/` (links get a `/proto` prefix through one `href()` helper); `useApp()`/`useActions()` with the prototype providers, every screen awaiting its actions with a pending state (section 1.2); Drizzle, the PGlite test helper, Playwright with the test sign-in mode and the layout test, the `AuthProvider` interface with its test version for seeded accounts (B25), `instrumentation.ts`, the first migration (`profiles`, `auth_mail_log`, `buildings`), `npm run db:migrate`; `npm run test:e2e`, the CI step for it and the fifth **Check** command (C1); `spec-reviewer` updated for the real app (B26); `page.test.tsx` and the other tests follow the screens under `/proto`. All existing tests stay green.
 2. **M1-D Design round for the account screens** (UI16): 2–3 directions for S-C1, S-C1a, S-C2 and the reset and expired-link pages, clicked through on fake data like the prototype UI round; the Lead chooses; recorded in `design.md`. No server code.
@@ -250,6 +253,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Tests.** Actions on PGlite; Playwright: R1, P12, Q1, Q5, Q19, D14, F8, UI-1, UI-2; the layout test gets these screens.
 **Lead setup.** Create the `dish-photos` bucket (private) in the preview project; run the migration.
 
+**Open for the Lead.** None.
+
 **Pull requests.**
 1. **M2-1 Dishes and build-your-own rules** (S-S1 with photo and drawing, S-S2 with the checks).
 2. **M2-2 Settings and days** (S-S4 with the bank list, S-S3 menus and cutoff override).
@@ -272,6 +277,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Tests.** VietQR payload against two known-good payloads (one built from the NAPAS format description, one decoded from a QR made by a real bank app for a test account), without real account numbers in the repo; actions on PGlite, including two `placeOrder` at once getting different codes and AC17 with the clock in another time zone, plus a Playwright run with the browser's `timezoneId` set to another zone; Playwright: R2, R3, P1, P4, P14, Q2–Q4, Q10, Q14, Q15, V3, A17, A18, D1–D5, S1–S8, F2, F4–F6, F9, UI-3–UI-6, UI-17, UI-18, UI-23.
 **Lead setup.** Run the migration; enter a bank in Settings on the preview.
 
+**Open for the Lead.** None.
+
 **Pull requests.**
 1. **M3-1 Carts and placing an order** (S-C4/S-C5 "Add", S-C6, order code, price and on-sale checks, the dish guards).
 2. **M3-2 Payment screen and VietQR**, "I have transferred", My orders, Order detail view (S-C7, S-C8, S-C9).
@@ -292,6 +299,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Reused.** `logic.editOrder`, `editChanges`, `cancelOrder`, `rejectOrder`, `setRefundTo`, `markRefunded`, `refundReminder`, `seeRefundReminder`, `declinePreview`, `declineBuilding`, `cashAllowed`, `customerRefundMethod`, `pendingRefund`, `refundList`; `OrderScreen` (edit), `RefundsBuildingsScreens.tsx`, `common.tsx`.
 **Tests.** Every money combination already in `prototype-logic.test.ts` stays; actions on PGlite for `changed` (AC66, and the shop rejecting while the edit is open), the shared "Seen", prices in edits; Playwright: R4, R6, P2, P3, P5, P13, Q6, Q9, Q11, Q13, Q16, Q18, Q20, D6, D10, D11, M1–M9, M11–M13, M16, M17, M21, F1, F3, F10, S12–S14, S16, T1, UI-7–UI-11, UI-14–UI-16, UI-19–UI-22, V1, V2; M10 and M18 without their closed-day and Delivering cases, which come in M5.
 **Lead setup.** Create the `refund-qr` bucket (private); run the migration; set up a second shop account (section 7).
+
+**Open for the Lead.** None.
 
 **Pull requests.**
 1. **M4-1 Editing an order** with the draft, the plate builder, the history and the CN-60 checks (S-C9 edit).
@@ -315,6 +324,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Tests.** Actions on PGlite (several orders in one action, each moving on its own; R7); Playwright: R5, R7, V4, A14, P11, Q12, Q17, S9–S11, S15, F7, F11, D7–D9, D12, M10 and M18 (their closed-day and Delivering cases), M14, M15, M19, M20.
 **Lead setup.** none.
 
+**Open for the Lead.** None.
+
 **Pull requests.**
 1. **M5-1 Cutoff review** with keep and search (S-S7) and the "kept" mark on S-S6/S-S11.
 2. **M5-2 Start preparing and the preparation sheet** (select on S-S6 and S-S8, S-S8 sheet).
@@ -329,6 +340,8 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 
 **Completes.** AC19.
 **Tests.** Playwright: D13, UI-13; UI-12 stays "Browser", checked in dark mode on the real screens (the demo bar is gone).
+
+**Open for the Lead.** None.
 
 **Pull requests.**
 1. **M6-1 Layout test complete**: every screen in the 375 px / 1280 px test (AC19); empty the exception list.

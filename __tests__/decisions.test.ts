@@ -1,17 +1,20 @@
 // @vitest-environment node
-// Checks the decision tables in docs/decisions.md (see decisions X3 and X4).
+// Checks the decision tables in docs/decisions.md (see decisions X3, X4 and X8).
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const FILE = path.resolve(__dirname, '..', 'docs', 'decisions.md')
 
-type Row = { line: number; id: string; why: string; source: string }
+type Row = { line: number; id: string; why: string; source: string; section: string }
 
 // Table rows whose first cell is a decision ID such as T1 or G10. Escaped pipes (\|) stay inside a cell.
 function parseRows(markdown: string): Row[] {
   const rows: Row[] = []
+  let section = ''
   markdown.split('\n').forEach((text, i) => {
+    const heading = text.match(/^## (.+)$/)
+    if (heading) section = heading[1].trim()
     if (!text.startsWith('|')) return
     const cells = text
       .replace(/^\|/, '')
@@ -19,7 +22,7 @@ function parseRows(markdown: string): Row[] {
       .split(/(?<!\\)\|/)
       .map((c) => c.trim())
     if (!/^[A-Z]+\d+$/.test(cells[0] ?? '')) return
-    rows.push({ line: i + 1, id: cells[0], why: cells[3] ?? '', source: cells[4] ?? '' })
+    rows.push({ line: i + 1, id: cells[0], why: cells[3] ?? '', source: cells[4] ?? '', section })
   })
   return rows
 }
@@ -54,6 +57,16 @@ function sourceProblems(rows: Row[]): string[] {
   return problems
 }
 
+// From the "Build" section on, every Why says who made the decision (X8).
+function ownerProblems(rows: Row[]): string[] {
+  const start = rows.findIndex((r) => r.section === 'Build')
+  if (start === -1) return []
+  return rows
+    .slice(start)
+    .filter((r) => !/^(User decision|Proposed by Claude)/.test(r.why))
+    .map((r) => `${r.id} on line ${r.line} does not say whether it is a user decision or proposed by Claude`)
+}
+
 const header = '| # | Topic | Decision | Why | Source |\n|---|---|---|---|---|\n'
 
 describe('docs/decisions.md', () => {
@@ -69,6 +82,10 @@ describe('docs/decisions.md', () => {
 
   it('gives every decision a Source, with the user words for user decisions', () => {
     expect(sourceProblems(rows)).toEqual([])
+  })
+
+  it('says who made each decision from the Build section on', () => {
+    expect(ownerProblems(rows)).toEqual([])
   })
 })
 
@@ -97,5 +114,11 @@ describe('decision checks catch mistakes', () => {
     const rows = parseRows(header + '| X1 | a | b \\| c | User decision | #3; user: "Yes" |\n')
     expect(rows[0].source).toBe('#3; user: "Yes"')
     expect(sourceProblems(rows)).toEqual([])
+  })
+
+  it('reports a Build decision that does not say who made it', () => {
+    const md = '## Git\n\n' + header + '| G1 | a | b | c | #1 |\n\n## Build\n\n' + header +
+      '| B1 | a | b | User decision | user: "Yes" |\n| B2 | a | b | Proposed by Claude, approved | user: "Ok" |\n| B3 | a | b | Faster | #2 |\n'
+    expect(ownerProblems(parseRows(md))).toEqual(['B3 on line 13 does not say whether it is a user decision or proposed by Claude'])
   })
 })
