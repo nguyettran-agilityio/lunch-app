@@ -1,0 +1,8 @@
+# Markdown is not formatted (tables in docs would be padded); see docs/decisions.md.
+*.md
+package-lock.json
+
+# Claude must not change these files (docs/decisions.md G10).
+.claude/hooks/
+.claude/settings.json
+.claude/settings.local.json

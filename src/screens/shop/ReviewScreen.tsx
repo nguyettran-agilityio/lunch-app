@@ -15,7 +15,11 @@ export function ReviewScreen() {
   const [query, setQuery] = useState('')
   const list = reviewList(s, s.shopDay)
   // Newest order first in each group; search within the selected day (CN-56).
-  const found = newestFirst(s, list.filter((o) => matchesSearch(s, o, query)), (o) => o)
+  const found = newestFirst(
+    s,
+    list.filter((o) => matchesSearch(s, o, query)),
+    (o) => o,
+  )
   const placed = found.filter((o) => o.status === 'placed')
   const unpaid = found.filter((o) => o.status !== 'placed')
 

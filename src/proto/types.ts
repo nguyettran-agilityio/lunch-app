@@ -102,10 +102,7 @@ export type ReportMissingEntry = { kind: 'reportMissing'; at: string; amount: nu
 export type HistoryEntry = StatusEntry | EditEntry | ReportMissingEntry
 
 /** How the customer wants a refund, entered per order: bank transfer (CN-33) or cash at delivery (CN-54). */
-export type RefundTo =
-  | { kind: 'account'; bank: string; account: string; holder: string }
-  | { kind: 'qr'; image: string }
-  | { kind: 'cash' }
+export type RefundTo = { kind: 'account'; bank: string; account: string; holder: string } | { kind: 'qr'; image: string } | { kind: 'cash' }
 
 /** An edit in progress: all changes are saved together with one "Save" (CN-29). */
 export type EditDraft = { lines: Line[]; buildingId: string; note: string }

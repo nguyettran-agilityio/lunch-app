@@ -117,7 +117,11 @@ describe('decision checks catch mistakes', () => {
   })
 
   it('reports a Build decision that does not say who made it', () => {
-    const md = '## Git\n\n' + header + '| G1 | a | b | c | #1 |\n\n## Build\n\n' + header +
+    const md =
+      '## Git\n\n' +
+      header +
+      '| G1 | a | b | c | #1 |\n\n## Build\n\n' +
+      header +
       '| B1 | a | b | User decision | user: "Yes" |\n| B2 | a | b | Proposed by Claude, approved | user: "Ok" |\n| B3 | a | b | Faster | #2 |\n'
     expect(ownerProblems(parseRows(md))).toEqual(['B3 on line 13 does not say whether it is a user decision or proposed by Claude'])
   })

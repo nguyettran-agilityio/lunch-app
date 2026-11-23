@@ -152,7 +152,10 @@ function LangSwitch({ lang }: { lang: Lang }) {
           type="button"
           aria-pressed={lang === l}
           onClick={() => update((s) => ({ ...s, lang: l }))}
-          className={cx('min-h-9 min-w-10 rounded-full text-sm font-bold uppercase', lang === l ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/80')}
+          className={cx(
+            'min-h-9 min-w-10 rounded-full text-sm font-bold uppercase',
+            lang === l ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/80',
+          )}
         >
           {l}
         </button>
@@ -251,7 +254,10 @@ function ErrorToast() {
   if (!err) return null
   const m = messages[s.lang]
   return (
-    <div role="alert" className="fixed inset-x-4 bottom-20 z-30 mx-auto flex max-w-md items-start gap-3 rounded-2xl bg-chili p-4 text-on-chili shadow-lg md:bottom-6">
+    <div
+      role="alert"
+      className="fixed inset-x-4 bottom-20 z-30 mx-auto flex max-w-md items-start gap-3 rounded-2xl bg-chili p-4 text-on-chili shadow-lg md:bottom-6"
+    >
       <p className="flex-1 text-[15px] font-medium">{m.errors[err.code]}</p>
       <button type="button" onClick={clearError} className="text-sm font-semibold underline">
         {m.common.close}
@@ -263,7 +269,10 @@ function ErrorToast() {
 function Leaf() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden className="size-7 text-[#8fd09b]">
-      <path fill="currentColor" d="M20 3C10 3 4 8.5 4 15c0 2 .6 3.7 1.6 5L4 21.6 5.4 23 7 21.4C8.3 22.4 10 23 12 23c6.5 0 9-7 9-14 0-2-.3-4-1-6Z" />
+      <path
+        fill="currentColor"
+        d="M20 3C10 3 4 8.5 4 15c0 2 .6 3.7 1.6 5L4 21.6 5.4 23 7 21.4C8.3 22.4 10 23 12 23c6.5 0 9-7 9-14 0-2-.3-4-1-6Z"
+      />
       <path fill="#1d4a29" d="M7.5 19.5 17 8l-.9-.7L6.6 18.8z" />
     </svg>
   )

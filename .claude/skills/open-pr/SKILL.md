@@ -21,7 +21,7 @@ Extra context from the user: $ARGUMENTS
 2. **Run the check** from the **Check** section of `CLAUDE.md`. If any step fails, stop and report the output. Do not open the PR.
 3. **Push** the branch: `git push -u origin HEAD`. If a hook blocks it, tell the user the reason and stop.
 4. **Write the title** following the title and capitalization rules in `CLAUDE.md`.
-5. **Find the issue** (G20 in `docs/decisions.md`). If the branch does a PR of `docs/plan.md`, find its issue: `gh issue list --state open --search "<PR id> in:title"` (for example `M1-1a`), and note its milestone. If the PR is not in the plan, create a short issue first, with no milestone: `gh issue create --title "<what the PR does>" --body-file <file>` (Goal, "Done when" and the related docs, in English, file outside the repo). A plan PR whose issue cannot be found: stop and ask the user.
+5. **Find the issue** (G21 in `docs/decisions.md`). If the branch does a PR of `docs/plan.md`, find its issue: `gh issue list --state open --search "<PR id> in:title"` (for example `M1-1a`), and note its milestone. If the PR is not in the plan, create a short issue first, with no milestone: `gh issue create --title "<what the PR does>" --body-file <file>` (Goal, "Done when" and the related docs, in English, file outside the repo). A plan PR whose issue cannot be found: stop and ask the user.
 6. **Write the body** from `.github/pull_request_template.md`:
    - Keep every heading, in order. Replace each HTML comment with real content; follow the comment's own instructions (for example "None").
    - Base it on the commits, the diff, the check results from step 2 and the extra context above. Under "Not checked", list honestly what was not verified (CI is still running at this point).

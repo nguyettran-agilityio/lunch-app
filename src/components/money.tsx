@@ -71,7 +71,11 @@ function PaymentBar({ order, side }: { order: Order; side: Side }) {
           <p className={cx('font-display text-[22px] leading-tight font-bold tracking-tight', toneText[tone])}>{headline}</p>
           {more > 0 && <p className="text-[15px] font-semibold text-chili">{w.stillToTransfer(money(more))}</p>}
           {held > 0 && <p className="text-[15px] text-muted">{w.received(money(held))}</p>}
-          {openReport > 0 && <p className="text-[15px] font-semibold text-turmeric-ink">{(side === 'shop' ? m.money.shop : m.money).reportOpen(money(openReport))}</p>}
+          {openReport > 0 && (
+            <p className="text-[15px] font-semibold text-turmeric-ink">
+              {(side === 'shop' ? m.money.shop : m.money).reportOpen(money(openReport))}
+            </p>
+          )}
         </div>
       </div>
       <Stops labels={stops} at={at} tone={tone} half={half} />
@@ -95,16 +99,33 @@ function RefundBar({ order, side }: { order: Order; side: Side }) {
       <div className="mt-1 flex items-center gap-3">
         <Coin tone={tone} back />
         <div className="min-w-0">
-          {pending > 0 && <p className="font-display text-[22px] leading-tight font-bold tracking-tight text-chili">{(shop ? m.money.shop : m.money).needs(money(pending))}</p>}
+          {pending > 0 && (
+            <p className="font-display text-[22px] leading-tight font-bold tracking-tight text-chili">
+              {(shop ? m.money.shop : m.money).needs(money(pending))}
+            </p>
+          )}
           {done.map((r) => (
-            <p key={r.id} className={cx(pending > 0 ? 'text-[15px] text-muted' : 'font-display text-[22px] leading-tight font-bold tracking-tight text-leaf')}>
+            <p
+              key={r.id}
+              className={cx(
+                pending > 0 ? 'text-[15px] text-muted' : 'font-display text-[22px] leading-tight font-bold tracking-tight text-leaf',
+              )}
+            >
               {(shop ? m.money.shop.refunded : m.refunds.by)(money(r.amount), m.refunds.method[r.method ?? 'transfer'])}
             </p>
           ))}
-          {openReport > 0 && <p className="text-[15px] font-semibold text-turmeric-ink">{shop ? m.money.shop.reported(money(openReport)) : m.money.reported(money(openReport))}</p>}
+          {openReport > 0 && (
+            <p className="text-[15px] font-semibold text-turmeric-ink">
+              {shop ? m.money.shop.reported(money(openReport)) : m.money.reported(money(openReport))}
+            </p>
+          )}
         </div>
       </div>
-      <Stops labels={[(shop ? m.money.shop : m.money).refundStops.needs, (shop ? m.money.shop : m.money).refundStops.done]} at={state === 'refunded' ? 1 : 0} tone={tone} />
+      <Stops
+        labels={[(shop ? m.money.shop : m.money).refundStops.needs, (shop ? m.money.shop : m.money).refundStops.done]}
+        at={state === 'refunded' ? 1 : 0}
+        tone={tone}
+      />
     </div>
   )
 }
@@ -136,7 +157,10 @@ function Stops({ labels, at, tone, half = false }: { labels: string[]; at: numbe
         return (
           <li key={label} aria-current={current ? 'step' : undefined} className="relative flex flex-col items-center text-center">
             {i > 0 && (
-              <span aria-hidden className={cx('absolute top-[9px] right-1/2 h-1 w-full rounded-full', reached ? toneFill[tone] : 'bg-steel')} />
+              <span
+                aria-hidden
+                className={cx('absolute top-[9px] right-1/2 h-1 w-full rounded-full', reached ? toneFill[tone] : 'bg-steel')}
+              />
             )}
             <span
               aria-hidden
@@ -150,7 +174,12 @@ function Stops({ labels, at, tone, half = false }: { labels: string[]; at: numbe
             >
               {current && half && <span className="size-full rounded-full bg-[linear-gradient(90deg,transparent_50%,var(--card)_50%)]" />}
             </span>
-            <span className={cx('mt-2 text-[13px] leading-tight', current ? cx('font-bold', toneText[tone]) : reached ? 'text-ink' : 'text-muted')}>
+            <span
+              className={cx(
+                'mt-2 text-[13px] leading-tight',
+                current ? cx('font-bold', toneText[tone]) : reached ? 'text-ink' : 'text-muted',
+              )}
+            >
               {label}
             </span>
           </li>
@@ -167,7 +196,14 @@ function Coin({ tone, half = false, back = false }: { tone: Tone; half?: boolean
       <circle cx={22} cy={22} r={20} fill="currentColor" opacity={0.16} />
       <circle cx={22} cy={22} r={15} fill="none" stroke="currentColor" strokeWidth={3} strokeDasharray={half ? '47 47' : undefined} />
       {back ? (
-        <path d="M27 16 h-8 a6 6 0 0 0 0 12 h6 M19 16 l3 -3 M19 16 l3 3" fill="none" stroke="currentColor" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d="M27 16 h-8 a6 6 0 0 0 0 12 h6 M19 16 l3 -3 M19 16 l3 3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       ) : (
         <text x={22} y={28} textAnchor="middle" fontSize={17} fontWeight={800} fill="currentColor">
           ₫

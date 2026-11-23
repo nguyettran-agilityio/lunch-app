@@ -80,10 +80,7 @@ describe('fails closed on bad input', () => {
   it('blocks when the guard itself crashes', () => {
     const preload = "data:text/javascript,import p from 'node:path'; p.basename = () => { throw new Error('boom') }"
     expectBlocked(
-      runRaw(JSON.stringify({ tool_name: 'Read', tool_input: { file_path: '/x/a.ts' }, cwd: ROOT }), [
-        '--import',
-        preload,
-      ]),
+      runRaw(JSON.stringify({ tool_name: 'Read', tool_input: { file_path: '/x/a.ts' }, cwd: ROOT }), ['--import', preload]),
       /guard crashed \(boom\); failing closed/,
     )
   })
@@ -126,13 +123,12 @@ describe('push to main/dev', () => {
     expectBlocked(bash('git push', tmpdir()), /could not determine the current branch/)
   })
 
-  it.each([
-    'git push -u origin feat/claude-hooks',
-    'git push origin feat/main-menu',
-    'git push origin feat/x:feat/x',
-  ])('allows %s', (cmd) => {
-    expectAllowed(bash(cmd, repos['feat/x']))
-  })
+  it.each(['git push -u origin feat/claude-hooks', 'git push origin feat/main-menu', 'git push origin feat/x:feat/x'])(
+    'allows %s',
+    (cmd) => {
+      expectAllowed(bash(cmd, repos['feat/x']))
+    },
+  )
 
   it('allows a bare push on a feature branch', () => {
     expectAllowed(bash('git push', repos['feat/x']))
@@ -200,7 +196,7 @@ describe('.env* files', () => {
     'echo KEY=1 >.env.local',
     'source .env',
     'vercel env pull .env.local',
-    'node -e "require(\'fs\').readFileSync(\'.env\')"',
+    "node -e \"require('fs').readFileSync('.env')\"",
     'sed -i "" s/a/b/ .env.local',
     'rm .env',
     'mv .env.local .env.bak',
@@ -229,12 +225,9 @@ describe('.env* files', () => {
     expectAllowed(run(tool, input))
   })
 
-  it.each(['cat README.md', 'git log --grep=env', 'echo $NODE_ENV', 'npm run dev', 'grep -r process.env src'])(
-    'allows Bash: %s',
-    (cmd) => {
-      expectAllowed(bash(cmd))
-    },
-  )
+  it.each(['cat README.md', 'git log --grep=env', 'echo $NODE_ENV', 'npm run dev', 'grep -r process.env src'])('allows Bash: %s', (cmd) => {
+    expectAllowed(bash(cmd))
+  })
 
   // The name .env only as text: content, messages, patterns. No .env* file is read or written.
   it.each([
@@ -255,7 +248,7 @@ describe('.env* files', () => {
     'sed "s/.env/ENV/" notes.md',
     'jq .env package.json',
     "cat > notes.md <<'EOF'\nNever commit .env files.\nCopy .env.example by hand.\nEOF",
-    "cat <<-EOF > docs-draft.md\n\t.env* files are blocked\n\tEOF",
+    'cat <<-EOF > docs-draft.md\n\t.env* files are blocked\n\tEOF',
     'git commit -F - <<EOF\nBlock .env reads\nEOF',
   ])('allows .env as text: %s', (cmd) => {
     expectAllowed(bash(cmd))
@@ -302,15 +295,15 @@ describe('.env* names that are not file access (phase 3 retro)', () => {
     'git check-ignore -q .env && cat .env',
     // A .env* path in code, even next to text that names it.
     "python3 - <<'EOF'\nprint(open('.env').read())\nEOF",
-    "python3 - <<'EOF'\nprint(open(\".env.local\").read())\nEOF",
+    'python3 - <<\'EOF\'\nprint(open(".env.local").read())\nEOF',
     "python3 - <<'EOF'\nimport os\nprint(open(os.path.join(os.getcwd(), '.env')).read())\nEOF",
     "python3 - <<'EOF'\nnote = 'text about .env files'\nprint(open('.env').read())\nEOF",
     "python3 - <<'EOF'\nprint(open('my notes/.env').read())\nEOF",
-    "python3 -c \"print(open('.env').read())\"",
+    'python3 -c "print(open(\'.env\').read())"',
     "node -e \"console.log(require('fs').readFileSync('apps/web/.env.local', 'utf8'))\"",
     // A shell call in code runs its string as a command.
     "python3 - <<'EOF'\nimport os\nos.system('cat .env')\nEOF",
-    "python3 -c \"import subprocess; subprocess.run('cat .env.local', shell=True)\"",
+    'python3 -c "import subprocess; subprocess.run(\'cat .env.local\', shell=True)"',
     "python3 - <<'EOF'\nexec(\"print(open('docs/x').read() + ' .env')\")\nEOF",
     "node -e \"require('child_process').execSync('cat .env')\"",
     "ruby -e 'puts `cat .env`'",
@@ -374,12 +367,9 @@ describe('rm in docs/', () => {
     expectBlocked(bash('rm intent.md', path.join(ROOT, 'docs')), /delete files in docs\//)
   })
 
-  it.each(['rm src/tmp.txt', 'rm -rf .next', 'rm -rf node_modules', 'find src -name "*.tmp" -delete', 'ls docs'])(
-    'allows %s',
-    (cmd) => {
-      expectAllowed(bash(cmd))
-    },
-  )
+  it.each(['rm src/tmp.txt', 'rm -rf .next', 'rm -rf node_modules', 'find src -name "*.tmp" -delete', 'ls docs'])('allows %s', (cmd) => {
+    expectAllowed(bash(cmd))
+  })
 })
 
 describe('ordinary commands', () => {
