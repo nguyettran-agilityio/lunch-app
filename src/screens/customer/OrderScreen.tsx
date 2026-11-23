@@ -44,6 +44,9 @@ export function OrderScreen() {
   const active = isActive(order.status)
   // An edit in progress stays open across the plate builder until it is saved or discarded (CN-29).
   const editing = !block && !!s.drafts[order.id]
+  // Someone else's change (the shop starting to prepare it, the cutoff) now blocks the open edit:
+  // say so with the reason and show the latest order instead of hiding the form silently (BR-28a, CN-59).
+  const staleDraft = !!block && !!s.drafts[order.id]
 
   return (
     <>
@@ -57,6 +60,16 @@ export function OrderScreen() {
       <div className="mb-5 max-w-xl">
         <MoneyState order={order} />
       </div>
+      {staleDraft && (
+        <div className="mb-5 max-w-xl">
+          <Notice tone="chili">
+            <span className="font-semibold">{m.detail.changed}</span> {m.errors[block]}{' '}
+            <Button variant="ghost" onClick={() => update((st) => discardEdit(st, order.id))}>
+              {m.detail.changedOk}
+            </Button>
+          </Notice>
+        </div>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem] lg:items-start">
         <div className="flex flex-col gap-5">
@@ -245,7 +258,17 @@ function EditOrder({ order }: { order: Order }) {
 /** Longest side of an uploaded QR photo, so it stays small in localStorage. */
 const QR_MAX = 480
 
-function shrinkImage(file: File): Promise<string> {
+const isHeic = (file: File) => /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)
+
+/** iPhone photos are often HEIC, which most browsers cannot draw: convert them to JPG first (BR-29b, CN-61). */
+async function toDrawable(file: File): Promise<Blob> {
+  if (!isHeic(file)) return file
+  const { default: heic2any } = await import('heic2any')
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
+  return Array.isArray(out) ? out[0] : out
+}
+
+function shrinkImage(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file)
     const img = new Image()
@@ -277,6 +300,8 @@ function RefundToForm({ order }: { order: Order }) {
   const [account, setAccount] = useState(current?.kind === 'account' ? current.account : '')
   const [holder, setHolder] = useState(current?.kind === 'account' ? current.holder : '')
   const [image, setImage] = useState(current?.kind === 'qr' ? current.image : '')
+  // A file that is not an image is refused with its own message (BR-29b).
+  const [notImage, setNotImage] = useState(false)
 
   if (current && !changing) {
     return (
@@ -326,13 +351,17 @@ function RefundToForm({ order }: { order: Order }) {
             onChange={async (e) => {
               const file = e.target.files?.[0]
               if (!file) return
+              setNotImage(false)
               try {
-                setImage(await shrinkImage(file))
+                if (!file.type.startsWith('image/') && !isHeic(file)) throw new Error('not an image')
+                setImage(await shrinkImage(await toDrawable(file)))
               } catch {
                 setImage('')
+                setNotImage(true)
               }
             }}
           />
+          {notImage && <Notice tone="chili">{m.detail.refundQrNotImage}</Notice>}
           {image && <RefundToView to={{ kind: 'qr', image }} />}
         </label>
       )}

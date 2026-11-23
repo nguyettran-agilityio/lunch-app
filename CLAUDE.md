@@ -2,7 +2,7 @@
 
 # lunch-app
 
-Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product intent and decisions D1–D23: [docs/intent.md](docs/intent.md). Technical and process decisions: [docs/decisions.md](docs/decisions.md).
+Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product intent and decisions D1–D23: [docs/intent.md](docs/intent.md). Technical and process decisions: [docs/decisions.md](docs/decisions.md). How the app is built, milestone by milestone: [docs/plan.md](docs/plan.md).
 
 ## How to work here
 

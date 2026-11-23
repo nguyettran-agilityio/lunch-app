@@ -121,6 +121,9 @@ const vi = {
   },
   detail: {
     title: (code: string) => `Đơn ${code}`,
+    // An edit was open when someone else's change blocked it (BR-28a, CN-59).
+    changed: 'Đơn vừa thay đổi.',
+    changedOk: 'Đã hiểu',
     lines: 'Món',
     history: 'Lịch sử',
     building: 'Giao tới',
@@ -159,6 +162,7 @@ const vi = {
     refundToIntro: 'Cho shop biết chuyển tiền hoàn vào đâu, cho riêng đơn này.',
     refundAccount: 'Nhập tài khoản',
     refundQr: 'Tải ảnh QR',
+    refundQrNotImage: 'Chỉ nhận ảnh (JPG, PNG).',
     refundCash: 'Tiền mặt khi giao',
     refundCashNote: 'Shop trả lại tiền mặt khi giao đơn. Nếu không có sẵn, shop sẽ liên hệ rồi chuyển khoản.',
     refundBank: 'Ngân hàng',
@@ -332,6 +336,10 @@ const vi = {
   },
   buildings: {
     title: 'Tòa nhà',
+    add: 'Thêm tòa',
+    addName: 'Tên tòa',
+    addAddress: 'Địa chỉ',
+    addSave: 'Thêm tòa đã duyệt',
     pending: 'Chờ duyệt',
     approved: 'Đã duyệt',
     declined: 'Đã từ chối',
@@ -502,6 +510,8 @@ const en: Messages = {
   },
   detail: {
     title: (code) => `Order ${code}`,
+    changed: 'This order has just changed.',
+    changedOk: 'OK',
     lines: 'Dishes',
     history: 'History',
     building: 'Deliver to',
@@ -540,6 +550,7 @@ const en: Messages = {
     refundToIntro: 'Tell the shop where to send the refund for this order.',
     refundAccount: 'Enter an account',
     refundQr: 'Upload a QR photo',
+    refundQrNotImage: 'Only images (JPG, PNG).',
     refundCash: 'Cash at delivery',
     refundCashNote: 'The shop gives the money back in cash at delivery. If it has none ready, it contacts you and transfers.',
     refundBank: 'Bank',
@@ -700,6 +711,10 @@ const en: Messages = {
   },
   buildings: {
     title: 'Buildings',
+    add: 'Add building',
+    addName: 'Building name',
+    addAddress: 'Address',
+    addSave: 'Add as approved',
     pending: 'Pending',
     approved: 'Approved',
     declined: 'Declined',

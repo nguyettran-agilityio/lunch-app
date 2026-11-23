@@ -9,6 +9,9 @@ import { addDays, vietnamNow } from '../src/proto/time'
 import type { Line, State } from '../src/proto/types'
 
 const nav = vi.hoisted(() => ({ params: new URLSearchParams(), path: '/' }))
+const heic = vi.hoisted(() => ({ convert: vi.fn() }))
+
+vi.mock('heic2any', () => ({ default: heic.convert }))
 
 vi.mock('next/navigation', () => ({
   usePathname: () => nav.path,
@@ -580,5 +583,71 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     show(<OrderScreen />)
     const [d, mo] = [today.slice(8, 10), today.slice(5, 7)]
     expect(screen.getByText(`Đã hoàn 45.000 ₫ bằng chuyển khoản lúc 08:00, ${d}/${mo}`)).toBeDefined()
+  })
+})
+
+describe('an open edit blocked by someone else (BR-28a)', () => {
+  test('BR-28a: when the shop starts preparing an order while its edit is open, the customer sees that it has just changed and why', async () => {
+    const s = seed(today)
+    const order = s.orders.find((o) => o.customerId === s.me && o.date === today && (o.status === 'placed' || o.status === 'confirmed'))!
+    const state: State = {
+      ...s,
+      orders: s.orders.map((o) => (o.id === order.id ? { ...o, status: 'preparing' } : o)),
+      drafts: { [order.id]: { lines: order.lines, buildingId: order.buildingId, note: order.note } },
+    }
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: order.id })
+    const show = await load(state)
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    show(<OrderScreen />)
+    expect(screen.getByText('Đơn vừa thay đổi.')).toBeTruthy()
+    expect(screen.getByText(/Đơn đang nấu: không sửa, huỷ hay từ chối được\./)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Đã hiểu' }))
+    expect(screen.queryByText('Đơn vừa thay đổi.')).toBeNull()
+  })
+})
+
+describe('refund QR photo that is not an image (BR-29b)', () => {
+  test('BR-29b: a PDF chosen as the refund QR photo is refused with "Only images (JPG, PNG)"', async () => {
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: `o-${today}-8` })
+    const show = await load({ ...seed(today), me: 'c2' })
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    const { container } = show(<OrderScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Tải ảnh QR' }))
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['%PDF'], 'qr.pdf', { type: 'application/pdf' })] } })
+    expect(await screen.findByText('Chỉ nhận ảnh (JPG, PNG).')).toBeTruthy()
+  })
+})
+
+describe('HEIC refund QR photo (BR-29b)', () => {
+  test('BR-29b: a HEIC photo is converted before shrinking, and one that cannot be converted is refused', async () => {
+    heic.convert.mockRejectedValueOnce(new Error('cannot decode'))
+    nav.path = '/order'
+    nav.params = new URLSearchParams({ id: `o-${today}-8` })
+    const show = await load({ ...seed(today), me: 'c2' })
+    const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
+    const { container } = show(<OrderScreen />)
+    fireEvent.click(screen.getByRole('button', { name: 'Tải ảnh QR' }))
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File(['heic'], 'IMG_0001.HEIC', { type: '' })] } })
+    expect(await screen.findByText('Chỉ nhận ảnh (JPG, PNG).')).toBeTruthy()
+    expect(heic.convert).toHaveBeenCalledWith(expect.objectContaining({ toType: 'image/jpeg' }))
+  })
+})
+
+describe('shop adds a building', () => {
+  test('AC81: "Add building" on the Buildings screen adds an approved building with its delivery time', async () => {
+    nav.path = '/shop/buildings'
+    nav.params = new URLSearchParams()
+    const show = await load(seed(today))
+    const { BuildingsScreen } = await import('../src/screens/shop/RefundsBuildingsScreens')
+    show(<BuildingsScreen />)
+    fireEvent.change(screen.getByLabelText('Tên tòa'), { target: { value: 'Tòa XYZ' } })
+    fireEvent.change(screen.getByLabelText('Địa chỉ'), { target: { value: '12 Lê Lợi' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm tòa đã duyệt' }))
+    const approved = screen.getByRole('heading', { name: 'Đã duyệt' }).parentElement!
+    expect(within(approved).getByText('Tòa XYZ')).toBeTruthy()
   })
 })
