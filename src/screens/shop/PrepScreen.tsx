@@ -64,7 +64,10 @@ export function PrepScreen() {
                     {dishName(s, r.dishId)}
                   </th>
                   {COLUMNS.map((c) => (
-                    <td key={c} className={`px-2 py-2.5 text-right ${r.counts[c] === 0 ? 'text-steel' : c === 'preparing' ? 'font-bold' : ''}`}>
+                    <td
+                      key={c}
+                      className={`px-2 py-2.5 text-right ${r.counts[c] === 0 ? 'text-steel' : c === 'preparing' ? 'font-bold' : ''}`}
+                    >
                       {r.counts[c]}
                     </td>
                   ))}
@@ -89,8 +92,14 @@ export function PrepScreen() {
             </Card>
           ) : (
             <>
-              {table(m.prep.fixed, rows.filter((r) => r.kind === 'fixed'))}
-              {table(m.prep.components, rows.filter((r) => r.kind === 'component'))}
+              {table(
+                m.prep.fixed,
+                rows.filter((r) => r.kind === 'fixed'),
+              )}
+              {table(
+                m.prep.components,
+                rows.filter((r) => r.kind === 'component'),
+              )}
             </>
           )}
         </div>

@@ -60,8 +60,7 @@ const vi = {
     intro: 'Một đĩa cơm cho 1 người. Giá gốc đã gồm cơm trắng.',
     rice: 'Cơm trắng',
     base: 'Giá gốc',
-    rule: (min: number, max: number, included: number) =>
-      min === max ? `Chọn ${min}` : `Chọn ${min}–${max}, giá gốc gồm ${included}`,
+    rule: (min: number, max: number, included: number) => (min === max ? `Chọn ${min}` : `Chọn ${min}–${max}, giá gốc gồm ${included}`),
     extraFee: (fee: string) => `món thêm +${fee}`,
     surcharge: (v: string) => `+${v}`,
     empty: 'Chưa chọn',
@@ -108,7 +107,8 @@ const vi = {
     hideQr: 'Ẩn QR',
     paid: 'Shop đã nhận đủ tiền cho đơn này.',
     topUp: (v: string) => `Đơn đã sửa tăng tiền: còn thiếu ${v}.`,
-    moreAfterReport: (reported: string, more: string) => `Đã báo chuyển ${reported}, chờ shop xác nhận. Đơn đã sửa tăng tiền: cần chuyển thêm ${more}.`,
+    moreAfterReport: (reported: string, more: string) =>
+      `Đã báo chuyển ${reported}, chờ shop xác nhận. Đơn đã sửa tăng tiền: cần chuyển thêm ${more}.`,
     later: 'Để sau, xem đơn',
     nothing: 'Đơn này không cần thanh toán thêm.',
   },
@@ -497,7 +497,8 @@ const en: Messages = {
     hideQr: 'Hide QR',
     paid: 'The shop has received the full amount for this order.',
     topUp: (v) => `The edited order costs more: ${v} still owed.`,
-    moreAfterReport: (reported, more) => `Transfer of ${reported} reported, waiting for the shop to confirm. The edited order costs more: transfer ${more} more.`,
+    moreAfterReport: (reported, more) =>
+      `Transfer of ${reported} reported, waiting for the shop to confirm. The edited order costs more: transfer ${more} more.`,
     later: 'Later, view the order',
     nothing: 'Nothing more to pay for this order.',
   },
@@ -528,7 +529,8 @@ const en: Messages = {
     cancelConfirm: 'Cancel this order? If you have paid, the shop will refund you.',
     save: 'Save changes',
     discard: 'Discard',
-    editNote: 'Make all your changes, then tap "Save changes" once. After saving, the order goes back to "Placed" and the shop confirms it again.',
+    editNote:
+      'Make all your changes, then tap "Save changes" once. After saving, the order goes back to "Placed" and the shop confirms it again.',
     addDish: 'Add a ready meal',
     addPlate: 'Add a rice plate',
     addPlateNote: 'The new plate goes into the edit in progress. The order changes only when you tap "Save changes".',
@@ -631,9 +633,11 @@ const en: Messages = {
     reportLine: (v, at) => `Customer reported ${v} · ${at}`,
     confirmRest: 'Received the rest',
     notReceivedConfirm: (v) => `No ${v} in the bank statement? The report is cleared and the customer is asked to check again.`,
-    reportNote: (owed, reported, more) => `Not confirmed ${owed} · customer reported ${reported} transferred` + (more ? `, ${more} still to transfer` : ''),
+    reportNote: (owed, reported, more) =>
+      `Not confirmed ${owed} · customer reported ${reported} transferred` + (more ? `, ${more} still to transfer` : ''),
     reportNotePaid: (reported) => `Customer reported ${reported}, waiting for confirmation`,
-    reportNoteClosed: (reported) => `Customer reported ${reported} transferred, waiting for the shop to confirm before a refund is recorded`,
+    reportNoteClosed: (reported) =>
+      `Customer reported ${reported} transferred, waiting for the shop to confirm before a refund is recorded`,
     keep: 'Keep',
     kept: 'Kept',
     buildingPending: 'Building pending: approve it before confirming',

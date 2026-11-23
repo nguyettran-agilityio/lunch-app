@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* Cơm Lá prototype tokens, "banana-leaf lunchbox" direction (docs/design.md, UI1).
    Light and dark follow the device (UI2): the values live on :root and the theme points at them.
@@ -77,7 +77,7 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }
 
 :focus-visible {

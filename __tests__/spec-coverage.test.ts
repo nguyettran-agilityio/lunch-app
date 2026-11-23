@@ -103,9 +103,7 @@ const hasId = (name: string, id: string) => new RegExp(`(?<![\\w-])${id}(?![\\w-
 
 // A criterion is covered when a test name gives its AC id or one of the CN ids it cites.
 function uncovered(criteria: Criterion[], names: string[]): string[] {
-  return criteria
-    .filter((c) => ![c.id, ...c.cited].some((id) => names.some((n) => hasId(n, id))))
-    .map((c) => c.id)
+  return criteria.filter((c) => ![c.id, ...c.cited].some((id) => names.some((n) => hasId(n, id)))).map((c) => c.id)
 }
 
 describe('parsing', () => {

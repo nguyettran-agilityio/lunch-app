@@ -3,7 +3,19 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { addToCart, cancelOrder, confirmOrder, markRefunded, placeOrder, confirmPayment, editOrder, setRefundTo, reportNotReceived, reportTransfer, type Result } from '../src/proto/logic'
+import {
+  addToCart,
+  cancelOrder,
+  confirmOrder,
+  markRefunded,
+  placeOrder,
+  confirmPayment,
+  editOrder,
+  setRefundTo,
+  reportNotReceived,
+  reportTransfer,
+  type Result,
+} from '../src/proto/logic'
 import { seed } from '../src/proto/seed'
 import { addDays, vietnamNow } from '../src/proto/time'
 import type { Line, State } from '../src/proto/types'
@@ -435,7 +447,11 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     const r = placeOrder(s, today, 'b-bitexco', '')
     return [must(r), (r as { id: string }).id]
   }
-  const codes = () => screen.queryAllByRole('link').map((l) => l.textContent).filter((c) => /^LA\d+$/.test(c ?? ''))
+  const codes = () =>
+    screen
+      .queryAllByRole('link')
+      .map((l) => l.textContent)
+      .filter((c) => /^LA\d+$/.test(c ?? ''))
 
   test('AC46, AC47: Orders: newest first; the search keeps the filter and the day', async () => {
     const [s, id] = withNewOrder()
@@ -471,8 +487,13 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     const { ReviewScreen } = await import('../src/screens/shop/ReviewScreen')
     show(<ReviewScreen />)
     const placedGroup = screen.getByRole('heading', { name: /Chưa xác nhận/ }).closest('section')!
-    const groupCodes = within(placedGroup).getAllByRole('link').map((l) => l.textContent)
-    const expected = s.orders.filter((o) => o.date === today && o.status === 'placed').map((o) => o.code).reverse()
+    const groupCodes = within(placedGroup)
+      .getAllByRole('link')
+      .map((l) => l.textContent)
+    const expected = s.orders
+      .filter((o) => o.date === today && o.status === 'placed')
+      .map((o) => o.code)
+      .reverse()
     expect(groupCodes).toEqual(expected)
     fireEvent.change(screen.getByLabelText('Tìm đơn'), { target: { value: 'zzz' } })
     expect(screen.getByText('Không có đơn nào khớp.')).toBeDefined()
@@ -531,7 +552,11 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     const { ReviewScreen } = await import('../src/screens/shop/ReviewScreen')
     show(<ReviewScreen />)
     const unpaid = screen.getByRole('heading', { name: /Chưa trả đủ/ }).closest('section')!
-    expect(within(unpaid).getAllByRole('link').map((l) => l.textContent)).toEqual([s.orders.at(-1)!.code, s.orders.find((o) => o.id === `o-${today}-4`)!.code])
+    expect(
+      within(unpaid)
+        .getAllByRole('link')
+        .map((l) => l.textContent),
+    ).toEqual([s.orders.at(-1)!.code, s.orders.find((o) => o.id === `o-${today}-4`)!.code])
   })
 
   test('AC48, CN-57: Refunds: one customer in both parts, newest first; no result says "No order matches"', async () => {

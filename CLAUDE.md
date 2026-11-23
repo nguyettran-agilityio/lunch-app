@@ -15,10 +15,10 @@ Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product in
 ## Check (same as CI)
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e
+npm run lint && npm run format:check && npm run typecheck && npm test && npm run build && npm run test:e2e
 ```
 
-Run it before every commit; all five must exit 0. Use Node 26 (`.nvmrc`). `npm run test:e2e` (Playwright, decisions B11 and B19) arrives with PR M1-1 of [docs/plan.md](docs/plan.md); until that PR is merged, the script does not exist and the check is the first four commands.
+Run it before every commit; all six must exit 0. If `format:check` fails, run `npm run format` (Prettier, decision T14). Use Node 26 (`.nvmrc`). `npm run test:e2e` (Playwright, decisions B11 and B19) arrives with PR M1-1 of [docs/plan.md](docs/plan.md); until that PR is merged, the script does not exist and the check is the first five commands.
 
 ## Git
 

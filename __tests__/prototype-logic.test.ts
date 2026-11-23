@@ -158,7 +158,15 @@ describe('editing, payment and refunds', () => {
   it('AC5: editing a Shop confirmed order sends it back to Placed', () => {
     const [s, id] = paidOrder()
     const o = findOrder(s, id)!
-    const s2 = must(editOrder(s, id, o.lines.map((l) => ({ ...l, qty: 1 })), 'b-viettel', 'Tầng 9'))
+    const s2 = must(
+      editOrder(
+        s,
+        id,
+        o.lines.map((l) => ({ ...l, qty: 1 })),
+        'b-viettel',
+        'Tầng 9',
+      ),
+    )
     expect(findOrder(s2, id)!.status).toBe('placed')
     expect(findOrder(s2, id)!.buildingId).toBe('b-viettel')
   })
@@ -395,9 +403,19 @@ describe('shop day run', () => {
   it('CN-32: removing a line is recorded', () => {
     let s = seed(TODAY)
     const huy = s.orders.find((o) => o.customerId === 'c4')!
-    s = must(editOrder(s, huy.id, [...huy.lines, { id: 'x', kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }], huy.buildingId, huy.note))
+    s = must(
+      editOrder(
+        s,
+        huy.id,
+        [...huy.lines, { id: 'x', kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }],
+        huy.buildingId,
+        huy.note,
+      ),
+    )
     s = must(editOrder(s, huy.id, [findOrder(s, huy.id)!.lines[1]], huy.buildingId, huy.note))
-    const last = findOrder(s, huy.id)!.history.filter((h) => h.kind === 'edit').at(-1)!
+    const last = findOrder(s, huy.id)!
+      .history.filter((h) => h.kind === 'edit')
+      .at(-1)!
     expect(last).toMatchObject({ kind: 'edit', changes: [{ type: 'removed', line: { kind: 'plate' } }] })
   })
 
@@ -448,7 +466,12 @@ describe('shop day run', () => {
       error: 'refundToMissing',
     })
     const withAccount = must(setRefundTo(s, cancelled.id, { kind: 'account', bank: ' ACB ', account: '123456', holder: 'TRAN VAN BINH' }))
-    expect(findOrder(withAccount, cancelled.id)!.refundTo).toEqual({ kind: 'account', bank: 'ACB', account: '123456', holder: 'TRAN VAN BINH' })
+    expect(findOrder(withAccount, cancelled.id)!.refundTo).toEqual({
+      kind: 'account',
+      bank: 'ACB',
+      account: '123456',
+      holder: 'TRAN VAN BINH',
+    })
     const withQr = must(setRefundTo(s, cancelled.id, { kind: 'qr', image: 'data:image/jpeg;base64,AAAA' }))
     expect(findOrder(withQr, cancelled.id)!.refundTo).toMatchObject({ kind: 'qr' })
     // Without a destination the shop can still mark it refunded.
@@ -458,7 +481,10 @@ describe('shop day run', () => {
   it('CN-33: no refund destination for an order with nothing to refund', () => {
     const s = seed(TODAY)
     const mine = s.orders.find((o) => o.customerId === 'c1')!
-    expect(setRefundTo(s, mine.id, { kind: 'account', bank: 'ACB', account: '1', holder: 'A' })).toEqual({ ok: false, error: 'noRefundDue' })
+    expect(setRefundTo(s, mine.id, { kind: 'account', bank: 'ACB', account: '1', holder: 'A' })).toEqual({
+      ok: false,
+      error: 'noRefundDue',
+    })
   })
 
   it('CN-25: a pending building can be used only by the customer who proposed it', () => {
@@ -472,7 +498,11 @@ describe('shop day run', () => {
     let s = seed(TODAY)
     const lan = s.orders.find((o) => o.customerId === 'c7')!
     s = must(editOrder({ ...s, me: 'c7' }, lan.id, lan.lines, lan.buildingId, 'Tầng 2'))
-    expect(findOrder(s, lan.id)!.history.slice(-2).map((h) => h.kind)).toEqual(['edit', 'status'])
+    expect(
+      findOrder(s, lan.id)!
+        .history.slice(-2)
+        .map((h) => h.kind),
+    ).toEqual(['edit', 'status'])
   })
 
   it('a paid order cancelled keeps showing what the shop received, with the refund pending then sent', () => {
@@ -846,7 +876,11 @@ describe('sorting and searching orders (CN-56)', () => {
     const [s1, early] = place(s, TODAY, 'd-bunbo')
     s = at(s1, 8 * 60 + 10)
     const [s2, late] = place(s, TODAY, 'd-thitkho')
-    const sorted = newestFirst(s2, s2.orders.filter((o) => o.date === TODAY), (o) => o).map((o) => o.id)
+    const sorted = newestFirst(
+      s2,
+      s2.orders.filter((o) => o.date === TODAY),
+      (o) => o,
+    ).map((o) => o.id)
     expect(sorted.slice(0, 2)).toEqual([late, early])
     // The seed orders were all placed at the same time: the one created last comes first.
     expect(sorted.at(-1)).toBe(`o-${TODAY}-1`)
