@@ -547,6 +547,14 @@ export function seeRefundReminder(s: State): State {
   return { ...s, refundReminderSeen: now(s) }
 }
 
+/** The shop adds a building itself: approved at once, with its delivery time, and every customer sees it (BR-16, BR-18, CN-61). */
+export function addBuilding(s: State, name: string, address: string, deliveryTime: number): Result {
+  if (!name.trim()) return fail('buildingMissing')
+  const [s2, id] = nextId(s, 'b-new-')
+  const b: Building = { id, name: name.trim(), address: address.trim(), deliveryTime, state: 'approved', proposedBy: null, past: [] }
+  return ok({ ...s2, buildings: [...s2.buildings, b] }, id)
+}
+
 export function approveBuilding(s: State, id: string, deliveryTime: number): Result {
   if (!findBuilding(s, id)) return fail('notFound')
   return ok({ ...s, buildings: s.buildings.map((b) => (b.id === id ? { ...b, state: 'approved', deliveryTime } : b)) })

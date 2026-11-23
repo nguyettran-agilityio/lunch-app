@@ -6,6 +6,7 @@ Scenarios for the clickable prototype (PR #17), with the steps, the expected res
 - **Browser**: clicked through by hand in the Browser pane at 375px wide, on fresh fake data ("Reset data").
 - **Test**: automated test in `__tests__/prototype-logic.test.ts` (logic) or `__tests__/screens.test.tsx` (screens). The test name starts with the AC or CN id.
 - **Both**: clicked through and covered by an automated test.
+- **Playwright**: automated browser test run in CI (decision B19); the test name starts with the scenario, AC or CN id.
 - **Planned**: written before the code (decision X6) and not run yet.
 
 Each round of Lead decisions adds its scenarios here before the code is written. `__tests__/spec-coverage.test.ts` checks that every acceptance criterion has an automated test (decision X7).
@@ -130,7 +131,7 @@ Clicked through in the Browser pane in the first round of PR #17 (8eeeba1), on t
 | D11 | Customer: add a plate to an existing order and Save | One edit in the history, back to Placed (AC26) | Both |
 | D12 | Customer: open a closed day by its URL | Ordering is refused, the day is shown as closed (AC2) | Both |
 | D13 | Every route at 375px and on desktop | No horizontal scroll (AC19) | Browser |
-| D14 | Switch VI/EN | App text changes; dish and building names stay (AC18) | Both |
+| D14 | Switch VI/EN | App text changes; building names stay; a dish shows its English name when it has one, else its Vietnamese name (AC18, AC29) | Both |
 
 ## 12. Design round: banana-leaf lunchbox ([design.md](design.md), UI1–UI12)
 
@@ -161,3 +162,139 @@ Tests in `__tests__/design.test.tsx`. "Browser" here was clicked at 375px in lig
 | UI-21 | Shop: open a cancelled order with a refund pending and a report open, and a Paid order with a report open | Every line of the block in the shop's words: "To refund to the customer", "Customer reported X transferred, waiting for you to confirm" (UI12) | Test |
 | UI-22 | Shop: open the detail of a reported order edited up | No note above the report buttons; the block says the report and what is still to transfer; the rows keep the amounts (UI13, CN-42) | Test |
 | UI-23 | Shop: open any order's detail | The bar's stops read "Unpaid / Customer reported / Received" (UI14) | Test |
+
+## 13. Sign-up, sign-in and profile (CN-58)
+
+Written in the Plan step before any code (X6). They run in milestone M1 of [plan.md](plan.md), as Playwright tests where they go through screens and as tests on the server code otherwise, except A14 (M5: needs orders and the delivery list), and A17 and A18 (M3: need ordering).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| A1 | Phone + password account with lan@gmail.com; sign in with Google as lan@gmail.com | Not signed in, accounts not joined, "This email already has an account that signs in with a phone number; sign in with phone + password" (AC49) | Planned |
+| A2 | Sign up with phone + password using the email of a Google account | "This email already has an account (signs in with Google)" (AC50) | Planned |
+| A3 | Sign up with phone + password using the email of another phone account | "This email already has an account (signs in with a phone number)" (AC50) | Planned |
+| A4 | Sign up with `0905111222` when `0905 111 222` has an account | "This phone number already has an account. If it is yours, call the shop" (AC50) | Planned |
+| A5 | Sign up, then sign in before confirming the email | Refused until the confirmation link is tapped; after tapping, sign-in works (AC51) | Planned |
+| A6 | "Send again" right after sign-up, then after 60 seconds | Disabled for 60 seconds, then sends (AC51) | Planned |
+| A7 | Tap a confirmation or reset link older than 1 hour, or a second time | "The link has expired" with a button to send a new one (AC51) | Planned |
+| A8 | Account `0912 345 678` / lan@gmail.com: sign in with `+84912345678`, then with `lan@gmail.com` | Both work (AC52) | Planned |
+| A9 | Another sign-up with `0912345678` | Refused: the number already has an account (AC52) | Planned |
+| A10 | Password `abc12`, `abcdefgh`, `abcdef12` at sign-up and at reset | First two refused with "At least 8 characters, with both letters and digits"; third accepted (AC53) | Planned |
+| A11 | Profile: change the phone number to a free one, then to one another account has | First saved; second refused (AC54) | Planned |
+| A12 | Profile of a phone + password account: change the email | Old email kept until the link sent to the new email is tapped; an email with an owner is refused with "This email already has an account" (AC54) | Planned |
+| A13 | Profile of a Google account | Email shown, not editable (AC54) | Planned |
+| A14 | Customer places an order, changes the phone number; shop opens the order, the delivery list, searches the old number | New number shown on both; the old number finds nothing (AC55) | Planned |
+| A15 | "Forgot password" with an unknown phone number, then with a Google account's email | "No account with this phone number or email"; "This account signs in with Google" (AC56) | Planned |
+| A16 | "Forgot password" for a confirmed phone + password account, open the link, set a new password | The reset email arrives at the account's email; the new password signs in (AC20) | Planned |
+| A17 | Sign in with an account whose email is in the shop list, by Google and by phone + password | Straight to the shop screens, no profile asked, no way to order (AC57) | Planned |
+| A18 | First Google sign-in of a customer | Sent to profile completion before ordering; a phone number another account has is refused (AC16) | Planned |
+
+## 14. Building on real data (CN-59)
+
+Written in the Plan step before any code (X6); each runs in the milestone of [plan.md](plan.md) given in brackets.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| R1 | Shop: add a dish with a photo, one with a drawing and no photo, one with neither; customer opens the day menu (M2) | Photo; drawing; plain rice bowl (AC58) | Planned |
+| R2 | Customer adds a dish at 45,000 to Monday's cart; shop changes the price to 50,000; customer opens the cart and places it (M3) | 50,000 with "Price changed from 45,000"; the order is 50,000 (AC59) | Planned |
+| R3 | Customer has a fixed dish and a plate in the cart; shop takes the fixed dish off the day's menu and deactivates a dish of the plate (M3) | Both lines "No longer on sale today"; placing blocked until they are removed (AC60) | Planned |
+| R4 | Two shop accounts, refund pending over an hour; the first taps "Seen" (M4) | Hidden on both for one hour (AC61) | Planned |
+| R5 | Customer opens Edit; shop starts preparing the order; customer taps Save (M5) | Not saved; "This order has just changed" with the reason; the latest order shown (AC62) | Planned |
+| R6 | Customer opens Edit; shop confirms the payment; customer taps Save (M4) | The edit is saved (AC62) | Planned |
+| R7 | Two shop devices: one rejects an order while the other starts preparing it (M5) | Only the first saved action happens; the other device says "This order has just changed" with the reason (BR-28a) | Planned |
+
+## 15. Review of the build plan (CN-60)
+
+Written in the Plan step before any code (X6); each runs in the milestone of [plan.md](plan.md) given in brackets.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| P1 | Shop: deactivate a dish that an order still to be delivered contains (M3) | Refused with the reason; the order unchanged (AC63) | Planned |
+| P2 | Customer adds a dish in an edit; shop changes its price; customer saves (M4) | "Price changed from X", saved at the new price (AC64) | Planned |
+| P3 | Customer adds a dish in an edit; shop takes it off the day's menu; customer saves (M4) | "No longer on sale today"; Save refused until the line is removed (AC64) | Planned |
+| P4 | Cart shown at 50,000; shop sets 55,000; customer taps to place (M3) | Nothing placed; 55,000 with "Price changed from 50,000"; second tap places it (AC65) | Planned |
+| P5 | Same order edited on two devices; device 1 saves, then device 2 (M4) | Device 2: "This order has just changed", shows device 1's version (AC66) | Planned |
+| P6 | Sign up again with the phone and the email of an unconfirmed account (M1) | "Check your email to confirm" with "Send again" to the first email; no new account (AC67) | Planned |
+| P7 | Sign in with a wrong password, an unknown phone, a Google account's email (M1) | "Wrong password"; "No account with this phone number or email"; "This account signs in with Google" (AC68) | Planned |
+| P8 | Unconfirmed account: sign in, then "Forgot password" (M1) | "You have not confirmed your email" with "Send the confirmation link again"; no reset link (AC69) | Planned |
+| P9 | Customer changes the profile email to a shop email (M1) | "This email is for a shop account" (AC70) | Planned |
+| P10 | Browser on EN, account saved VI; sign in (M1) | Vietnamese, and the browser stays VI (AC71) | Planned |
+| P11 | Profile, shop order detail and delivery list of a customer with 0912345678 (M5) | "0912 345 678" everywhere (AC72) | Planned |
+| P12 | Build-your-own rules: min 2 / max 1; included 3 / max 2; extra dish fee -5,000 (M2) | Each refused under the field; valid values saved (AC73) | Planned |
+| P13 | Upload an 8 MB dish photo; upload a PDF refund QR; a dish with no photo (M4) | Saved smaller, no message; "Only images (JPG, PNG)"; the drawing (AC74) | Planned |
+| P14 | Settings: pick a bank from the list, enter account and holder; place an order (M3) | The payment QR carries that bank and account (AC75) | Planned |
+| P15 | Sign up with phone + password (M1) | Only phone, email, password asked; profile asked after confirming (AC76) | Planned |
+| P16 | (Prototype, this PR) Open Edit, switch to the shop, start preparing the order, switch back | "This order has just changed" with the reason; "OK" closes it and shows the order (BR-28a) | Test |
+
+## 16. Second review of the build plan (CN-61)
+
+Written in the Plan step before any code (X6); each runs in the milestone of [plan.md](plan.md) given in brackets. The last rows give a scenario to acceptance criteria that had none.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| Q1 | Dishes screen: surcharge -5,000, price -5,000 (M2) | Both refused under the field; 0 and 45,000 saved (AC77) | Planned |
+| Q2 | Cart with a 2-main plate; shop lowers the main maximum to 1; in another case raises the base price (M3) | "This plate no longer fits the rules", placing blocked; "Price changed from 50,000" (AC78) | Planned |
+| Q3 | At 10:00, today on the default 09:30; shop sets the default to 11:00 (M3) | Today stays closed for ordering; tomorrow closes at 11:00 (AC79) | Planned |
+| Q4 | Unpaid order; shop changes the bank; customer opens Payment (M3) | QR with the new bank (AC80) | Planned |
+| Q5 | Buildings: add "Tòa XYZ" at 11:45 (prototype: this PR; real: M2) | Approved at once; a customer can pick it (AC81) | Test |
+| Q6 | Shop declines a customer's pending default building; the customer goes to order (M4) | Profile first with "The shop does not deliver to …" (AC82) | Planned |
+| Q7 | Sign up with a phone waiting for confirmation and a Google account's email (M1) | Both messages, one under each field (AC83) | Planned |
+| Q8 | Tap an expired link, enter the phone number, send (M1) | New link to the account's email; 60-second wait (AC84) | Planned |
+| Q9 | Upload a HEIC dish photo and a HEIC refund QR (M4; the refund QR part also tested in the prototype) | Converted and saved as smaller JPG; one that cannot be converted refused (AC85) | Planned |
+| Q10 | Two orders for one day: the second has its own total, QR and payment state (M3) | As AC4 | Planned |
+| Q11 | Paid 50,000 order edited to 40,000 (M4) | Needs refund 10,000, reason "edit lowered the total" (AC7) | Planned |
+| Q12 | Day with orders and none Preparing: mark it closed; then a day with one Preparing (M5) | All active orders Rejected, paid ones Need refund, customers see it closed; the second cannot be closed (AC13) | Planned |
+| Q13 | A dish in active orders: change its price, try to remove it from the day, reject those orders, remove it (M4) | Old orders keep the old price; removal refused until the orders are rejected (AC15) | Planned |
+| Q14 | Browser set to another time zone: week, cutoffs, delivery times (M3) | Shown and enforced in Asia/Ho_Chi_Minh (AC17) | Planned |
+| Q15 | Monday's cart has items; add a dish to Tuesday and place Tuesday (M3) | Tuesday's order created; Monday's cart unchanged (AC21) | Planned |
+| Q16 | Pending building with one Unpaid and one Paid order: decline (M4) | The list with 0 and the paid amount first; then both Rejected, the paid one Needs refund (AC24) | Planned |
+| Q17 | After the cutoff, an order Preparing and not Paid: open the cutoff review (M5) | Keep only, no reject (AC25) | Planned |
+| Q18 | Paid order cancelled; customer enters bank, account and holder; another without (M4) | Refunds shows the destination; the other "has not sent an account" and can still be marked (AC27) | Planned |
+| Q19 | A dish with an English name and one without; switch to English (M2) | English name for the first, Vietnamese for the second (AC29) | Planned |
+| Q20 | Two open reports, 250,000 then 40,000; "Show QR again" (M4) | QR for 40,000 (AC40) | Planned |
+
+## 17. Third review of the build plan (CN-62)
+
+Written in the Plan step before any code (X6); each runs in the milestone of [plan.md](plan.md) given in brackets.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| V1 | Paid 45,000 order with Cơm sườn ram; price raised to 50,000; edit, add one more, save (M4) | A new line at 50,000 with "Price changed from 45,000"; total 95,000, 50,000 owed (AC86) | Planned |
+| V2 | Order with a 2-main plate; main maximum lowered to 1; edit, raise the plate, then remove it (M4) | Raise refused with "This plate no longer fits the rules"; removing allowed (AC87) | Planned |
+| V3 | At 10:00, today open until 11:00; shop sets today's cutoff, or the default, to 09:00; customer places an order (M3) | Closed at once; refused, cutoff passed (AC88) | Planned |
+| V4 | Today: one Bún bò order Delivered, one Delivering; remove Bún bò from today's menu, then again after the second is Delivered (M5) | Refused, then allowed (AC89) | Planned |
+| V5 | Waiting account 0912 345 678 / lan@gmial.com; sign up with the same phone and another email, or the same email and another phone (M1) | The waiting account is replaced; the old link fails; a new link is sent (AC90) | Planned |
+| V6 | Waiting phone account with lan@gmail.com; Google sign-in as lan@gmail.com (M1) | Not signed in; the "not confirmed yet" message with "Send the confirmation link again" (AC91) | Planned |
+
+## 18. Fourth review of the build plan (CN-63)
+
+Written in the Plan step before any code (X6); each runs in milestone M1 of [plan.md](plan.md).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| W1 | Waiting account with 0905 111 222; a confirmed customer changes the profile phone to it; a new Google customer enters it at profile completion | Both refused with "This phone number is waiting for its email to be confirmed", no "Send again" (AC92) | Planned |
+| W2 | Two waiting accounts; sign up with the phone of one and the email of the other | Both deleted, old links fail, the new account gets a link (AC93) | Planned |
+| W3 | Waiting account whose password was removed after a refused Google sign-in; "Send the confirmation link again", open the link | Email confirmed, new password asked; sign-in with phone and the new password works (AC94) | Planned |
+
+## 19. Zero-questions test of M1 (CN-64)
+
+Written in the Plan step before any code (X6); each runs in milestone M1 of [plan.md](plan.md).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| X1 | Not signed in: open `/` and `/profile`; switch to English on the sign-in page; sign in; open `/proto` in another tab | Sent to sign-in, which switches to English; back on the page opened; `/proto` opens without signing in (AC95) | Planned |
+| X2 | Sign-up form: phone `028 1234 567`, `0912 345`; email `lan@`; empty password | "Phone number is not valid"; "Email is not valid"; "Required", each under its field (AC96) | Planned |
+| X3 | Sign up, tap the confirmation link | Signed in, the profile opens (AC97) | Planned |
+| X4 | Go past the limit of sign-in attempts (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Planned |
+| X5 | Expired-link page of a sign-up confirmation link with the phone of a confirmed account, then the old email of a waiting account replaced by a sign-up with the same phone and another email | "Your email is already confirmed, please sign in"; "No account with this phone number or email" (AC99) | Planned |
+| X6 | Signed in on two browser contexts; reset the password from one | That one signed in with the new password; the other signed out (AC100) | Planned |
+| X7 | Profile email to a waiting account's email, then to a free one | Refused without "Send again"; then "Waiting for confirmation of …" with "Send again", no cancel (AC101) | Planned |
+| X8 | Close and reopen the browser context; "Sign out" in the header menu | Still signed in; then signed out (AC102) | Planned |
+| X9 | Google profile completion: clear the name, type 81 characters; propose a building without an address | Name prefilled; both refused; building proposed (AC103) | Planned |
+| X10 | The three account email templates in the repository | Vietnamese text first, then English (AC104) | Planned |
+| X11 | Ask for confirmation emails past the email limit (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Planned |
+| X12 | Signed in, tap an expired email-change link and ask for a new one; tap an expired reset link and ask for a new one | A new email-change link to the waiting address; a new reset link (AC105) | Planned |
+| X13 | A customer's profile waits for lan2@gmail.com; another sign-up and another profile change use it | Both refused with "This email is waiting for its confirmation"; the first customer can still confirm (AC106) | Planned |
+| X14 | Signed out: an incomplete customer opens `/` and signs in; a shop account opens `/profile` and signs in | Profile first, then `/`; the shop account goes to `/shop` (AC107) | Planned |
+| X15 | Sign-in field: `0281234567`, then `lan@` | "Phone number is not valid", then "Email is not valid" (AC108) | Planned |
+| X16 | Not signed in, open an expired email-change link | Sign-in first, then back; a new link to the waiting address, no phone/email field (AC109) | Planned |
+| X17 | A customer waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com | No account created; "This email is waiting for its confirmation"; the customer can still confirm (AC110) | Planned |

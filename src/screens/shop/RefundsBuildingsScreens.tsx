@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { DayLabel, RefundToView, refundTime } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import { approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, matchesSearch, newestFirst, refundList, setDeliveryTime } from '@/proto/logic'
+import { addBuilding, approveBuilding, declineBuilding, declinePreview, findCustomer, isActive, matchesSearch, newestFirst, refundList, setDeliveryTime } from '@/proto/logic'
 import { run } from '@/proto/store'
 import { hhmm, parseHhmm } from '@/proto/time'
 import type { Building } from '@/proto/types'
@@ -115,6 +115,7 @@ export function BuildingsScreen() {
   return (
     <>
       <PageTitle title={m.buildings.title} intro={m.buildings.timeNote} />
+      <AddBuilding />
       {pending.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-2 text-lg font-bold">
@@ -148,6 +149,38 @@ export function BuildingsScreen() {
         </section>
       )}
     </>
+  )
+}
+
+/** "Add building": name, address and delivery time; approved at once (CN-61). */
+function AddBuilding() {
+  const { m } = useApp()
+  const [name, setName] = useState('')
+  const [address, setAddress] = useState('')
+  const [time, setTime] = useState('11:30')
+  const minutes = parseHhmm(time)
+  return (
+    <section className="mb-8">
+      <Card>
+        <h2 className="mb-2 font-bold">{m.buildings.add}</h2>
+        <div className="flex flex-wrap items-end gap-2">
+          <TextInput label={m.buildings.addName} value={name} onChange={(e) => setName(e.target.value)} />
+          <TextInput label={m.buildings.addAddress} value={address} onChange={(e) => setAddress(e.target.value)} />
+          <TextInput label={m.buildings.deliveryTime} type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-36" />
+          <Button
+            disabled={minutes === null || !name.trim()}
+            onClick={() => {
+              if (run((st) => addBuilding(st, name, address, minutes!)).ok) {
+                setName('')
+                setAddress('')
+              }
+            }}
+          >
+            {m.buildings.addSave}
+          </Button>
+        </div>
+      </Card>
+    </section>
   )
 }
 

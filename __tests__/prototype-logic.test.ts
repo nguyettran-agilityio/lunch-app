@@ -2,6 +2,7 @@
 // Business rules of the prototype against the acceptance criteria in docs/spec.md.
 import { describe, expect, it } from 'vitest'
 import {
+  addBuilding,
   addPlateToDraft,
   addToCart,
   cancelOrder,
@@ -866,5 +867,17 @@ describe('sorting and searching orders (CN-56)', () => {
     expect(found('')).toHaveLength(s.orders.filter((o) => o.date === TODAY).length)
     expect(found('zzz')).toEqual([])
     expect(plain('Đặng Thị Ánh')).toBe('dang thi anh')
+  })
+})
+
+describe('the shop adds a building', () => {
+  it('AC81: a building the shop adds is approved at once with its delivery time and can be used by any customer', () => {
+    const s = seed('2026-11-23')
+    const r = addBuilding(s, ' Tòa XYZ ', '12 Lê Lợi', 11 * 60 + 45)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const b = r.state.buildings.find((x) => x.id === r.id)!
+    expect(b).toMatchObject({ name: 'Tòa XYZ', state: 'approved', deliveryTime: 705, proposedBy: null })
+    expect(addBuilding(s, '  ', 'x', 700)).toEqual({ ok: false, error: 'buildingMissing' })
   })
 })

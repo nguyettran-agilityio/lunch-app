@@ -14,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "heic2any": "0.0.4",
     "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0"
