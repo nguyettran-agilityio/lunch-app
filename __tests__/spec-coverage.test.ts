@@ -61,6 +61,22 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC92: 'Profile phone checks (CN-63) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC93: 'Sign-up replacement (CN-63) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC94: 'Google sign-in recovery (CN-63) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
+  AC95: 'Signing in is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC96: 'The sign-up form is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC97: 'Email confirmation is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC98: 'Sign-in limits are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC99: 'Expired links are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC100: 'Password reset is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC101: 'Profile email changes are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC102: 'Sessions are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC103: 'Profile completion is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC104: 'Account emails are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC105: 'Expired links are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC106: 'Profile email changes are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC107: 'Signing in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC108: 'The sign-in form is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC109: 'Expired links are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC110: 'Google sign-in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }

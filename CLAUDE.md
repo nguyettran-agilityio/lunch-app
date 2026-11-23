@@ -15,10 +15,10 @@ Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product in
 ## Check (same as CI)
 
 ```bash
-npm run lint && npm run typecheck && npm test && npm run build
+npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e
 ```
 
-Run it before every commit; all four must exit 0. Use Node 26 (`.nvmrc`).
+Run it before every commit; all five must exit 0. Use Node 26 (`.nvmrc`). `npm run test:e2e` (Playwright, decisions B11 and B19) arrives with PR M1-1 of [docs/plan.md](docs/plan.md); until that PR is merged, the script does not exist and the check is the first four commands.
 
 ## Git
 
@@ -39,5 +39,5 @@ When Claude makes the same mistake a second time, add it here as one line: the m
 - Ending a report to the user with a summary in English. Everything said to the user in chat, including recaps and summaries, must be in Vietnamese.
 - Adding rules the user has not decided (in specs, decisions or docs). Write down only what the user decided; when something is not decided, ask the user instead of filling the gap.
 - Giving a new decision an ID that is already taken because an old copy of the file was read. Always pull `dev` and read the file again before adding a new ID.
-- Pushing, or reporting work as done, after running only part of the check (for example only the tests). Run all four commands of the **Check** section before every push; the `check-and-push` skill does this.
+- Pushing, or reporting work as done, after running only part of the check (for example only the tests). Run every command of the **Check** section before every push; the `check-and-push` skill does this.
 - Building behaviour the spec does not cover, then asking the Lead only after `spec-reviewer` finds it. Before writing code, list every place the change needs that the spec does not say, ask the Lead (the `ask-lead` skill), write the answers into the spec, then write the code.

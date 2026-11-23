@@ -35,7 +35,7 @@ This file records the visual direction of the clickable prototype. It changes ho
 | UI13 | The transfer report said twice on the shop's Order detail (in the block and above the "Payment received / Not received yet" buttons) | "Hide the line above the buttons": only on the shop's Order detail, the note above the buttons goes; the line of each report with its buttons stays. The shop's order lists keep the note |
 | UI14 | Stop labels on the shop's bar | "Shop's own labels": for example "Unpaid / Customer reported / Received" and "Needs refund / Refunded" |
 | UI15 | Shop setup screens not in the prototype (Dishes S-S1, Build-your-own rules S-S2, Days S-S3, Settings S-S4) | "Use the existing components": built with the tokens and components of the existing banana-leaf design; the Lead reviews them on the preview of each M2 PR; no separate design round (spec CN-59) |
-| UI16 | Account screens (Sign in / Sign up S-C1, Forgot password S-C1a, Profile S-C2, the reset password and expired link pages) | "A short design round first": before M1-2, a design round with 2–3 directions for these screens, for the Lead to choose (spec CN-62) |
+| UI16 | Account screens (Sign in / Sign up S-C1, Forgot password S-C1a, Profile S-C2, the reset password and expired link pages) | "A short design round first": before M1-2, a design round with 2–3 directions for these screens, for the Lead to choose (spec CN-62). Brief (spec CN-64): the directions stay inside the banana-leaf style and differ in layout and in how errors are shown |
 
 ## How the money block reads the states
 
