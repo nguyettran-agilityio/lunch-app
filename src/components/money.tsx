@@ -1,8 +1,8 @@
 'use client'
 
-import { isActive, netPaid, owed, paymentState, refundState, reportedTotal, toPay } from '@/proto/logic'
-import type { Order } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { isActive, netPaid, owed, paymentState, refundState, reportedTotal, toPay } from '@/domain/logic'
+import type { Order } from '@/domain/types'
+import { useApp } from '@/screens/app'
 import { cx } from './ui'
 
 type Tone = 'leaf' | 'turmeric' | 'chili' | 'muted'

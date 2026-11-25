@@ -5,11 +5,10 @@ import { useState } from 'react'
 import { EmptyArt, LineArt } from '@/components/art'
 import { DayLabel, LineText } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, PageTitle, QtyStepper, TextInput } from '@/components/ui'
-import { cutoffOf, dayState, findCustomer, lineTotal, linesTotal, placeOrder, setCartQty } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import type { DateStr } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { cutoffOf, dayState, findCustomer, lineTotal, linesTotal } from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import type { DateStr } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 import { BuildingPicker } from './BuildingPicker'
 
 /** S-C6 Cart and checkout: one cart per service day (BR-10, BR-11a, BR-12). */
@@ -40,7 +39,8 @@ export function CartScreen() {
 }
 
 function DayCart({ date }: { date: DateStr }) {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
+  const { setCartQty, placeOrder, pending } = useActions()
   const router = useRouter()
   const me = findCustomer(s, s.me)!
   const [buildingId, setBuildingId] = useState(me.buildingId)
@@ -76,7 +76,7 @@ function DayCart({ date }: { date: DateStr }) {
                   {money(l.unitPrice)} × {l.qty} = <span className="font-semibold text-ink">{money(lineTotal(l))}</span>
                 </p>
               </div>
-              <QtyStepper value={l.qty} onChange={(v) => run((st) => setCartQty(st, date, l.id, v))} />
+              <QtyStepper value={l.qty} disabled={pending} onChange={(v) => setCartQty(date, l.id, v)} />
             </div>
           </li>
         ))}
@@ -96,11 +96,11 @@ function DayCart({ date }: { date: DateStr }) {
           <span className="font-display text-[26px] font-extrabold tracking-tight">{money(linesTotal(lines))}</span>
         </p>
         <Button
-          onClick={() => {
-            const r = run((st) => placeOrder(st, date, buildingId, note))
-            if (r.ok) router.push(`/pay?id=${r.id}`)
+          onClick={async () => {
+            const r = await placeOrder(date, buildingId, note)
+            if (r.ok) router.push(href(`/pay?id=${r.id}`))
           }}
-          disabled={state !== 'open'}
+          disabled={pending || state !== 'open'}
         >
           {m.cart.place}
         </Button>

@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { Button, Select, TextInput } from '@/components/ui'
-import { proposeBuilding } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import { useApp } from '@/proto/useApp'
+import { hhmm } from '@/domain/time'
+import { useActions, useApp } from '@/screens/app'
 
 /** Pick an approved building, or propose one that is not listed (BR-12, BR-16, CN-11). */
 export function BuildingPicker({ value, onChange, id }: { value: string; onChange: (id: string) => void; id: string }) {
   const { s, m } = useApp()
+  const { proposeBuilding, pending } = useActions()
   const [proposing, setProposing] = useState(false)
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
@@ -34,9 +33,9 @@ export function BuildingPicker({ value, onChange, id }: { value: string; onChang
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
-              disabled={!name.trim()}
-              onClick={() => {
-                const r = run((st) => proposeBuilding(st, name, address))
+              disabled={pending || !name.trim()}
+              onClick={async () => {
+                const r = await proposeBuilding(name, address)
                 if (r.ok && r.id) {
                   onChange(r.id)
                   setProposing(false)

@@ -5,15 +5,15 @@ import { useState } from 'react'
 import { MoneyState } from '@/components/money'
 import { FakeQr, MissingNotice } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, OrderBadges, PageTitle } from '@/components/ui'
-import { findOrder, isActive, netPaid, paymentState, reportedTotal, reportTransfer, toPay } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { useApp } from '@/proto/useApp'
+import { findOrder, isActive, netPaid, paymentState, reportedTotal, toPay } from '@/domain/logic'
+import { useActions, useApp } from '@/screens/app'
 
 /** S-C7 Payment: fake VietQR with the amount and order code, "I have transferred" (BR-19, BR-20). */
 export function PayScreen() {
   const params = useSearchParams()
   const id = params.get('id') ?? ''
   const { s, m, money } = useApp()
+  const { reportTransfer, pending } = useActions()
   const [qrAgain, setQrAgain] = useState(params.get('qr') === '1')
   const order = findOrder(s, id)
   if (!order) return <PageTitle title={m.detail.notFound} />
@@ -104,7 +104,9 @@ export function PayScreen() {
               </dl>
               <div className="mt-5 flex flex-wrap gap-3">
                 {more > 0 ? (
-                  <Button onClick={() => run((st) => reportTransfer(st, order.id))}>{m.pay.done}</Button>
+                  <Button disabled={pending} onClick={() => reportTransfer(order.id)}>
+                    {m.pay.done}
+                  </Button>
                 ) : (
                   <Button variant="ghost" onClick={() => setQrAgain(false)}>
                     {m.pay.hideQr}

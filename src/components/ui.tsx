@@ -2,9 +2,9 @@
 
 import Link from 'next/link'
 import { useState, type ComponentProps, type ReactNode } from 'react'
-import { owed, paymentState, refundState, reportedTotal } from '@/proto/logic'
-import type { Order, Status } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { owed, paymentState, refundState, reportedTotal } from '@/domain/logic'
+import type { Order, Status } from '@/domain/types'
+import { useApp } from '@/screens/app'
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(' ')
 
@@ -24,8 +24,15 @@ export function Button({ variant = 'primary', className, ...props }: ComponentPr
   return <button type="button" className={cx(base, variants[variant], className)} {...props} />
 }
 
-export function LinkButton({ variant = 'primary', className, ...props }: ComponentProps<typeof Link> & { variant?: Variant }) {
-  return <Link className={cx(base, variants[variant], className)} {...props} />
+/** A link styled as a button; `href` is a path of the app, given the provider's base path through href() (B34). */
+export function LinkButton({
+  variant = 'primary',
+  className,
+  href: path,
+  ...props
+}: Omit<ComponentProps<typeof Link>, 'href'> & { href: string; variant?: Variant }) {
+  const { href } = useApp()
+  return <Link className={cx(base, variants[variant], className)} href={href(path)} {...props} />
 }
 
 /** Two-step button for actions that cannot be undone (reject, cancel, decline). */
@@ -59,6 +66,7 @@ export function ConfirmButton({
       {children}
       <Button
         variant="danger"
+        disabled={disabled}
         onClick={() => {
           setAsking(false)
           onConfirm()
@@ -129,14 +137,25 @@ export function OrderBadges({ order }: { order: Order }) {
   )
 }
 
-export function QtyStepper({ value, onChange, min = 0 }: { value: number; onChange: (v: number) => void; min?: number }) {
+export function QtyStepper({
+  value,
+  onChange,
+  min = 0,
+  disabled = false,
+}: {
+  value: number
+  onChange: (v: number) => void
+  min?: number
+  /** True while an action of the screen runs (B32). */
+  disabled?: boolean
+}) {
   const { m } = useApp()
   return (
     <div className="inline-flex items-center rounded-lg ring-1 ring-steel">
       <button
         type="button"
         aria-label={m.common.qtyMinus}
-        disabled={value <= min}
+        disabled={disabled || value <= min}
         onClick={() => onChange(value - 1)}
         className="size-11 text-xl font-semibold text-leaf disabled:text-steel"
       >
@@ -148,8 +167,9 @@ export function QtyStepper({ value, onChange, min = 0 }: { value: number; onChan
       <button
         type="button"
         aria-label={m.common.qtyPlus}
+        disabled={disabled}
         onClick={() => onChange(value + 1)}
-        className="size-11 text-xl font-semibold text-leaf"
+        className="size-11 text-xl font-semibold text-leaf disabled:text-steel"
       >
         +
       </button>

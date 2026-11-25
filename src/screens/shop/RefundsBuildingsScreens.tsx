@@ -4,27 +4,15 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { DayLabel, RefundToView, refundTime } from '@/components/parts'
 import { Badge, Button, Card, ConfirmButton, PageTitle, TextInput } from '@/components/ui'
-import {
-  addBuilding,
-  approveBuilding,
-  declineBuilding,
-  declinePreview,
-  findCustomer,
-  isActive,
-  matchesSearch,
-  newestFirst,
-  refundList,
-  setDeliveryTime,
-} from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm, parseHhmm } from '@/proto/time'
-import type { Building } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { declinePreview, findCustomer, isActive, matchesSearch, newestFirst, refundList } from '@/domain/logic'
+import { hhmm, parseHhmm } from '@/domain/time'
+import type { Building } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 import { MarkRefundedButtons, OrderSearch } from './common'
 
 /** S-S10 Refunds: Needs refund with amount, reason, customer phone; mark Refunded (BR-21). */
 export function RefundsScreen() {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
   const [query, setQuery] = useState('')
   // Every day, newest order first, filtered by the search box (CN-56).
   const all = newestFirst(
@@ -61,7 +49,7 @@ export function RefundsScreen() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="text-2xl font-bold text-chili">{money(refund.amount)}</span>
                 <Link
-                  href={`/shop/order?id=${order.id}`}
+                  href={href(`/shop/order?id=${order.id}`)}
                   className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2"
                 >
                   {order.code}
@@ -84,7 +72,7 @@ export function RefundsScreen() {
               <div className="flex flex-wrap gap-2">
                 <MarkRefundedButtons order={order} refundId={refund.id} />
                 <Link
-                  href={`/shop/order?id=${order.id}`}
+                  href={href(`/shop/order?id=${order.id}`)}
                   className="inline-flex min-h-11 items-center rounded-lg px-4 text-[15px] font-semibold text-leaf hover:bg-leaf-soft"
                 >
                   {m.refunds.openOrder}
@@ -101,7 +89,7 @@ export function RefundsScreen() {
             {done.map(({ order, refund }) => (
               <li key={refund.id} className="flex flex-wrap justify-between gap-2 py-3 text-[15px]">
                 <span>
-                  <Link href={`/shop/order?id=${order.id}`} className="font-semibold text-leaf underline underline-offset-2">
+                  <Link href={href(`/shop/order?id=${order.id}`)} className="font-semibold text-leaf underline underline-offset-2">
                     {order.code}
                   </Link>{' '}
                   · {findCustomer(s, order.customerId)?.name} · {m.reason[refund.reason]}
@@ -169,6 +157,7 @@ export function BuildingsScreen() {
 /** "Add building": name, address and delivery time; approved at once (CN-61). */
 function AddBuilding() {
   const { m } = useApp()
+  const { addBuilding, pending } = useActions()
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [time, setTime] = useState('11:30')
@@ -182,9 +171,9 @@ function AddBuilding() {
           <TextInput label={m.buildings.addAddress} value={address} onChange={(e) => setAddress(e.target.value)} />
           <TextInput label={m.buildings.deliveryTime} type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-36" />
           <Button
-            disabled={minutes === null || !name.trim()}
-            onClick={() => {
-              if (run((st) => addBuilding(st, name, address, minutes!)).ok) {
+            disabled={pending || minutes === null || !name.trim()}
+            onClick={async () => {
+              if ((await addBuilding(name, address, minutes!)).ok) {
                 setName('')
                 setAddress('')
               }
@@ -200,6 +189,7 @@ function AddBuilding() {
 
 function BuildingCard({ building: b }: { building: Building }) {
   const { s, m } = useApp()
+  const { approveBuilding, setDeliveryTime, pending } = useActions()
   const [time, setTime] = useState(b.deliveryTime !== null ? hhmm(b.deliveryTime) : '11:30')
   const minutes = parseHhmm(time)
   const waiting = s.orders.filter((o) => o.buildingId === b.id && isActive(o.status) && o.status === 'placed').length
@@ -219,7 +209,7 @@ function BuildingCard({ building: b }: { building: Building }) {
         <TextInput label={m.buildings.deliveryTime} type="time" value={time} onChange={(e) => setTime(e.target.value)} className="w-36" />
         {b.state === 'pending' ? (
           <>
-            <Button disabled={minutes === null} onClick={() => run((st) => approveBuilding(st, b.id, minutes!))}>
+            <Button disabled={pending || minutes === null} onClick={() => approveBuilding(b.id, minutes!)}>
               {m.buildings.approve}
             </Button>
             <DeclineButton building={b} />
@@ -227,8 +217,8 @@ function BuildingCard({ building: b }: { building: Building }) {
         ) : (
           <Button
             variant="secondary"
-            disabled={minutes === null || minutes === b.deliveryTime}
-            onClick={() => run((st) => setDeliveryTime(st, b.id, minutes!))}
+            disabled={pending || minutes === null || minutes === b.deliveryTime}
+            onClick={() => setDeliveryTime(b.id, minutes!)}
           >
             {m.buildings.save}
           </Button>
@@ -240,14 +230,16 @@ function BuildingCard({ building: b }: { building: Building }) {
 
 /** Declining shows the orders that will be rejected and each refund before anything changes (CN-26). */
 function DeclineButton({ building: b }: { building: Building }) {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
+  const { declineBuilding, pending } = useActions()
   const preview = declinePreview(s, b.id)
   const total = preview.reduce((sum, p) => sum + p.refund, 0)
   return (
     <ConfirmButton
       label={m.buildings.decline}
       question={preview.length > 0 ? m.buildings.declineConfirm : m.buildings.declineNone}
-      onConfirm={() => run((st) => declineBuilding(st, b.id))}
+      disabled={pending}
+      onConfirm={() => declineBuilding(b.id)}
     >
       {preview.length > 0 && (
         <div className="w-full text-sm text-ink">
@@ -255,7 +247,10 @@ function DeclineButton({ building: b }: { building: Building }) {
             {preview.map(({ order, refund, reported }) => (
               <li key={order.id} className="flex flex-wrap justify-between gap-2 py-1">
                 <span>
-                  <Link href={`/shop/order?id=${order.id}`} className="font-bold tracking-wide text-leaf underline underline-offset-2">
+                  <Link
+                    href={href(`/shop/order?id=${order.id}`)}
+                    className="font-bold tracking-wide text-leaf underline underline-offset-2"
+                  >
                     {order.code}
                   </Link>{' '}
                   · {findCustomer(s, order.customerId)?.name} · <DayLabel date={order.date} />

@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { DayLabel } from '@/components/parts'
 import { Badge, PageTitle, cx } from '@/components/ui'
-import { cutoffOf, dayState, dishName, findDay, week } from '@/proto/logic'
-import { hhmm } from '@/proto/time'
-import { useApp } from '@/proto/useApp'
+import { cutoffOf, dayState, dishName, findDay, week } from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import { useApp } from '@/screens/app'
 
 /** S-C3 Week view: today + next 6 days with their state (BR-3). */
 export function WeekScreen() {
-  const { s, m } = useApp()
+  const { s, m, href } = useApp()
   return (
     <>
       <PageTitle title={m.week.title} intro={m.week.intro} />
@@ -64,7 +64,7 @@ export function WeekScreen() {
             <li key={date}>
               {clickable ? (
                 <Link
-                  href={`/day?d=${date}`}
+                  href={href(`/day?d=${date}`)}
                   className="parcel block bg-card p-3 ring-1 ring-steel/70 transition-shadow hover:ring-2 hover:ring-leaf"
                 >
                   {body}

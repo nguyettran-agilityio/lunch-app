@@ -4,15 +4,15 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { MoneyState } from '@/components/money'
 import { DayLabel, LinesList, OrderHistory, PaidRows, PendingRefundNote, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, OrderBadges, PageTitle } from '@/components/ui'
-import { findBuilding, findCustomer, orderTotal, owed, reportedTotal, startPreparing, toPay } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { useApp } from '@/proto/useApp'
+import { findBuilding, findCustomer, orderTotal, owed, reportedTotal, toPay } from '@/domain/logic'
+import { useActions, useApp } from '@/screens/app'
 import { MarkRefundedButtons, ShopOrderActions } from './common'
 
 /** S-S11 Order detail for the shop: any order of any day, including Cancelled and Rejected (CN-35). */
 export function ShopOrderScreen() {
   const id = useSearchParams().get('id') ?? ''
   const { s, m, money } = useApp()
+  const { startPreparing, pending } = useActions()
   const router = useRouter()
   const order = s.orders.find((o) => o.id === id)
   if (!order) return <PageTitle title={m.detail.notFound} />
@@ -95,7 +95,7 @@ export function ShopOrderScreen() {
               reportNote={false}
               extra={
                 order.status === 'confirmed' ? (
-                  <Button variant="secondary" onClick={() => run((st) => startPreparing(st, [order.id]))}>
+                  <Button variant="secondary" disabled={pending} onClick={() => startPreparing([order.id])}>
                     {m.shop.startPreparing}
                   </Button>
                 ) : null

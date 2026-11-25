@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { Card, PageTitle } from '@/components/ui'
-import { dishName, dayOrders, prepSheet, type PrepColumn, type PrepRow } from '@/proto/logic'
-import { useApp } from '@/proto/useApp'
+import { dishName, dayOrders, prepSheet, type PrepColumn, type PrepRow } from '@/domain/logic'
+import { useApp } from '@/screens/app'
 import { ShopDayBar, ShopOrderCard } from './common'
 import { StartBar } from './ShopOrdersScreen'
 
@@ -11,10 +11,10 @@ const COLUMNS: PrepColumn[] = ['preparing', 'confirmed', 'placed', 'done']
 
 /** S-S8 Preparation sheet: portions per dish split by status with a total (BR-25, CN-21); start preparing (BR-24). */
 export function PrepScreen() {
-  const { s, m } = useApp()
+  const { s, m, shopDay } = useApp()
   const [picked, setPicked] = useState<string[]>([])
-  const rows = prepSheet(s, s.shopDay)
-  const queue = dayOrders(s, s.shopDay).filter((o) => o.status === 'confirmed')
+  const rows = prepSheet(s, shopDay)
+  const queue = dayOrders(s, shopDay).filter((o) => o.status === 'confirmed')
   const selected = picked.filter((id) => queue.some((o) => o.id === id))
 
   const table = (title: string, list: PrepRow[]) =>

@@ -5,15 +5,15 @@ import { useState } from 'react'
 import { DishArt, EmptyArt, PlateArt } from '@/components/art'
 import { DayLabel } from '@/components/parts'
 import { Button, Card, LinkButton, Notice, PageTitle } from '@/components/ui'
-import { addToCart, cutoffOf, dayState, dishDescription, dishName, findDay, findDish, linesTotal } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import { useApp } from '@/proto/useApp'
+import { cutoffOf, dayState, dishDescription, dishName, findDay, findDish, linesTotal } from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import { useActions, useApp } from '@/screens/app'
 
 /** S-C4 Day menu: fixed dishes, entry to the plate builder, add to that day's cart (BR-2, BR-11a). */
 export function DayScreen() {
   const date = useSearchParams().get('d') ?? ''
   const { s, m, money } = useApp()
+  const { addToCart, pending } = useActions()
   // The last dish added, with a counter so every tap, also on a dish already in the cart, shows feedback.
   const [justAdded, setJustAdded] = useState<{ id: string; tap: number } | null>(null)
   const day = findDay(s, date)
@@ -90,9 +90,9 @@ export function DayScreen() {
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-display text-xl font-bold tracking-tight sm:text-[22px]">{money(dish.price)}</span>
                       <Button
-                        disabled={state !== 'open'}
-                        onClick={() => {
-                          const r = run((st) => addToCart(st, date, { kind: 'fixed', dishId: id, qty: 1, unitPrice: dish.price! }))
+                        disabled={pending || state !== 'open'}
+                        onClick={async () => {
+                          const r = await addToCart(date, { kind: 'fixed', dishId: id, qty: 1, unitPrice: dish.price! })
                           if (r.ok) setJustAdded({ id, tap: (justAdded?.tap ?? 0) + 1 })
                         }}
                       >

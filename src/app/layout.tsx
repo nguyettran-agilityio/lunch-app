@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
 import { Be_Vietnam_Pro, Bricolage_Grotesque } from 'next/font/google'
-import { AppShell } from '@/components/AppShell'
 import './globals.css'
+
+// The root layout holds only the fonts and <html lang> (B23); each area has its own shell:
+// the prototype under /proto (src/app/proto/layout.tsx), the real app from M1-2.
 
 const beVietnam = Be_Vietnam_Pro({
   variable: '--font-be-vietnam',
@@ -16,13 +18,8 @@ const bricolage = Bricolage_Grotesque({
   weight: ['600', '700', '800'],
 })
 
-// The prototype keeps its fake data in the browser (localStorage), so pages render only on the
-// client and the server shell has nothing to validate for instant navigation.
-export const instant = false
-
 export const metadata: Metadata = {
   title: 'Cơm Lá',
-  description: 'Clickable prototype of the office lunch ordering app, with fake data.',
 }
 
 export const viewport: Viewport = {
@@ -37,9 +34,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="vi" className={`${beVietnam.variable} ${bricolage.variable} h-full antialiased`}>
-      <body className="min-h-full">
-        <AppShell>{children}</AppShell>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   )
 }

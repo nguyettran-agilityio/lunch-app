@@ -1,17 +1,14 @@
-import { addDays, stamp } from './time'
-import type { DateStr, Line, Order, State, Status } from './types'
+import { orderCode } from '@/domain/code'
+import { addDays, stamp } from '@/domain/time'
+import type { DateStr, Line, Order, Status } from '@/domain/types'
+import type { ProtoState } from './types'
 
 // Fixed fake data for the prototype (decision P2). Dish, group and building names are
 // shop-entered content and stay as entered in both languages (CN-8).
 
 const DEFAULT_CUTOFF = 9 * 60 + 30
 
-export function orderCode(date: DateStr, n: number): string {
-  // "LA" + MMDD + sequence for that day, letters and digits only (CN-20).
-  return `LA${date.slice(5, 7)}${date.slice(8, 10)}${String(n).padStart(3, '0')}`
-}
-
-export function seed(today: DateStr, minutes = 9 * 60): State {
+export function seed(today: DateStr, minutes = 9 * 60): ProtoState {
   const d = (n: number) => addDays(today, n)
   let lineSeq = 0
   const fixed = (dishId: string, qty: number, unitPrice: number): Line => ({

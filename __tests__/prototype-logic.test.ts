@@ -18,7 +18,6 @@ import {
   dayState,
   declineBuilding,
   declinePreview,
-  discardEdit,
   dishName,
   deliveryList,
   editOrder,
@@ -42,31 +41,43 @@ import {
   reportTransfer,
   reviewList,
   canReject,
-  setDraft,
   setRefundTo,
   startEdit,
   startPreparing,
   toPay,
+  type DraftResult,
   type Result,
-} from '../src/proto/logic'
-import { seed } from '../src/proto/seed'
-import { addDays, vietnamNow } from '../src/proto/time'
-import type { Line, State } from '../src/proto/types'
+} from '../src/domain/logic'
+import { seed as protoSeed } from '../src/proto/seed'
+import { addDays, vietnamNow } from '../src/domain/time'
+import type { EditDraft, Line, NewId, State } from '../src/domain/types'
 
 const TODAY = '2026-11-19'
 const TOMORROW = addDays(TODAY, 1)
+
+/** The prototype's fake data, seen as the domain State the rules work on (B24, B29). */
+const seed = (today: string, minutes?: number): State => protoSeed(today, minutes)
+
+/** Ids for records the rules create (B30): unique across the whole file. */
+let idSeq = 1000
+const newId: NewId = (prefix) => `${prefix}${++idSeq}`
 
 function must(r: Result): State {
   if (!r.ok) throw new Error(`action failed: ${r.error}`)
   return r.state
 }
 
+function mustDraft(r: DraftResult): EditDraft {
+  if (!r.ok) throw new Error(`draft failed: ${r.error}`)
+  return r.draft
+}
+
 const at = (s: State, minutes: number): State => ({ ...s, clock: { ...s.clock, minutes } })
 
 /** Place a fresh order for the current customer and return [state, orderId]. */
 function place(s: State, date: string, dishId = 'd-thitkho', qty = 1): [State, string] {
-  let st = must(addToCart(s, date, { kind: 'fixed', dishId, qty, unitPrice: s.dishes.find((d) => d.id === dishId)!.price! }))
-  const r = placeOrder(st, date, 'b-bitexco', 'Tầng 3')
+  let st = must(addToCart(s, date, { kind: 'fixed', dishId, qty, unitPrice: s.dishes.find((d) => d.id === dishId)!.price! }, newId))
+  const r = placeOrder(st, date, 'b-bitexco', 'Tầng 3', newId)
   st = must(r)
   return [st, (r as { id: string }).id]
 }
@@ -86,9 +97,12 @@ describe('ordering and cutoff', () => {
     const [s1, id] = place(s, TODAY)
     s = at(s1, 9 * 60 + 31)
     expect(dayState(s, TODAY)).toBe('pastCutoff')
-    expect(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 })).toEqual({ ok: false, error: 'pastCutoff' })
-    expect(cancelOrder(s, id)).toEqual({ ok: false, error: 'pastCutoff' })
-    expect(editOrder(s, id, findOrder(s, id)!.lines, 'b-bitexco', '')).toEqual({ ok: false, error: 'pastCutoff' })
+    expect(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }, newId)).toEqual({
+      ok: false,
+      error: 'pastCutoff',
+    })
+    expect(cancelOrder(s, id, newId)).toEqual({ ok: false, error: 'pastCutoff' })
+    expect(editOrder(s, id, findOrder(s, id)!.lines, 'b-bitexco', '', newId)).toEqual({ ok: false, error: 'pastCutoff' })
   })
 
   it('a cutoff override applies to its own day only', () => {
@@ -113,9 +127,9 @@ describe('ordering and cutoff', () => {
 
   it('AC21: one cart per day; placing one day leaves the other cart', () => {
     let s = seed(TODAY)
-    s = must(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
-    s = must(addToCart(s, TOMORROW, { kind: 'fixed', dishId: 'd-comga', qty: 1, unitPrice: 45000 }))
-    s = must(placeOrder(s, TOMORROW, 'b-bitexco', ''))
+    s = must(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }, newId))
+    s = must(addToCart(s, TOMORROW, { kind: 'fixed', dishId: 'd-comga', qty: 1, unitPrice: 45000 }, newId))
+    s = must(placeOrder(s, TOMORROW, 'b-bitexco', '', newId))
     expect(s.carts[TOMORROW]).toBeUndefined()
     expect(s.carts[TODAY]).toHaveLength(1)
   })
@@ -138,7 +152,7 @@ describe('build-your-own plates', () => {
     const s = seed(TODAY)
     expect(plateValid(s, TODAY, ['d-raumuong'])).toBe(false)
     expect(plateValid(s, TODAY, ['d-suon', 'd-raumuong', 'd-caithia'])).toBe(false)
-    expect(addToCart(s, TODAY, { kind: 'plate', picks: ['d-raumuong'], qty: 1, unitPrice: 35000 })).toEqual({
+    expect(addToCart(s, TODAY, { kind: 'plate', picks: ['d-raumuong'], qty: 1, unitPrice: 35000 }, newId)).toEqual({
       ok: false,
       error: 'invalidPlate',
     })
@@ -152,7 +166,7 @@ describe('build-your-own plates', () => {
 describe('editing, payment and refunds', () => {
   function paidOrder(total: 'd-thitkho' | 'd-bunbo' = 'd-thitkho'): [State, string] {
     const [s, id] = place(seed(TODAY), TODAY, total)
-    return [must(confirmPayment(must(confirmOrder(s, id)), id)), id]
+    return [must(confirmPayment(must(confirmOrder(s, id)), id, undefined, newId)), id]
   }
 
   it('AC5: editing a Shop confirmed order sends it back to Placed', () => {
@@ -165,6 +179,7 @@ describe('editing, payment and refunds', () => {
         o.lines.map((l) => ({ ...l, qty: 1 })),
         'b-viettel',
         'Tầng 9',
+        newId,
       ),
     )
     expect(findOrder(s2, id)!.status).toBe('placed')
@@ -173,12 +188,12 @@ describe('editing, payment and refunds', () => {
 
   it('AC6: a paid 50k order edited up to 65k is Underpaid with 15k owed', () => {
     let s = seed(TODAY)
-    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }))
-    const r = placeOrder(s, TODAY, 'b-bitexco', '')
+    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }, newId))
+    const r = placeOrder(s, TODAY, 'b-bitexco', '', newId)
     const id = (r as { id: string }).id
-    s = must(confirmPayment(must(r), id))
+    s = must(confirmPayment(must(r), id, undefined, newId))
     const lines: Line[] = [...findOrder(s, id)!.lines, { id: 'x', kind: 'fixed', dishId: 'd-suon', qty: 1, unitPrice: 15000 }]
-    s = must(editOrder(s, id, lines, 'b-bitexco', ''))
+    s = must(editOrder(s, id, lines, 'b-bitexco', '', newId))
     const o = findOrder(s, id)!
     expect(paymentState(o)).toBe('underpaid')
     expect(owed(o)).toBe(15000)
@@ -186,12 +201,12 @@ describe('editing, payment and refunds', () => {
 
   it('AC7: a paid 50k order edited down to 40k needs a 10k refund for "edit"', () => {
     let s = seed(TODAY)
-    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }))
-    const r = placeOrder(s, TODAY, 'b-bitexco', '')
+    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }, newId))
+    const r = placeOrder(s, TODAY, 'b-bitexco', '', newId)
     const id = (r as { id: string }).id
-    s = must(confirmPayment(must(r), id))
+    s = must(confirmPayment(must(r), id, undefined, newId))
     const lines: Line[] = [{ id: 'y', kind: 'plate', picks: ['d-suon', 'd-raumuong'], qty: 1, unitPrice: 40000 }]
-    s = must(editOrder(s, id, lines, 'b-bitexco', ''))
+    s = must(editOrder(s, id, lines, 'b-bitexco', '', newId))
     const o = findOrder(s, id)!
     expect(refundState(o)).toBe('needsRefund')
     expect(o.refunds).toEqual([expect.objectContaining({ amount: 10000, reason: 'edit' })])
@@ -200,10 +215,10 @@ describe('editing, payment and refunds', () => {
 
   it('AC8: cancelling or rejecting a paid order records a refund of the paid amount', () => {
     const [s, id] = paidOrder('d-bunbo')
-    const cancelled = findOrder(must(cancelOrder(s, id)), id)!
+    const cancelled = findOrder(must(cancelOrder(s, id, newId)), id)!
     expect(cancelled.status).toBe('cancelled')
     expect(cancelled.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'cancel' })])
-    const rejected = findOrder(must(rejectOrder(s, id)), id)!
+    const rejected = findOrder(must(rejectOrder(s, id, 'reject', newId)), id)!
     expect(rejected.status).toBe('rejected')
     expect(rejected.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'reject' })])
   })
@@ -211,7 +226,7 @@ describe('editing, payment and refunds', () => {
   it('AC22: the shop can confirm an Unpaid order the customer never reported', () => {
     const [s, id] = place(seed(TODAY), TODAY)
     expect(paymentState(findOrder(s, id)!)).toBe('unpaid')
-    expect(paymentState(findOrder(must(confirmPayment(s, id)), id)!)).toBe('paid')
+    expect(paymentState(findOrder(must(confirmPayment(s, id, undefined, newId)), id)!)).toBe('paid')
   })
 })
 
@@ -241,9 +256,9 @@ describe('shop day run', () => {
     const s = seed(TODAY)
     const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
     const s2 = must(startPreparing(s, [mine.id]))
-    expect(cancelOrder(s2, mine.id)).toEqual({ ok: false, error: 'preparing' })
-    expect(editOrder(s2, mine.id, mine.lines, mine.buildingId, '')).toEqual({ ok: false, error: 'preparing' })
-    expect(rejectOrder(s2, mine.id)).toEqual({ ok: false, error: 'cannotReject' })
+    expect(cancelOrder(s2, mine.id, newId)).toEqual({ ok: false, error: 'preparing' })
+    expect(editOrder(s2, mine.id, mine.lines, mine.buildingId, '', newId)).toEqual({ ok: false, error: 'preparing' })
+    expect(rejectOrder(s2, mine.id, 'reject', newId)).toEqual({ ok: false, error: 'cannotReject' })
     const suon = prepSheet(s2, TODAY).find((r) => r.kind === 'component' && r.dishId === 'd-suon')!
     expect(suon.counts.preparing).toBe(1)
   })
@@ -282,8 +297,8 @@ describe('shop day run', () => {
     let s = seed(TODAY)
     const lan = s.orders.find((o) => o.customerId === 'c5')!
     expect(confirmOrder(s, lan.id)).toEqual({ ok: false, error: 'buildingPending' })
-    s = must(confirmPayment(s, lan.id))
-    s = must(declineBuilding(s, 'b-pearl'))
+    s = must(confirmPayment(s, lan.id, undefined, newId))
+    s = must(declineBuilding(s, 'b-pearl', newId))
     const after = findOrder(s, lan.id)!
     expect(after.status).toBe('rejected')
     expect(after.refunds).toEqual([expect.objectContaining({ amount: 40000, reason: 'building' })])
@@ -291,13 +306,15 @@ describe('shop day run', () => {
 
   it('a refund for a lowered total is dropped when the order is edited back up (section 4.3)', () => {
     let s = seed(TODAY)
-    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }))
-    const r = placeOrder(s, TODAY, 'b-bitexco', '')
+    s = must(addToCart(s, TODAY, { kind: 'plate', picks: ['d-suon', 'd-raumuong', 'd-trung'], qty: 1, unitPrice: 50000 }, newId))
+    const r = placeOrder(s, TODAY, 'b-bitexco', '', newId)
     const id = (r as { id: string }).id
-    s = must(confirmPayment(must(r), id))
+    s = must(confirmPayment(must(r), id, undefined, newId))
     const original = findOrder(s, id)!.lines
-    s = must(editOrder(s, id, [{ id: 'y', kind: 'plate', picks: ['d-suon', 'd-raumuong'], qty: 1, unitPrice: 40000 }], 'b-bitexco', ''))
-    s = must(editOrder(s, id, original, 'b-bitexco', ''))
+    s = must(
+      editOrder(s, id, [{ id: 'y', kind: 'plate', picks: ['d-suon', 'd-raumuong'], qty: 1, unitPrice: 40000 }], 'b-bitexco', '', newId),
+    )
+    s = must(editOrder(s, id, original, 'b-bitexco', '', newId))
     const o = findOrder(s, id)!
     expect(o.refunds).toEqual([])
     expect(owed(o)).toBe(0)
@@ -344,27 +361,28 @@ describe('shop day run', () => {
     let s = seed(TODAY)
     const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
     const plate = { kind: 'plate' as const, picks: ['d-thitkho', 'd-raumuong'], qty: 1, unitPrice: 35000 }
-    s = must(addPlateToDraft(must(addPlateToDraft(s, mine.id, plate)), mine.id, plate))
+    // The draft is kept by the caller and passed back in (B33).
+    const first = mustDraft(addPlateToDraft(s, mine.id, undefined, plate, newId))
+    const draft = mustDraft(addPlateToDraft(s, mine.id, first, plate, newId))
     // Nothing is saved yet: the order is unchanged and still Shop confirmed.
     expect(findOrder(s, mine.id)).toMatchObject({ status: 'confirmed', lines: mine.lines })
-    const draft = s.drafts[mine.id]
     expect(new Set(draft.lines.map((l) => l.id)).size).toBe(3)
-    s = must(editOrder(s, mine.id, draft.lines, draft.buildingId, draft.note))
+    s = must(editOrder(s, mine.id, draft.lines, draft.buildingId, draft.note, newId))
     const o = findOrder(s, mine.id)!
     expect(o.lines.length).toBe(3)
     expect(o.status).toBe('placed')
     expect(owed(o)).toBe(70000)
-    expect(s.drafts[mine.id]).toBeUndefined()
     expect(o.history.filter((h) => h.kind === 'edit').length).toBe(1)
   })
 
-  it('CN-29: discarding an edit drops the draft and leaves the order as it was', () => {
-    let s = seed(TODAY)
+  it('CN-29: an edit starts from the order, keeps the edit in progress, and changes nothing until saved', () => {
+    const s = seed(TODAY)
     const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
-    s = must(startEdit(s, mine.id))
-    s = setDraft(s, mine.id, { ...s.drafts[mine.id], note: 'Tầng 5' })
-    s = discardEdit(s, mine.id)
-    expect(s.drafts[mine.id]).toBeUndefined()
+    const started = mustDraft(startEdit(s, mine.id))
+    expect(started).toEqual({ lines: mine.lines, buildingId: mine.buildingId, note: mine.note })
+    const changed = { ...started, note: 'Tầng 5' }
+    expect(startEdit(s, mine.id, changed)).toEqual({ ok: true, draft: changed })
+    // Discarding is dropping the draft: the order is as it was.
     expect(findOrder(s, mine.id)!.note).toBe(mine.note)
   })
 
@@ -372,7 +390,7 @@ describe('shop day run', () => {
     const s = at(seed(TODAY), 9 * 60 + 31)
     const mine = s.orders.find((o) => o.customerId === 'c1' && o.date === TODAY)!
     const plate = { kind: 'plate' as const, picks: ['d-thitkho', 'd-raumuong'], qty: 1, unitPrice: 35000 }
-    expect(addPlateToDraft(s, mine.id, plate)).toEqual({ ok: false, error: 'pastCutoff' })
+    expect(addPlateToDraft(s, mine.id, undefined, plate, newId)).toEqual({ ok: false, error: 'pastCutoff' })
   })
 
   it('AC26, CN-32: a saved edit is recorded with the old and new total and each change, then Placed', () => {
@@ -383,7 +401,7 @@ describe('shop day run', () => {
       { ...plateLine, qty: 2 },
       { id: 'new-1', kind: 'fixed', dishId: 'd-buncha', qty: 1, unitPrice: 40000 },
     ]
-    s = must(editOrder(s, mine.id, lines, 'b-viettel', 'Tầng 9'))
+    s = must(editOrder(s, mine.id, lines, 'b-viettel', 'Tầng 9', newId))
     const o = findOrder(s, mine.id)!
     const [edit, back] = o.history.slice(-2)
     expect(edit).toMatchObject({
@@ -410,9 +428,10 @@ describe('shop day run', () => {
         [...huy.lines, { id: 'x', kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }],
         huy.buildingId,
         huy.note,
+        newId,
       ),
     )
-    s = must(editOrder(s, huy.id, [findOrder(s, huy.id)!.lines[1]], huy.buildingId, huy.note))
+    s = must(editOrder(s, huy.id, [findOrder(s, huy.id)!.lines[1]], huy.buildingId, huy.note, newId))
     const last = findOrder(s, huy.id)!
       .history.filter((h) => h.kind === 'edit')
       .at(-1)!
@@ -422,18 +441,18 @@ describe('shop day run', () => {
   it('AC24, CN-26: declining a building previews each order and its refund before rejecting', () => {
     let s = seed(TODAY)
     const lan = s.orders.find((o) => o.customerId === 'c5')!
-    s = must(addToCart({ ...s, me: 'c5' }, TOMORROW, { kind: 'fixed', dishId: 'd-comga', qty: 1, unitPrice: 45000 }))
-    const r = placeOrder(s, TOMORROW, 'b-pearl', '')
+    s = must(addToCart({ ...s, me: 'c5' }, TOMORROW, { kind: 'fixed', dishId: 'd-comga', qty: 1, unitPrice: 45000 }, newId))
+    const r = placeOrder(s, TOMORROW, 'b-pearl', '', newId)
     s = must(r)
     const second = (r as { id: string }).id
-    s = must(confirmPayment(s, second))
+    s = must(confirmPayment(s, second, undefined, newId))
     expect(declinePreview(s, 'b-pearl')).toEqual([
       { order: expect.objectContaining({ id: lan.id }), refund: 0, reported: 0 },
       { order: expect.objectContaining({ id: second }), refund: 45000, reported: 0 },
     ])
     // The preview changes nothing.
     expect(findOrder(s, lan.id)!.status).toBe('placed')
-    s = must(declineBuilding(s, 'b-pearl'))
+    s = must(declineBuilding(s, 'b-pearl', newId))
     expect(findOrder(s, lan.id)!.status).toBe('rejected')
     expect(findOrder(s, second)!.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'building' })])
   })
@@ -445,14 +464,14 @@ describe('shop day run', () => {
     const o = findOrder(s, huy.id)!
     expect(reviewList(s, TODAY).map((x) => x.id)).toContain(huy.id)
     expect(canReject(o)).toBe(false)
-    expect(rejectOrder(s, huy.id)).toEqual({ ok: false, error: 'cannotReject' })
+    expect(rejectOrder(s, huy.id, 'reject', newId)).toEqual({ ok: false, error: 'cannotReject' })
     expect(reviewList(must(keepOrder(s, huy.id)), TODAY).map((x) => x.id)).not.toContain(huy.id)
   })
 
   it('CN-38: payment received on a reported order records the amount of that report', () => {
     const s = seed(TODAY)
     const binh = s.orders.find((o) => o.customerId === 'c2' && o.status === 'placed')!
-    const after = findOrder(must(confirmPayment(s, binh.id, binh.reports[0].id)), binh.id)!
+    const after = findOrder(must(confirmPayment(s, binh.id, binh.reports[0].id, newId)), binh.id)!
     expect(after.received).toBe(45000)
     expect(paymentState(after)).toBe('paid')
   })
@@ -489,15 +508,15 @@ describe('shop day run', () => {
 
   it('CN-25: a pending building can be used only by the customer who proposed it', () => {
     let s = seed(TODAY)
-    s = must(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
-    expect(placeOrder(s, TODAY, 'b-pearl', '')).toEqual({ ok: false, error: 'buildingMissing' })
-    expect(placeOrder({ ...s, me: 'c5', carts: s.carts }, TODAY, 'b-pearl', '').ok).toBe(true)
+    s = must(addToCart(s, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }, newId))
+    expect(placeOrder(s, TODAY, 'b-pearl', '', newId)).toEqual({ ok: false, error: 'buildingMissing' })
+    expect(placeOrder({ ...s, me: 'c5', carts: s.carts }, TODAY, 'b-pearl', '', newId).ok).toBe(true)
   })
 
   it('CN-32: editing an order that is already Placed still logs the edit then Placed', () => {
     let s = seed(TODAY)
     const lan = s.orders.find((o) => o.customerId === 'c7')!
-    s = must(editOrder({ ...s, me: 'c7' }, lan.id, lan.lines, lan.buildingId, 'Tầng 2'))
+    s = must(editOrder({ ...s, me: 'c7' }, lan.id, lan.lines, lan.buildingId, 'Tầng 2', newId))
     expect(
       findOrder(s, lan.id)!
         .history.slice(-2)
@@ -506,11 +525,9 @@ describe('shop day run', () => {
   })
 
   it('a paid order cancelled keeps showing what the shop received, with the refund pending then sent', () => {
-    let s = seed(TODAY)
-    const [, id] = place(s, TODAY, 'd-bunbo')
-    s = place(s, TODAY, 'd-bunbo')[0]
-    s = must(confirmPayment(s, id))
-    s = must(cancelOrder(s, id))
+    const [placed, id] = place(seed(TODAY), TODAY, 'd-bunbo')
+    let s = must(confirmPayment(placed, id, undefined, newId))
+    s = must(cancelOrder(s, id, newId))
     expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 45000, reported: 0, pendingRefund: 45000, refunded: 0 })
     const refund = findOrder(s, id)!.refunds[0]
     s = must(markRefunded(s, id, refund.id))
@@ -520,9 +537,9 @@ describe('shop day run', () => {
   it('an edit that lowers the total shows the full amount received and the difference pending', () => {
     let s = seed(TODAY)
     const [s1, id] = place(s, TODAY, 'd-bunbo', 2)
-    s = must(confirmPayment(s1, id))
+    s = must(confirmPayment(s1, id, undefined, newId))
     const line = findOrder(s, id)!.lines[0]
-    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', ''))
+    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', '', newId))
     expect(moneySummary(findOrder(s, id)!)).toEqual({ received: 90000, reported: 0, pendingRefund: 45000, refunded: 0 })
   })
 
@@ -542,11 +559,11 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   /** A 90,000 order the customer has reported as transferred; the shop has not confirmed it. */
   function reported(): [State, string] {
     const [s, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
-    return [must(reportTransfer(s, id)), id]
+    return [must(reportTransfer(s, id, newId)), id]
   }
   /** The first transfer report of an order, answered by the shop (CN-43). */
   const first = (s: State, id: string) => findOrder(s, id)!.reports[0].id
-  const editTo = (s: State, id: string, lines: Line[]) => must(editOrder(s, id, lines, 'b-bitexco', ''))
+  const editTo = (s: State, id: string, lines: Line[]) => must(editOrder(s, id, lines, 'b-bitexco', '', newId))
   const lines = (s: State, id: string) => findOrder(s, id)!.lines
 
   it('CN-37: the report records the amount the app asked for', () => {
@@ -567,7 +584,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
     expect(owed(o)).toBe(130000)
     expect(toPay(o)).toBe(40000)
     // The customer reports again, for the 40,000 only.
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     o = findOrder(s, id)!
     expect(reportedTotal(o)).toBe(130000)
     expect(toPay(o)).toBe(0)
@@ -576,12 +593,12 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('AC36, CN-43: each report is its own line; the shop confirms one and turns down the other', () => {
     const [start, id] = reported()
     let s = editTo(start, id, [...lines(start, id), thitkho])
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     const [r90, r40] = findOrder(s, id)!.reports
     expect([r90.amount, r40.amount]).toEqual([90000, 40000])
     // Everything is reported: there is no unreported rest to confirm (CN-48).
-    expect(confirmPayment(s, id)).toEqual({ ok: false, error: 'nothingOwed' })
-    s = must(confirmPayment(s, id, r90.id))
+    expect(confirmPayment(s, id, undefined, newId)).toEqual({ ok: false, error: 'nothingOwed' })
+    s = must(confirmPayment(s, id, r90.id, newId))
     s = must(reportNotReceived(s, id, r40.id))
     const o = findOrder(s, id)!
     expect(o.received).toBe(90000)
@@ -595,7 +612,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
     const [start, id] = reported()
     let s = start
     s = editTo(s, id, [...lines(s, id), thitkho])
-    s = must(confirmPayment(s, id, first(s, id)))
+    s = must(confirmPayment(s, id, first(s, id), newId))
     const o = findOrder(s, id)!
     expect(o.received).toBe(90000)
     expect(reportedTotal(o)).toBe(0)
@@ -608,7 +625,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
     const [start, id] = reported()
     let s = start
     s = editTo(s, id, [{ ...lines(s, id)[0], qty: 1 }])
-    s = must(confirmPayment(s, id, first(s, id)))
+    s = must(confirmPayment(s, id, first(s, id), newId))
     const o = findOrder(s, id)!
     expect(o.received).toBe(90000)
     expect(paymentState(o)).toBe('paid')
@@ -617,19 +634,19 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
 
   it('CN-28 still holds without a report: "Payment received" records the full amount owed', () => {
     const [s, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
-    expect(findOrder(must(confirmPayment(s, id)), id)!.received).toBe(90000)
+    expect(findOrder(must(confirmPayment(s, id, undefined, newId)), id)!.received).toBe(90000)
   })
 
   it('AC32, CN-39: cancelling with a report records no refund until the shop confirms it received the money', () => {
     const [start, id] = reported()
     let s = start
-    s = must(cancelOrder(s, id))
+    s = must(cancelOrder(s, id, newId))
     let o = findOrder(s, id)!
     expect(o.refunds).toEqual([])
     expect(reportedTotal(o)).toBe(90000)
     expect(owed(o)).toBe(0)
-    expect(reportTransfer(s, id)).toEqual({ ok: false, error: 'nothingOwed' })
-    s = must(confirmPayment(s, id, first(s, id)))
+    expect(reportTransfer(s, id, newId)).toEqual({ ok: false, error: 'nothingOwed' })
+    s = must(confirmPayment(s, id, first(s, id), newId))
     o = findOrder(s, id)!
     expect(reportedTotal(o)).toBe(0)
     expect(o.received).toBe(90000)
@@ -637,33 +654,33 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   })
 
   it.each([
-    ['reject', (s: State, id: string) => rejectOrder(s, id)],
-    ['closedDay', (s: State, id: string) => rejectOrder(s, id, 'closedDay')],
+    ['reject', (s: State, id: string) => rejectOrder(s, id, 'reject', newId)],
+    ['closedDay', (s: State, id: string) => rejectOrder(s, id, 'closedDay', newId)],
   ] as const)('AC32, CN-39: a reported order rejected (%s) is refunded with that reason once confirmed', (reason, reject) => {
     const [start, id] = reported()
     let s = start
     s = must(reject(s, id))
     expect(findOrder(s, id)!.refunds).toEqual([])
-    s = must(confirmPayment(s, id, first(s, id)))
+    s = must(confirmPayment(s, id, first(s, id), newId))
     expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 90000, reason })])
   })
 
   it('AC32, CN-39: declining a building lists the amount reported, and refunds it with that reason once confirmed', () => {
-    let s = must(addToCart({ ...seed(TODAY), me: 'c5' }, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
-    const r = placeOrder(s, TODAY, 'b-pearl', '')
+    let s = must(addToCart({ ...seed(TODAY), me: 'c5' }, TODAY, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }, newId))
+    const r = placeOrder(s, TODAY, 'b-pearl', '', newId)
     const id = (r as { id: string }).id
-    s = must(reportTransfer(must(r), id))
+    s = must(reportTransfer(must(r), id, newId))
     expect(declinePreview(s, 'b-pearl')).toContainEqual({ order: expect.objectContaining({ id }), refund: 0, reported: 45000 })
-    s = must(declineBuilding(s, 'b-pearl'))
+    s = must(declineBuilding(s, 'b-pearl', newId))
     expect(findOrder(s, id)!.refunds).toEqual([])
-    s = must(confirmPayment(s, id, first(s, id)))
+    s = must(confirmPayment(s, id, first(s, id), newId))
     expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 45000, reason: 'building' })])
   })
 
   it('AC33, CN-40: a refund not yet sent is dropped when the total goes back up', () => {
     const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
     let s = start
-    s = must(confirmPayment(s, id))
+    s = must(confirmPayment(s, id, undefined, newId))
     const bunbo = lines(s, id)[0]
     s = editTo(s, id, [{ ...bunbo, qty: 1 }])
     expect(findOrder(s, id)!.refunds).toEqual([expect.objectContaining({ amount: 45000, refundedAt: null })])
@@ -676,7 +693,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('AC33, CN-40: a refund already marked Refunded is kept when the total goes back up', () => {
     const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
     let s = start
-    s = must(confirmPayment(s, id))
+    s = must(confirmPayment(s, id, undefined, newId))
     const bunbo = lines(s, id)[0]
     s = editTo(s, id, [{ ...bunbo, qty: 1 }])
     s = must(markRefunded(s, id, findOrder(s, id)!.refunds[0].id))
@@ -697,7 +714,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
     expect(toPay(o)).toBe(90000)
     expect(o.history.at(-1)).toMatchObject({ kind: 'reportMissing', amount: 90000 })
     // Reporting again clears the notice.
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     o = findOrder(s, id)!
     expect(o.missing).toEqual([])
     expect(reportedTotal(o)).toBe(90000)
@@ -706,17 +723,17 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('AC36, CN-43: answered in the other order, the "not found" 40,000 stays after the 90,000 is confirmed', () => {
     const [start, id] = reported()
     let s = editTo(start, id, [...lines(start, id), thitkho])
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     const [r90, r40] = findOrder(s, id)!.reports
     s = must(reportNotReceived(s, id, r40.id))
-    s = must(confirmPayment(s, id, r90.id))
+    s = must(confirmPayment(s, id, r90.id, newId))
     expect(findOrder(s, id)!.missing).toEqual([40000])
   })
 
   it('CN-43: two reports turned down are both shown', () => {
     const [start, id] = reported()
     let s = editTo(start, id, [...lines(start, id), thitkho])
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     const [r90, r40] = findOrder(s, id)!.reports
     s = must(reportNotReceived(must(reportNotReceived(s, id, r90.id)), id, r40.id))
     expect(findOrder(s, id)!.missing).toEqual([90000, 40000])
@@ -724,14 +741,14 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
 
   it('CN-47: a Paid order with a report still open stays Paid; confirming the report records a refund', () => {
     const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
-    let s = must(confirmPayment(start, id))
+    let s = must(confirmPayment(start, id, undefined, newId))
     const bunbo = lines(s, id)[0]
-    s = must(reportTransfer(editTo(s, id, [bunbo, thitkho]), id))
+    s = must(reportTransfer(editTo(s, id, [bunbo, thitkho]), id, newId))
     s = editTo(s, id, [bunbo])
     let o = findOrder(s, id)!
     expect(paymentState(o)).toBe('paid')
     expect(o.reports).toHaveLength(1)
-    s = must(confirmPayment(s, id, first(s, id)))
+    s = must(confirmPayment(s, id, first(s, id), newId))
     o = findOrder(s, id)!
     expect(o.refunds).toEqual([expect.objectContaining({ amount: 40000, reason: 'edit' })])
   })
@@ -739,7 +756,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('CN-48: the shop confirms the unreported rest while a report is still open', () => {
     const [start, id] = reported()
     let s = editTo(start, id, [...lines(start, id), thitkho])
-    s = must(confirmPayment(s, id))
+    s = must(confirmPayment(s, id, undefined, newId))
     const o = findOrder(s, id)!
     expect(o.received).toBe(40000)
     expect(o.reports.map((r) => r.amount)).toEqual([90000])
@@ -749,7 +766,7 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('CN-46: the "not found" notice clears when the shop confirms the unreported money', () => {
     const [start, id] = reported()
     let s = must(reportNotReceived(start, id, first(start, id)))
-    s = must(confirmPayment(s, id))
+    s = must(confirmPayment(s, id, undefined, newId))
     expect(findOrder(s, id)!.missing).toEqual([])
   })
 
@@ -763,10 +780,10 @@ describe('money with a reported transfer (CN-37 – CN-42)', () => {
   it('CN-41: an Underpaid order goes back to Underpaid, and there must be a report to turn down', () => {
     const [start, id] = place(seed(TODAY), TODAY, 'd-bunbo', 2)
     let s = start
-    s = must(confirmPayment(s, id))
+    s = must(confirmPayment(s, id, undefined, newId))
     expect(reportNotReceived(s, id, 'p-none')).toEqual({ ok: false, error: 'nothingReported' })
     s = editTo(s, id, [...lines(s, id), thitkho])
-    s = must(reportTransfer(s, id))
+    s = must(reportTransfer(s, id, newId))
     s = must(reportNotReceived(s, id, first(s, id)))
     expect(paymentState(findOrder(s, id)!)).toBe('underpaid')
   })
@@ -789,9 +806,9 @@ describe('refunds: never blocking, reminded, cash or transfer (CN-53, CN-54)', (
     let s = at(seed(TODAY), 8 * 60)
     for (const o of s.orders) for (const r of o.refunds) s = must(markRefunded(s, o.id, r.id))
     const [placed, id] = place(s, TODAY, 'd-bunbo', 2)
-    s = at(must(confirmPayment(placed, id)), 9 * 60)
+    s = at(must(confirmPayment(placed, id, undefined, newId)), 9 * 60)
     const line = findOrder(s, id)!.lines[0]
-    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', ''))
+    s = must(editOrder(s, id, [{ ...line, qty: 1 }], 'b-bitexco', '', newId))
     return [s, id]
   }
 
@@ -822,14 +839,14 @@ describe('refunds: never blocking, reminded, cash or transfer (CN-53, CN-54)', (
     let s = at(start, 10 * 60)
     // A second paid order cancelled at 10:00: its refund is new, and still counted.
     const [placed, id2] = place(at(s, 9 * 60 + 10), TODAY, 'd-thitkho')
-    s = must(cancelOrder(must(confirmPayment(placed, id2)), id2))
+    s = must(cancelOrder(must(confirmPayment(placed, id2, undefined, newId)), id2, newId))
     expect(refundReminder(at(s, 10 * 60))).toEqual({ orders: 2, total: 85000 })
   })
 
   it('CN-53: a refund recalculated by another edit keeps its time, so the reminder does not restart', () => {
     const [start, id] = editedDown()
     let s = at(start, 9 * 60 + 20)
-    s = must(editOrder(s, id, findOrder(s, id)!.lines, 'b-bitexco', 'Tầng 2'))
+    s = must(editOrder(s, id, findOrder(s, id)!.lines, 'b-bitexco', 'Tầng 2', newId))
     expect(findOrder(s, id)!.refunds[0].createdAt).toBe(`${TODAY} 09:00`)
     expect(refundReminder(at(s, 10 * 60))).not.toBeNull()
   })
@@ -839,7 +856,7 @@ describe('refunds: never blocking, reminded, cash or transfer (CN-53, CN-54)', (
     expect(cashAllowed(findOrder(start, id)!)).toBe(true)
     let s = must(setRefundTo(start, id, { kind: 'cash' }))
     expect(findOrder(s, id)!.refundTo).toEqual({ kind: 'cash' })
-    s = must(rejectOrder(s, id))
+    s = must(rejectOrder(s, id, 'reject', newId))
     expect(findOrder(s, id)!.refundTo).toBeNull()
     expect(setRefundTo(s, id, { kind: 'cash' })).toEqual({ ok: false, error: 'cashNotAllowed' })
     expect(setRefundTo(s, id, { kind: 'account', bank: 'ACB', account: '1', holder: 'A' }).ok).toBe(true)
@@ -907,11 +924,11 @@ describe('sorting and searching orders (CN-56)', () => {
 describe('the shop adds a building', () => {
   it('AC81: a building the shop adds is approved at once with its delivery time and can be used by any customer', () => {
     const s = seed('2026-11-23')
-    const r = addBuilding(s, ' Tòa XYZ ', '12 Lê Lợi', 11 * 60 + 45)
+    const r = addBuilding(s, ' Tòa XYZ ', '12 Lê Lợi', 11 * 60 + 45, newId)
     expect(r.ok).toBe(true)
     if (!r.ok) return
     const b = r.state.buildings.find((x) => x.id === r.id)!
     expect(b).toMatchObject({ name: 'Tòa XYZ', state: 'approved', deliveryTime: 705, proposedBy: null })
-    expect(addBuilding(s, '  ', 'x', 700)).toEqual({ ok: false, error: 'buildingMissing' })
+    expect(addBuilding(s, '  ', 'x', 700, newId)).toEqual({ ok: false, error: 'buildingMissing' })
   })
 })

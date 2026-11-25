@@ -7,8 +7,6 @@ import { Button, ConfirmButton, OrderBadges, TextInput, cx } from '@/components/
 import {
   beforeCutoff,
   canReject,
-  confirmOrder,
-  confirmPayment,
   customerRefundMethod,
   cutoffOf,
   dayOrders,
@@ -16,25 +14,22 @@ import {
   findBuilding,
   findCustomer,
   isActive,
-  markRefunded,
   orderTotal,
   owed,
   paymentState,
-  rejectOrder,
   reportedTotal,
-  reportNotReceived,
   toPay,
   week,
-} from '@/proto/logic'
-import { run, update } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import type { Order } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+} from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import type { Order } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 
 /** Day chooser shared by the shop screens (prototype navigation). */
 export function ShopDayBar() {
-  const { s, m } = useApp()
-  const cutoff = hhmm(cutoffOf(s, s.shopDay))
+  const { s, m, shopDay } = useApp()
+  const { setShopDay, pending } = useActions()
+  const cutoff = hhmm(cutoffOf(s, shopDay))
   return (
     <div className="mb-5">
       <div role="group" aria-label={m.shop.day} className="flex flex-wrap gap-1.5">
@@ -44,11 +39,12 @@ export function ShopDayBar() {
             <button
               key={d}
               type="button"
-              aria-pressed={s.shopDay === d}
-              onClick={() => update((st) => ({ ...st, shopDay: d }))}
+              aria-pressed={shopDay === d}
+              disabled={pending}
+              onClick={() => setShopDay(d)}
               className={cx(
                 'min-h-10 rounded-lg px-3 text-sm font-semibold ring-1',
-                s.shopDay === d ? 'bg-ink text-on-ink ring-ink' : 'bg-card text-ink ring-steel hover:ring-leaf',
+                shopDay === d ? 'bg-ink text-on-ink ring-ink' : 'bg-card text-ink ring-steel hover:ring-leaf',
               )}
             >
               <DayLabel date={d} />
@@ -59,11 +55,11 @@ export function ShopDayBar() {
       </div>
       <p className="mt-2 text-sm text-muted">
         {/* Only days with a menu that are not closed take orders (BR-3). */}
-        {dayState(s, s.shopDay) === 'closed'
+        {dayState(s, shopDay) === 'closed'
           ? m.week.closed
-          : dayState(s, s.shopDay) === 'noMenu'
+          : dayState(s, shopDay) === 'noMenu'
             ? m.week.noMenu
-            : beforeCutoff(s, s.shopDay)
+            : beforeCutoff(s, shopDay)
               ? m.shop.beforeCutoff(cutoff)
               : m.shop.afterCutoff(cutoff)}
       </p>
@@ -85,7 +81,7 @@ export function ShopOrderCard({
   onSelect?: (on: boolean) => void
   extra?: ReactNode
 }) {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
   const customer = findCustomer(s, order.customerId)
   const building = findBuilding(s, order.buildingId)
   const notApproved = building?.state !== 'approved'
@@ -106,7 +102,7 @@ export function ShopOrderCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             {/* Every order opens its detail, whatever its day or status (CN-35). */}
-            <Link href={`/shop/order?id=${order.id}`} className="font-bold tracking-wide text-leaf underline underline-offset-2">
+            <Link href={href(`/shop/order?id=${order.id}`)} className="font-bold tracking-wide text-leaf underline underline-offset-2">
               {order.code}
             </Link>
             <span className="text-lg font-bold">{money(orderTotal(order))}</span>
@@ -169,6 +165,7 @@ export function ShopOrderActions({
   reportNote?: boolean
 }) {
   const { s, m, money } = useApp()
+  const { confirmOrder, confirmPayment, reportNotReceived, rejectOrder, pending } = useActions()
   const building = findBuilding(s, order.buildingId)
   const notApproved = building?.state !== 'approved'
   // Money owed that the customer has not reported: the full amount owed without a report (CN-28),
@@ -184,13 +181,14 @@ export function ShopOrderActions({
             <li key={r.id} className="rounded-lg bg-turmeric-soft p-2">
               <p className="text-sm">{m.shop.reportLine(money(r.amount), r.at)}</p>
               <div className="mt-1.5 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => run((st) => confirmPayment(st, order.id, r.id))}>
+                <Button variant="secondary" disabled={pending} onClick={() => confirmPayment(order.id, r.id)}>
                   {m.shop.confirmPay} · {money(r.amount)}
                 </Button>
                 <ConfirmButton
                   label={m.shop.notReceived}
                   question={m.shop.notReceivedConfirm(money(r.amount))}
-                  onConfirm={() => run((st) => reportNotReceived(st, order.id, r.id))}
+                  disabled={pending}
+                  onConfirm={() => reportNotReceived(order.id, r.id)}
                 />
               </div>
             </li>
@@ -200,21 +198,21 @@ export function ShopOrderActions({
       <div className="mt-3 flex flex-wrap gap-2">
         {order.status === 'placed' && (
           <Button
-            disabled={notApproved}
+            disabled={pending || notApproved}
             title={notApproved ? m.shop.buildingPending : undefined}
-            onClick={() => run((st) => confirmOrder(st, order.id))}
+            onClick={() => confirmOrder(order.id)}
           >
             {m.shop.confirm}
           </Button>
         )}
         {due > 0 && (
-          <Button variant="secondary" onClick={() => run((st) => confirmPayment(st, order.id))}>
+          <Button variant="secondary" disabled={pending} onClick={() => confirmPayment(order.id)}>
             {order.reports.length > 0 ? m.shop.confirmRest : m.shop.confirmPay} · {money(due)}
           </Button>
         )}
         {extra}
         {canReject(order) && (
-          <ConfirmButton label={m.shop.reject} question={m.shop.rejectConfirm} onConfirm={() => run((st) => rejectOrder(st, order.id))} />
+          <ConfirmButton label={m.shop.reject} question={m.shop.rejectConfirm} disabled={pending} onConfirm={() => rejectOrder(order.id)} />
         )}
       </div>
       {order.status === 'placed' && building?.state === 'pending' && (
@@ -227,12 +225,15 @@ export function ShopOrderActions({
 /** Mark a refund made, by bank transfer or cash; the customer's choice comes first (CN-54). */
 export function MarkRefundedButtons({ order, refundId }: { order: Order; refundId: string }) {
   const { m } = useApp()
+  const { markRefunded, pending } = useActions()
   const first = customerRefundMethod(order)
   const other = first === 'cash' ? 'transfer' : 'cash'
   return (
     <div className="flex flex-wrap gap-2">
-      <Button onClick={() => run((st) => markRefunded(st, order.id, refundId, first))}>{m.refunds.markAs(m.refunds.method[first])}</Button>
-      <Button variant="secondary" onClick={() => run((st) => markRefunded(st, order.id, refundId, other))}>
+      <Button disabled={pending} onClick={() => markRefunded(order.id, refundId, first)}>
+        {m.refunds.markAs(m.refunds.method[first])}
+      </Button>
+      <Button variant="secondary" disabled={pending} onClick={() => markRefunded(order.id, refundId, other)}>
         {m.refunds.markAs(m.refunds.method[other])}
       </Button>
     </div>

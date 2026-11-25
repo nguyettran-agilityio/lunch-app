@@ -2,7 +2,7 @@
 
 Status: Plan step, for review by the Lead
 
-This plan says **how the app in [spec.md](spec.md) is built**: architecture, data model, environments, and the milestones and pull requests that take the clickable prototype to the real app. It adds no product rule: every behaviour comes from the spec, the look from [design.md](design.md), and every technical choice from [decisions.md](decisions.md) (section "Build", B1–B28). Where this plan and the spec disagree, the spec wins and this plan is fixed.
+This plan says **how the app in [spec.md](spec.md) is built**: architecture, data model, environments, and the milestones and pull requests that take the clickable prototype to the real app. It adds no product rule: every behaviour comes from the spec, the look from [design.md](design.md), and every technical choice from [decisions.md](decisions.md) (section "Build", B1–B36). Where this plan and the spec disagree, the spec wins and this plan is fixed.
 
 ## How to read a milestone
 
@@ -27,12 +27,12 @@ Every PR starts by reading the relevant guide in `node_modules/next/dist/docs/` 
 src/
   app/                  routes of the real app (Server Components that load data, then render a screen)
   app/layout.tsx        fonts and <html lang> only (B23)
-  app/proto/            the whole clickable prototype, moved here unchanged in M1, removed at the end of M5;
+  app/proto/            the whole clickable prototype, moved here in M1 with no new feature (only the demo label, B36, and the pending state, B32), removed at the end of M5;
                         app/proto/layout.tsx wraps it in the prototype shell with the demo bar
   domain/               pure code, no I/O: moved from src/proto in M1
-    types.ts            the data shapes the rules use (today's src/proto/types.ts without the prototype-only fields, B24)
+    types.ts            the data shapes the rules use (src/proto/types.ts before M1-1a, without the prototype-only fields, B24, B29)
     code.ts             orderCode, moved from src/proto/seed.ts (B24)
-    logic.ts            every business rule as a pure function (today's src/proto/logic.ts)
+    logic.ts            every business rule as a pure function (src/proto/logic.ts before M1-1a)
     time.ts, i18n.ts    Vietnam time and the VI/EN messages
     phone.ts            phone normalization (M1), password.ts (M1), vietqr.ts (M3)
   server/
@@ -47,16 +47,16 @@ src/
   proxy.ts              redirects only (signed out → sign-in, shop/customer areas); never the real check
 ```
 
-`src/proto/store.ts`, `seed.ts`, `useApp.ts` and the demo bar stay with the prototype under `/proto` until the last PR of M5.
+`src/proto/store.ts`, `seed.ts`, `types.ts` (`ProtoState`), `ProtoProvider.tsx` (the prototype provider) and the demo bar stay with the prototype under `/proto` until the last PR of M5.
 
 ### 1.2 One interface for screens: `useApp()` and `useActions()` (B2)
 
-Screens today call `useApp()` for `{ s, m, money }` and `run((s) => logic.fn(s, …))` for actions. In M1 (PR M1-1a) this becomes two hooks with two providers:
+Before PR M1-1a, screens called `useApp()` for `{ s, m, money }` and `run((s) => logic.fn(s, …))` for actions. In M1 (PR M1-1a) this became two hooks with two providers:
 
-- `useApp()` returns `{ s, m, money, now }`, where `s` is a `State` slice. The prototype provider reads localStorage as today; the real provider gets the slice from the page (a Server Component loads it and passes it as a prop to the client provider).
-- `useActions()` returns named actions (`placeOrder(date, buildingId, note)`, `confirmOrder(id)`, …) with the same arguments as the functions in `logic.ts`. Each returns a Promise in both providers (B23): the prototype provider runs the function on the local state, the real provider calls the matching Server Action, then the page refreshes.
+- `useApp()` returns `{ s, m, money, now }`, where `s` is a `State` slice. The prototype provider reads localStorage as today; the real provider gets the slice from the page (a Server Component loads it and passes it as a prop to the client provider). It also returns `shopDay` and `drafts` (B35), and `href()` with the provider's base path and `route()`, which takes that base path off the current path for matching the menus (B34).
+- `useActions()` returns named actions (`placeOrder(date, buildingId, note)`, `confirmOrder(id)`, …) with the same arguments as the functions in `logic.ts`. Each returns a Promise in both providers (B23): the prototype provider runs the function on the local state, the real provider calls the matching Server Action, then the page refreshes. It also has `setShopDay(d)`, `startEdit(id)`, `setDraft(id, draft)` and `discardEdit(id)` (B35), `setLang(lang)` (the `setLang` Server Action of M1), and `pending`, true while an action runs (B32).
 
-So a screen moves to real data by changing its page and provider; its markup changes only where it calls an action: today 30 places call `run(...)` and read `.ok` at once, and each becomes `await` with a pending state (buttons disabled while waiting). M1-1a makes that change for every prototype screen, so later milestones only swap the provider.
+So a screen moves to real data by changing its page and provider; its markup changes only where it calls an action: before PR M1-1a, 30 places called `run(...)` and read `.ok` at once, and each became `await` with a pending state (buttons disabled while waiting). M1-1a made that change for every prototype screen, so later milestones only swap the provider.
 
 ### 1.3 How a write works (B6, B20)
 
@@ -65,13 +65,13 @@ Every write is a Server Action:
 1. Check the session and the role (customer or shop); refuse otherwise.
 2. Open one transaction. Lock the rows the action changes (`SELECT … FOR UPDATE` on the orders concerned; for placing an order, the `order_counters` row of that day; for shop settings, the settings row).
 3. `load.ts` builds the `State` slice the rule needs (settings, groups, dishes, the service days of the week, the buildings, the customers concerned, the orders concerned with their lines, history, reports and refunds, the cart of that day), with `clock` from `server/clock.ts` and `me` from the session.
-4. Run the pure function from `domain/logic.ts`, with `nextId` given a generator of random UUIDs (B24). An error code ends the transaction with no write.
+4. Run the pure function from `domain/logic.ts`, where each function that creates a record takes `newId`, given random UUIDs (B24, B30). An error code ends the transaction with no write.
 5. `save.ts` compares the slice before and after and writes only what changed (insert, update, delete per entity). `load.ts` and `save.ts` are first built in M1-5 for buildings only, and each milestone adds its entities (B24). Then commit and call `refresh()` from `next/cache`.
 6. Return `{ ok: true }` or `{ ok: false, error, changed }`.
 
 **Working at the same time (BR-28a, CN-59, CN-60).** From M3 on, every order action sends the `version` of each order it shows (an integer increased on every write). Because step 2 locks and step 3 loads the latest data, the rule is always checked on the latest state. If the rule refuses and the version differs, the result has `changed: true`, and the screen shows "This order has just changed" with the reason of the error code, then the latest order. If the rule accepts, the action is saved even when the version differs. One exception (CN-60): `editOrder` is refused with `changed` when another edit of the same order was saved after the draft was opened (the draft keeps the number of edits in the history when it was opened).
 
-**Edits in progress (CN-29).** The prototype keeps edit drafts in `State.drafts`. In the real app the draft stays in the browser (React state, copied to `sessionStorage` so a trip to the plate builder keeps it); only "Save" calls `editOrder`, with the whole draft, the order version, the edit count when the draft was opened, and the unit price shown for each added line. The draft stores each added line's price when it was added; every time the edit form is shown it compares them with the current prices and rules, so the customer sees "Price changed from X" before saving (AC64). Lines added in the draft follow BR-11b (CN-60, CN-61): a price that changed is refused with `priceChanged`; a dish off the menu or deactivated with `notOnSale`; a plate that no longer fits the rules with `plateNotFitting`.
+**Edits in progress (CN-29).** The prototype keeps edit drafts in `ProtoState.drafts` (B33). In the real app the draft stays in the browser (React state, copied to `sessionStorage` so a trip to the plate builder keeps it); only "Save" calls `editOrder`, with the whole draft, the order version, the edit count when the draft was opened, and the unit price shown for each added line. The draft stores each added line's price when it was added; every time the edit form is shown it compares them with the current prices and rules, so the customer sees "Price changed from X" before saving (AC64). Lines added in the draft follow BR-11b (CN-60, CN-61): a price that changed is refused with `priceChanged`; a dish off the menu or deactivated with `notOnSale`; a plate that no longer fits the rules with `plateNotFitting`.
 
 **Clock.** `server/clock.ts` exports `now()` returning `{ today, minutes, stamp }` in Asia/Ho_Chi_Minh from `domain/time.ts`. Tests replace it with a fixed time (AC17, AC42, cutoff rules); AC42's "demo time" is this injected time in the real app. There is no demo time in the real app (B7).
 
@@ -207,7 +207,7 @@ During M1–M5 the prototype keeps working **as a whole** under `/proto` (all it
 | S-S11 Order detail (shop) | Proto | Proto | Real (confirm, payment answers) | Real (+ reject, refunds) | Real (+ keep, start preparing) |
 | Refund reminder (BR-21) | Proto | Proto | Proto | Real, on every real shop screen | Real, on every shop screen |
 
-"—" = the screen did not exist in the prototype (P2). In the PR that moves the last screen (M5-4, closing a day on S-S3) `/proto`, `src/proto/store.ts`, `seed.ts`, the prototype providers and the demo bar are removed, and the footer link goes.
+"—" = the screen did not exist in the prototype (P2). In the PR that moves the last screen (M5-4, closing a day on S-S3) `/proto`, `src/proto/store.ts`, `seed.ts`, `types.ts` (`ProtoState`), the prototype provider (`ProtoProvider.tsx`) and the demo bar are removed, and the footer link goes.
 
 ## 6. Milestones
 
@@ -233,7 +233,7 @@ Flows: F1 is runnable from M3, F2 and F5 from M4, F3 and F4 from M5. BR-5 (no po
 **Pull requests.**
 The foundation is split into three PRs (B27); all existing tests stay green after each of them.
 
-1. **M1-1a Move the code and split the layouts**: move `src/proto` rules, types, time and i18n to `src/domain`, with the prototype-only fields in a prototype type, `orderCode` in `src/domain/code.ts` and `nextId` taking an id generator (B24); split the layouts (B23); move all prototype pages under `src/app/proto/` (links get a `/proto` prefix through one `href()` helper); `useApp()`/`useActions()` with the prototype providers, every screen awaiting its actions with a pending state (section 1.2); `spec-reviewer` updated for the real app (B26); `page.test.tsx` and the other tests follow the screens under `/proto`.
+1. **M1-1a Move the code and split the layouts**: move `src/proto` rules, types, time and i18n to `src/domain`, with the prototype-only fields in a prototype type, `orderCode` in `src/domain/code.ts` and `nextId` taking an id generator (B24); split the layouts (B23); move all prototype pages under `src/app/proto/` (links get a `/proto` prefix through one `href()` helper); `useApp()`/`useActions()` with the prototype provider, every screen awaiting its actions with a pending state (section 1.2); `spec-reviewer` updated for the real app (B26); `page.test.tsx` and the other tests follow the screens under `/proto`.
 2. **M1-1b Database**: Drizzle, the PGlite test helper, the first migration (`profiles`, `auth_mail_log`, `buildings`), `npm run db:migrate`.
 3. **M1-1c Playwright and CI**: Playwright with the test sign-in mode and the layout test (on the `/proto` screens until real screens exist, B28), `next start` against the PGlite server with the migrations applied at start (section 4), the `AuthProvider` interface with its test version for seeded accounts (B25), `instrumentation.ts`; `npm run test:e2e`, the CI step for it and the sixth **Check** command (C1).
 4. **M1-D Design round for the account screens** (UI16): 2–3 directions for S-C1, S-C1a, S-C2 and the reset and expired-link pages, clicked through on fake data like the prototype UI round; the Lead chooses; recorded in `design.md`. No server code.
@@ -304,7 +304,8 @@ The foundation is split into three PRs (B27); all existing tests stay green afte
 **Tests.** Every money combination already in `prototype-logic.test.ts` stays; actions on PGlite for `changed` (AC66, and the shop rejecting while the edit is open), the shared "Seen", prices in edits; Playwright: R4, R6, P2, P3, P5, P13, Q6, Q9, Q11, Q13, Q16, Q18, Q20, D6, D10, D11, M1–M9, M11–M13, M16, M17, M21, F1, F3, F10, S12–S14, S16, T1, UI-7–UI-11, UI-14–UI-16, UI-19–UI-22, V1, V2; M10 and M18 without their closed-day and Delivering cases, which come in M5; the layout test gets these screens.
 **Lead setup.** Create the `refund-qr` bucket (private); run the migration; set up a second shop account (section 7).
 
-**Open for the Lead.** None.
+**Open for the Lead.**
+- Ids of lines added to an edit (found by `spec-reviewer` in PR M1-1a). The edit form makes the id of a dish added to an edit on the screen (`new-<dishId>-<n>`, `src/screens/customer/OrderScreen.tsx`), while B30 says functions that create a record take `newId` and section 1.3 saves records with random UUIDs. Nothing changes for the customer or the shop. Options: (a) the server gives a real id to each line it gets with a `new-` id when it saves the edit; (b) the draft actions make the line id through `newId`, as `addPlateToDraft` already does; (c) another choice of the Lead.
 
 **Pull requests.**
 1. **M4-1 Editing an order** with the draft, the plate builder, the history and the CN-60 checks (S-C9 edit).
@@ -334,7 +335,7 @@ The foundation is split into three PRs (B27); all existing tests stay green afte
 1. **M5-1 Cutoff review** with keep and search (S-S7) and the "kept" mark on S-S6/S-S11.
 2. **M5-2 Start preparing and the preparation sheet** (select on S-S6 and S-S8, S-S8 sheet).
 3. **M5-3 Delivery list** with Delivering, Delivered and "Cash given back" (S-S9).
-4. **M5-4 Closing a day, and removing the prototype** (B7: the PR that moves the last screen removes the store): S-S3 "Mark closed"; `/proto`, `src/proto/store.ts`, `seed.ts`, the prototype providers, the demo bar and the footer link go, and the `/proto` screens leave the layout test (B28); tests that used the prototype provider use the real provider with fixtures.
+4. **M5-4 Closing a day, and removing the prototype** (B7: the PR that moves the last screen removes the store): S-S3 "Mark closed"; `/proto`, `src/proto/store.ts`, `seed.ts`, `types.ts` (`ProtoState`), the prototype provider (`ProtoProvider.tsx`), the demo bar and the footer link go, and the `/proto` screens leave the layout test (B28); tests that used the prototype provider use the real provider with fixtures.
 
 ### M6 Release
 

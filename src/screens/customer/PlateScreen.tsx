@@ -6,30 +6,19 @@ import { useState } from 'react'
 import { DishArt, PlateArt } from '@/components/art'
 import { DayLabel } from '@/components/parts'
 import { Button, Notice, QtyStepper, cx } from '@/components/ui'
-import {
-  addPlateToDraft,
-  addToCart,
-  customerChangeBlock,
-  dayState,
-  dishName,
-  findDay,
-  findDish,
-  groupCounts,
-  platePrice,
-  plateValid,
-} from '@/proto/logic'
-import { run } from '@/proto/store'
-import { useApp } from '@/proto/useApp'
+import { customerChangeBlock, dayState, dishName, findDay, findDish, groupCounts, platePrice, plateValid } from '@/domain/logic'
+import { useActions, useApp } from '@/screens/app'
 
 /** S-C5 Plate builder: groups with min/max/included, live price, blocks invalid plates (BR-7 – BR-9). */
 export function PlateScreen() {
   const params = useSearchParams()
   const router = useRouter()
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
+  const { addPlateToDraft, addToCart, pending } = useActions()
   // With ?order=<id> the plate goes into that order's edit in progress (CN-23, CN-29) instead of the cart.
   const order = s.orders.find((o) => o.id === params.get('order') && o.customerId === s.me)
   const date = order?.date ?? params.get('d') ?? ''
-  const back = order ? `/order?id=${order.id}` : `/day?d=${date}`
+  const back = href(order ? `/order?id=${order.id}` : `/day?d=${date}`)
   const [picks, setPicks] = useState<string[]>([])
   const [qty, setQty] = useState(1)
   const day = findDay(s, date)
@@ -123,14 +112,14 @@ export function PlateScreen() {
               <span className="max-sm:sr-only">{m.plate.qty}</span> <QtyStepper value={qty} onChange={setQty} min={1} />
             </span>
             <Button
-              disabled={!valid || !open}
-              onClick={() => {
+              disabled={pending || !valid || !open}
+              onClick={async () => {
                 if (order) {
-                  const r = run((st) => addPlateToDraft(st, order.id, { kind: 'plate', picks, qty, unitPrice: price }))
+                  const r = await addPlateToDraft(order.id, { kind: 'plate', picks, qty, unitPrice: price })
                   if (r.ok) router.push(back)
                   return
                 }
-                const r = run((st) => addToCart(st, date, { kind: 'plate', picks, qty, unitPrice: price }))
+                const r = await addToCart(date, { kind: 'plate', picks, qty, unitPrice: price })
                 if (r.ok) router.push(back)
               }}
             >

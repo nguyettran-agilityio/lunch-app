@@ -6,12 +6,9 @@ import { MoneyState } from '@/components/money'
 import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundState, RefundToView } from '@/components/parts'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
-  cancelOrder,
   cashAllowed,
   customerChangeBlock,
-  discardEdit,
   dishName,
-  editOrder,
   findBuilding,
   findDay,
   findDish,
@@ -21,20 +18,17 @@ import {
   orderTotal,
   refundState,
   reportedTotal,
-  setDraft,
-  setRefundTo,
-  startEdit,
   toPay,
-} from '@/proto/logic'
-import { run, update } from '@/proto/store'
-import type { Order, RefundTo } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+} from '@/domain/logic'
+import type { Order, RefundTo } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 import { BuildingPicker } from './BuildingPicker'
 
 /** S-C9 Order detail: lines, total, building, history; edit and cancel before the cutoff while not Preparing. */
 export function OrderScreen() {
   const id = useSearchParams().get('id') ?? ''
-  const { s, m, money } = useApp()
+  const { s, m, money, drafts } = useApp()
+  const { startEdit, cancelOrder, discardEdit, pending } = useActions()
   const order = s.orders.find((o) => o.id === id && o.customerId === s.me)
   if (!order) return <PageTitle title={m.detail.notFound} />
 
@@ -43,10 +37,10 @@ export function OrderScreen() {
   const due = toPay(order)
   const active = isActive(order.status)
   // An edit in progress stays open across the plate builder until it is saved or discarded (CN-29).
-  const editing = !block && !!s.drafts[order.id]
+  const editing = !block && !!drafts[order.id]
   // Someone else's change (the shop starting to prepare it, the cutoff) now blocks the open edit:
   // say so with the reason and show the latest order instead of hiding the form silently (BR-28a, CN-59).
-  const staleDraft = !!block && !!s.drafts[order.id]
+  const staleDraft = !!block && !!drafts[order.id]
 
   return (
     <>
@@ -64,7 +58,7 @@ export function OrderScreen() {
         <div className="mb-5 max-w-xl">
           <Notice tone="chili">
             <span className="font-semibold">{m.detail.changed}</span> {m.errors[block]}{' '}
-            <Button variant="ghost" onClick={() => update((st) => discardEdit(st, order.id))}>
+            <Button variant="ghost" disabled={pending} onClick={() => discardEdit(order.id)}>
               {m.detail.changedOk}
             </Button>
           </Notice>
@@ -124,13 +118,14 @@ export function OrderScreen() {
                 )}
                 {!block && (
                   <>
-                    <Button variant="secondary" onClick={() => run((st) => startEdit(st, order.id))}>
+                    <Button variant="secondary" disabled={pending} onClick={() => startEdit(order.id)}>
                       {m.detail.edit}
                     </Button>
                     <ConfirmButton
                       label={m.detail.cancel}
                       question={m.detail.cancelConfirm}
-                      onConfirm={() => run((st) => cancelOrder(st, order.id))}
+                      disabled={pending}
+                      onConfirm={() => cancelOrder(order.id)}
                     />
                   </>
                 )}
@@ -177,12 +172,13 @@ export function OrderScreen() {
 
 /** All changes of one edit are kept in a draft and saved together with one "Save" (CN-29). */
 function EditOrder({ order }: { order: Order }) {
-  const { s, m, money } = useApp()
+  const { s, m, money, drafts, href } = useApp()
+  const { setDraft, discardEdit, editOrder, pending } = useActions()
   const router = useRouter()
-  const draft = s.drafts[order.id]
+  const draft = drafts[order.id]
   const { lines, buildingId, note } = draft
   const fixed = findDay(s, order.date)?.menu?.fixed ?? []
-  const save = (patch: Partial<typeof draft>) => update((st) => setDraft(st, order.id, { ...draft, ...patch }))
+  const save = (patch: Partial<typeof draft>) => setDraft(order.id, { ...draft, ...patch })
   const changed =
     buildingId !== order.buildingId ||
     note.trim() !== order.note ||
@@ -213,7 +209,7 @@ function EditOrder({ order }: { order: Order }) {
                 {isNew && <span className="ml-2 rounded bg-leaf-soft px-1.5 text-xs font-semibold text-leaf-dark">{m.detail.newLine}</span>}
                 <p className="text-sm text-muted">{money(l.unitPrice)}</p>
               </div>
-              <QtyStepper value={l.qty} onChange={(v) => setQty(l.id, v)} />
+              <QtyStepper value={l.qty} disabled={pending} onChange={(v) => setQty(l.id, v)} />
             </li>
           )
         })}
@@ -221,7 +217,7 @@ function EditOrder({ order }: { order: Order }) {
       <p className="mt-4 mb-2 text-sm font-medium text-muted">{m.detail.addDish}</p>
       <div className="flex flex-wrap gap-2">
         {fixed.map((id) => (
-          <Button key={id} variant="secondary" onClick={() => addFixed(id)}>
+          <Button key={id} variant="secondary" disabled={pending} onClick={() => addFixed(id)}>
             + {dishName(s, id)}
           </Button>
         ))}
@@ -239,18 +235,18 @@ function EditOrder({ order }: { order: Order }) {
           <span className="text-2xl font-bold">{money(linesTotal(lines.filter((l) => l.qty > 0)))}</span>
         </p>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={() => update((st) => discardEdit(st, order.id))}>
+          <Button variant="ghost" disabled={pending} onClick={() => discardEdit(order.id)}>
             {m.detail.discard}
           </Button>
           <Button
             // Saving without a change is not an edit and must not send the order back to Placed (BR-14).
-            disabled={!changed}
-            onClick={() => {
-              const r = run((st) => editOrder(st, order.id, lines, buildingId, note))
+            disabled={pending || !changed}
+            onClick={async () => {
+              const r = await editOrder(order.id, lines, buildingId, note)
               if (!r.ok) return
-              const after = r.state.orders.find((o) => o.id === order.id)
+              const after = r.order
               // Money already paid or reported: go straight to the difference to transfer (BR-20, CN-37).
-              if (after && toPay(after) > 0 && (netPaid(after) > 0 || reportedTotal(after) > 0)) router.push(`/pay?id=${order.id}`)
+              if (after && toPay(after) > 0 && (netPaid(after) > 0 || reportedTotal(after) > 0)) router.push(href(`/pay?id=${order.id}`))
             }}
           >
             {m.detail.save}
@@ -298,6 +294,7 @@ function shrinkImage(file: Blob): Promise<string> {
 /** Where to send this order's refund: bank, account number and holder, or a QR photo, per order (CN-33). */
 function RefundToForm({ order }: { order: Order }) {
   const { m } = useApp()
+  const { setRefundTo, pending } = useActions()
   const [changing, setChanging] = useState(false)
   const current = order.refundTo
   // Cash chosen earlier but the order is no longer to be delivered: start from an account instead (CN-54).
@@ -375,9 +372,10 @@ function RefundToForm({ order }: { order: Order }) {
       )}
       <div className="mt-3 flex gap-2">
         <Button
-          onClick={() => {
+          disabled={pending}
+          onClick={async () => {
             const to: RefundTo = kind === 'account' ? { kind, bank, account, holder } : kind === 'qr' ? { kind, image } : { kind: 'cash' }
-            if (run((st) => setRefundTo(st, order.id, to)).ok) setChanging(false)
+            if ((await setRefundTo(order.id, to)).ok) setChanging(false)
           }}
         >
           {m.detail.refundSave}

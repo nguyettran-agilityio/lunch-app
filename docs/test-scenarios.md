@@ -3,7 +3,7 @@
 Scenarios for the clickable prototype (PR #17), with the steps, the expected result and how each one is run.
 
 **How run**
-- **Browser**: clicked through by hand in the Browser pane at 375px wide, on fresh fake data ("Reset data").
+- **Browser**: clicked through by hand in the Browser pane at 375px wide, on fresh fake data ("Reset data"). Since PR M1-1a the prototype is clicked under `/proto` (for example `/proto/cart`, `/proto/shop`) (B31).
 - **Test**: automated test in `__tests__/prototype-logic.test.ts` (logic) or `__tests__/screens.test.tsx` (screens). The test name starts with the AC or CN id.
 - **Both**: clicked through and covered by an automated test.
 - **Playwright**: automated browser test run in CI (decision B19); the test name starts with the scenario, AC or CN id.
