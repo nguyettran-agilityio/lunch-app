@@ -14,7 +14,7 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC13: 'Closing a day is not in the prototype (P1, P2); built in milestone M5 of docs/plan.md',
   AC15: 'Dish management is not in the prototype; dishes are fixed fake data (P2); built in milestone M4 of docs/plan.md',
   AC16: 'Sign-in and profile completion are not in the prototype (P1); built in milestone M3 of docs/plan.md',
-  AC19: 'Layout on phone and computer: the Playwright layout test (B11) is completed in milestone M6 of docs/plan.md; until then checked by hand in the Browser pane',
+  AC19: 'Layout on phone and computer: the Playwright layout test (B11) is completed in milestone M6 of docs/plan.md, when every screen is in it; since PR M1-1c it runs on the /proto screens (B28, e2e/layout.spec.ts)',
   AC20: 'Forgot password is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC49: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC50: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
