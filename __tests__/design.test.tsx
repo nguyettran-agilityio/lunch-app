@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { drawnDishes } from '../src/components/art'
-import { orderTotal } from '../src/proto/logic'
+import { orderTotal } from '../src/domain/logic'
 import { seed } from '../src/proto/seed'
-import { vietnamNow } from '../src/proto/time'
-import type { Order, State } from '../src/proto/types'
+import { vietnamNow } from '../src/domain/time'
+import type { Order } from '../src/domain/types'
+import type { ProtoState as State } from '../src/proto/types'
 
 const nav = vi.hoisted(() => ({ params: new URLSearchParams(), path: '/' }))
 
@@ -25,7 +26,13 @@ async function load(state: State) {
   window.localStorage.setItem(KEY, JSON.stringify(state))
   vi.resetModules()
   const { AppShell } = await import('../src/components/AppShell')
-  return (children: ReactNode) => render(<AppShell>{children}</AppShell>)
+  const { ProtoProvider } = await import('../src/proto/ProtoProvider')
+  return (children: ReactNode) =>
+    render(
+      <ProtoProvider>
+        <AppShell>{children}</AppShell>
+      </ProtoProvider>,
+    )
 }
 
 function memoryStorage(): Storage {

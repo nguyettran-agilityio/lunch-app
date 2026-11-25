@@ -4,12 +4,12 @@ import Link from 'next/link'
 import { EmptyArt } from '@/components/art'
 import { DayLabel, LinesSummary } from '@/components/parts'
 import { Card, LinkButton, OrderBadges, PageTitle } from '@/components/ui'
-import { findBuilding, orderTotal } from '@/proto/logic'
-import { useApp } from '@/proto/useApp'
+import { findBuilding, orderTotal } from '@/domain/logic'
+import { useApp } from '@/screens/app'
 
 /** S-C8 My orders: by day, with status, payment state and refund state (BR-32). */
 export function OrdersScreen() {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
   const mine = s.orders.filter((o) => o.customerId === s.me)
   const dates = [...new Set(mine.map((o) => o.date))].sort()
 
@@ -34,7 +34,10 @@ export function OrdersScreen() {
                 .filter((o) => o.date === d)
                 .map((o) => (
                   <li key={o.id}>
-                    <Link href={`/order?id=${o.id}`} className="parcel block bg-card p-4 ring-1 ring-steel/70 hover:ring-2 hover:ring-leaf">
+                    <Link
+                      href={href(`/order?id=${o.id}`)}
+                      className="parcel block bg-card p-4 ring-1 ring-steel/70 hover:ring-2 hover:ring-leaf"
+                    >
                       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                         <span className="font-bold tracking-wide">{o.code}</span>
                         <span className="font-display text-xl font-bold tracking-tight">{money(orderTotal(o))}</span>

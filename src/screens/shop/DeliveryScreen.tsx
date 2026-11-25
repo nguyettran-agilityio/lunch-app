@@ -4,17 +4,17 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { LinesSummary, PendingRefundNote } from '@/components/parts'
 import { Badge, Button, Card, OrderBadges, PageTitle, TextInput } from '@/components/ui'
-import { deliveryList, findCustomer, giveCashBack, markDelivered, markDelivering, pendingRefund } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import type { Order } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { deliveryList, findCustomer, pendingRefund } from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import type { Order } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 import { ShopDayBar } from './common'
 
 /** S-S9 Delivery list: by building and delivery time; Delivering / Delivered per building or per order (BR-26, BR-27, CN-19). */
 export function DeliveryScreen() {
-  const { s, m } = useApp()
-  const groups = deliveryList(s, s.shopDay)
+  const { s, m, shopDay } = useApp()
+  const { markDelivering, markDelivered, pending } = useActions()
+  const groups = deliveryList(s, shopDay)
 
   return (
     <>
@@ -40,10 +40,10 @@ export function DeliveryScreen() {
                   <p className="text-sm text-muted">{building.address}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="secondary" disabled={cooking.length === 0} onClick={() => run((st) => markDelivering(st, cooking))}>
+                  <Button variant="secondary" disabled={pending || cooking.length === 0} onClick={() => markDelivering(cooking)}>
                     {m.delivery.startAll(cooking.length)}
                   </Button>
-                  <Button disabled={onTheWay.length === 0} onClick={() => run((st) => markDelivered(st, onTheWay))}>
+                  <Button disabled={pending || onTheWay.length === 0} onClick={() => markDelivered(onTheWay)}>
                     {m.delivery.deliveredAll(onTheWay.length)}
                   </Button>
                 </div>
@@ -62,7 +62,8 @@ export function DeliveryScreen() {
 }
 
 function DeliveryRow({ order }: { order: Order }) {
-  const { s, m, money } = useApp()
+  const { s, m, money, href } = useApp()
+  const { giveCashBack, markDelivering, markDelivered, pending } = useActions()
   const [note, setNote] = useState('')
   const c = findCustomer(s, order.customerId)
   // Cash to give back unless the customer asked for a bank transfer (CN-54).
@@ -76,7 +77,7 @@ function DeliveryRow({ order }: { order: Order }) {
             {c?.phone}
           </a>
         </span>
-        <Link href={`/shop/order?id=${order.id}`} className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2">
+        <Link href={href(`/shop/order?id=${order.id}`)} className="text-sm font-bold tracking-wide text-leaf underline underline-offset-2">
           {order.code}
         </Link>
       </div>
@@ -91,20 +92,22 @@ function DeliveryRow({ order }: { order: Order }) {
       {/* Pending refund: how much to give back, and how (CN-53, CN-54). */}
       <PendingRefundNote order={order} />
       {cashDue > 0 && (
-        <Button variant="secondary" className="mt-2" onClick={() => run((st) => giveCashBack(st, order.id))}>
+        <Button variant="secondary" className="mt-2" disabled={pending} onClick={() => giveCashBack(order.id)}>
           {m.delivery.cashBack(money(cashDue))}
         </Button>
       )}
       {order.shopNote && <p className="mt-2 text-sm text-muted">{order.shopNote}</p>}
       {order.status === 'preparing' && (
-        <Button variant="secondary" className="mt-3" onClick={() => run((st) => markDelivering(st, [order.id]))}>
+        <Button variant="secondary" className="mt-3" disabled={pending} onClick={() => markDelivering([order.id])}>
           {m.delivery.start}
         </Button>
       )}
       {order.status === 'delivering' && (
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <TextInput label={m.delivery.note} value={note} onChange={(e) => setNote(e.target.value)} className="flex-1 basis-48" />
-          <Button onClick={() => run((st) => markDelivered(st, [order.id], note))}>{m.delivery.delivered}</Button>
+          <Button disabled={pending} onClick={() => markDelivered([order.id], note)}>
+            {m.delivery.delivered}
+          </Button>
         </div>
       )}
     </li>

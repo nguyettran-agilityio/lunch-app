@@ -2,18 +2,18 @@
 
 import { useState } from 'react'
 import { Button, Notice, PageTitle } from '@/components/ui'
-import { beforeCutoff, cutoffOf, keepOrder, matchesSearch, newestFirst, paymentState, reviewList } from '@/proto/logic'
-import { run } from '@/proto/store'
-import { hhmm } from '@/proto/time'
-import { useApp } from '@/proto/useApp'
+import { beforeCutoff, cutoffOf, matchesSearch, newestFirst, paymentState, reviewList } from '@/domain/logic'
+import { hhmm } from '@/domain/time'
+import { useActions, useApp } from '@/screens/app'
 import { OrderSearch, ShopDayBar, ShopOrderCard } from './common'
 
 /** S-S7 Cutoff review: orders still Placed and orders not Paid; keep or reject each (BR-22, BR-23, CN-18). */
 export function ReviewScreen() {
-  const { s, m } = useApp()
-  const cutoff = hhmm(cutoffOf(s, s.shopDay))
+  const { s, m, shopDay } = useApp()
+  const { keepOrder, pending } = useActions()
+  const cutoff = hhmm(cutoffOf(s, shopDay))
   const [query, setQuery] = useState('')
-  const list = reviewList(s, s.shopDay)
+  const list = reviewList(s, shopDay)
   // Newest order first in each group; search within the selected day (CN-56).
   const found = newestFirst(
     s,
@@ -27,7 +27,7 @@ export function ReviewScreen() {
     <>
       <PageTitle title={m.review.title} intro={m.review.intro} />
       <ShopDayBar />
-      {beforeCutoff(s, s.shopDay) ? (
+      {beforeCutoff(s, shopDay) ? (
         <Notice>{m.review.notYet(cutoff)}</Notice>
       ) : list.length === 0 ? (
         <Notice tone="leaf">{m.review.done}</Notice>
@@ -53,7 +53,7 @@ export function ReviewScreen() {
                       extra={
                         // A Placed order is decided by confirming or rejecting it; an unpaid one can be kept.
                         o.status !== 'placed' && paymentState(o) !== 'paid' ? (
-                          <Button variant="secondary" onClick={() => run((st) => keepOrder(st, o.id))}>
+                          <Button variant="secondary" disabled={pending} onClick={() => keepOrder(o.id)}>
                             {m.shop.keep}
                           </Button>
                         ) : null

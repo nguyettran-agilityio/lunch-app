@@ -3,37 +3,29 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState, type ReactNode } from 'react'
-import { messages, money as formatMoney } from '@/proto/i18n'
-import { refundList, refundReminder, seeRefundReminder } from '@/proto/logic'
-import { clearError, resetData, update, useLastError, useProto } from '@/proto/store'
-import { hhmm, parseHhmm } from '@/proto/time'
-import type { Lang } from '@/proto/types'
+import { messages } from '@/domain/i18n'
+import { refundList, refundReminder } from '@/domain/logic'
+import { hhmm, parseHhmm } from '@/domain/time'
+import type { Lang } from '@/domain/types'
+import { clearError, resetData, update, useLastError } from '@/proto/store'
+import { useActions, useApp } from '@/screens/app'
 import { cx } from './ui'
 
+/** The prototype shell with the demo bar (B23); rendered inside the prototype provider. */
 export function AppShell({ children }: { children: ReactNode }) {
-  const s = useProto()
-  const pathname = usePathname()
+  const { s, m, money, href, route } = useApp()
+  const { seeRefundReminder, pending } = useActions()
+  const pathname = route(usePathname())
 
   useEffect(() => {
-    if (!s) return
     document.documentElement.lang = s.lang
     document.title = `${messages[s.lang].appName} — ${messages[s.lang].demo.label}`
-  }, [s])
-
-  if (!s) {
-    return (
-      <div className="grid min-h-dvh place-items-center text-muted" aria-busy="true">
-        Cơm Lá
-      </div>
-    )
-  }
+  }, [s.lang])
 
   const shop = pathname.startsWith('/shop')
-  const m = messages[s.lang]
   // Refunds still to send, over all days, so the shop sees them from any screen (CN-35).
   const openRefunds = refundList(s).filter((x) => x.refund.refundedAt === null).length
   const reminder = refundReminder(s)
-  const money = (v: number) => formatMoney(v, s.lang)
   const cartCount = Object.values(s.carts).reduce((n, lines) => n + lines.reduce((k, l) => k + l.qty, 0), 0)
 
   const customerNav = [
@@ -56,7 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* The banana-leaf band: the one bold element of the design (docs/design.md, UI1). */}
       <header className="leaf-band">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3.5">
-          <Link href={shop ? '/shop' : '/'} className="flex items-center gap-2">
+          <Link href={href(shop ? '/shop' : '/')} className="flex items-center gap-2">
             <Leaf />
             <span className="font-display text-[26px] leading-none font-extrabold tracking-tight">{m.appName}</span>
             <span className="hidden self-end pb-0.5 text-sm text-white/75 sm:inline">{shop ? m.demo.shop : m.tagline}</span>
@@ -83,12 +75,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         {shop && reminder && (
           // Hourly reminder of refunds not made, on every shop screen (CN-53).
           <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-chili px-4 py-3 text-on-chili">
-            <Link href="/shop/refunds" className="font-bold underline underline-offset-2">
+            <Link href={href('/shop/refunds')} className="font-bold underline underline-offset-2">
               {m.refunds.reminder(reminder.orders, money(reminder.total))} · {m.refunds.reminderOpen}
             </Link>
             <button
               type="button"
-              onClick={() => update(seeRefundReminder)}
+              disabled={pending}
+              onClick={() => seeRefundReminder()}
               className="min-h-10 rounded-xl bg-on-chili/15 px-3 text-sm font-semibold hover:bg-on-chili/25"
             >
               {m.refunds.reminderSeen}
@@ -106,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {customerNav.map((item) => (
             <Link
               key={item.href}
-              href={item.href}
+              href={href(item.href)}
               aria-current={item.match(pathname) ? 'page' : undefined}
               className={cx(
                 'flex min-h-14 flex-col items-center justify-center text-[13px] font-semibold',
@@ -127,10 +120,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   )
 }
 
-function NavLink({ href, label, active, badge }: { href: string; label: string; active: boolean; badge?: number }) {
+function NavLink({ href: path, label, active, badge }: { href: string; label: string; active: boolean; badge?: number }) {
+  const { href } = useApp()
   return (
     <Link
-      href={href}
+      href={href(path)}
       aria-current={active ? 'page' : undefined}
       className={cx(
         'flex min-h-10 items-center justify-center rounded-full px-3.5 text-center text-[14px] font-semibold',
@@ -144,6 +138,7 @@ function NavLink({ href, label, active, badge }: { href: string; label: string; 
 }
 
 function LangSwitch({ lang }: { lang: Lang }) {
+  const { setLang, pending } = useActions()
   return (
     <div role="group" aria-label={messages[lang].common.language} className="flex rounded-full p-0.5 ring-1 ring-white/35">
       {(['vi', 'en'] as const).map((l) => (
@@ -151,7 +146,8 @@ function LangSwitch({ lang }: { lang: Lang }) {
           key={l}
           type="button"
           aria-pressed={lang === l}
-          onClick={() => update((s) => ({ ...s, lang: l }))}
+          disabled={pending}
+          onClick={() => setLang(l)}
           className={cx(
             'min-h-9 min-w-10 rounded-full text-sm font-bold uppercase',
             lang === l ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/80',
@@ -166,8 +162,7 @@ function LangSwitch({ lang }: { lang: Lang }) {
 
 /** Prototype-only controls (decision P4): switch role, set the fake time, reset the data. */
 function DemoBar({ shop }: { shop: boolean }) {
-  const s = useProto()!
-  const m = messages[s.lang]
+  const { s, m, href } = useApp()
   const router = useRouter()
   const [askReset, setAskReset] = useState(false)
   const setMinutes = (v: number) => update((st) => ({ ...st, clock: { ...st.clock, minutes: Math.max(0, Math.min(23 * 60 + 59, v)) } }))
@@ -186,7 +181,7 @@ function DemoBar({ shop }: { shop: boolean }) {
               key={r.href}
               type="button"
               aria-pressed={r.on}
-              onClick={() => router.push(r.href)}
+              onClick={() => router.push(href(r.href))}
               className={cx('min-h-8 rounded px-3 font-semibold', r.on ? 'bg-white text-[#17231b]' : 'text-white/80')}
             >
               {r.label}
@@ -245,14 +240,13 @@ function DemoBar({ shop }: { shop: boolean }) {
 
 function ErrorToast() {
   const err = useLastError()
-  const s = useProto()!
+  const { m } = useApp()
   useEffect(() => {
     if (!err) return
     const t = setTimeout(clearError, 6000)
     return () => clearTimeout(t)
   }, [err])
   if (!err) return null
-  const m = messages[s.lang]
   return (
     <div
       role="alert"

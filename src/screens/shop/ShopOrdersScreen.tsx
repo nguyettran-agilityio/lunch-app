@@ -2,10 +2,9 @@
 
 import { useState } from 'react'
 import { Button, Card, PageTitle, Select } from '@/components/ui'
-import { dayOrders, matchesSearch, newestFirst, paymentState, startPreparing } from '@/proto/logic'
-import { run } from '@/proto/store'
-import type { PaymentState, Status } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { dayOrders, matchesSearch, newestFirst, paymentState } from '@/domain/logic'
+import type { PaymentState, Status } from '@/domain/types'
+import { useActions, useApp } from '@/screens/app'
 import { OrderSearch, ShopDayBar, ShopOrderCard } from './common'
 
 const STATUSES: Status[] = ['placed', 'confirmed', 'preparing', 'delivering', 'delivered', 'rejected', 'cancelled']
@@ -13,14 +12,14 @@ const PAYMENTS: PaymentState[] = ['unpaid', 'reported', 'underpaid', 'paid']
 
 /** S-S6 Orders: filter; confirm, reject, payment received; start preparing several Shop confirmed orders (BR-24). */
 export function ShopOrdersScreen() {
-  const { s, m } = useApp()
+  const { s, m, shopDay } = useApp()
   const [status, setStatus] = useState('')
   const [payment, setPayment] = useState('')
   const [building, setBuilding] = useState('')
   const [picked, setPicked] = useState<string[]>([])
   const [query, setQuery] = useState('')
 
-  const all = dayOrders(s, s.shopDay)
+  const all = dayOrders(s, shopDay)
   // Newest order first; search within the selected day, together with the filters (CN-56).
   const shown = newestFirst(
     s,
@@ -101,12 +100,14 @@ export function ShopOrdersScreen() {
 /** One tap moves each selected order to Preparing on its own; there is no whole-day button (BR-24). */
 export function StartBar({ ids, onDone }: { ids: string[]; onDone: () => void }) {
   const { m } = useApp()
+  const { startPreparing, pending } = useActions()
   return (
     <div className="sticky bottom-4 z-10 mt-4 flex items-center justify-between gap-3 rounded-2xl bg-ink p-3 pl-4 text-on-ink shadow-lg">
       <span className="font-semibold">{m.shop.selected(ids.length)}</span>
       <Button
-        onClick={() => {
-          if (run((st) => startPreparing(st, ids)).ok) onDone()
+        disabled={pending}
+        onClick={async () => {
+          if ((await startPreparing(ids)).ok) onDone()
         }}
       >
         {m.shop.startPreparing}

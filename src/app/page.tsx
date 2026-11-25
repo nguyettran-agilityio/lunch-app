@@ -1,13 +1,6 @@
-import { Suspense } from 'react'
-import { WeekScreen } from '@/screens/customer/WeekScreen'
+import { redirect } from 'next/navigation'
 
-// Client-only page: the fake data lives in the browser (see the root layout).
-export const instant = false
-
+// Until M1-2 builds the real customer home, `/` sends visitors to the prototype (B31).
 export default function Page() {
-  return (
-    <Suspense>
-      <WeekScreen />
-    </Suspense>
-  )
+  redirect('/proto')
 }

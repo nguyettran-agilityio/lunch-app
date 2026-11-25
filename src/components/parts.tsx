@@ -1,9 +1,9 @@
 'use client'
 
-import { dishName, findBuilding, lineTotal, moneySummary, owed } from '@/proto/logic'
-import { dayMonth, weekday } from '@/proto/time'
-import type { DateStr, EditChange, HistoryEntry, Line, Order, Refund, RefundTo } from '@/proto/types'
-import { useApp } from '@/proto/useApp'
+import { dishName, findBuilding, lineTotal, moneySummary, owed } from '@/domain/logic'
+import { dayMonth, weekday } from '@/domain/time'
+import type { DateStr, EditChange, HistoryEntry, Line, Order, Refund, RefundTo } from '@/domain/types'
+import { useApp } from '@/screens/app'
 import { LineArt } from './art'
 import { Notice } from './ui'
 

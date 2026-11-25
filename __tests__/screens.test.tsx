@@ -15,10 +15,11 @@ import {
   reportNotReceived,
   reportTransfer,
   type Result,
-} from '../src/proto/logic'
+} from '../src/domain/logic'
 import { seed } from '../src/proto/seed'
-import { addDays, vietnamNow } from '../src/proto/time'
-import type { Line, State } from '../src/proto/types'
+import { addDays, vietnamNow } from '../src/domain/time'
+import type { Line, NewId, State } from '../src/domain/types'
+import type { ProtoState } from '../src/proto/types'
 
 const nav = vi.hoisted(() => ({ params: new URLSearchParams(), path: '/' }))
 const heic = vi.hoisted(() => ({ convert: vi.fn() }))
@@ -34,12 +35,26 @@ vi.mock('next/navigation', () => ({
 const KEY = 'lunch-prototype-v5'
 const today = vietnamNow(new Date()).today
 
-/** Store a state, then load fresh modules so the store reads it (the store caches its state). */
-async function load(state: State) {
-  window.localStorage.setItem(KEY, JSON.stringify(state))
+/** Ids for records the rules create in test setup (B30). */
+let idSeq = 5000
+const newId: NewId = (prefix) => `${prefix}${++idSeq}`
+
+/**
+ * Store a state, then load fresh modules so the store reads it (the store caches its state).
+ * A state the rules returned keeps the prototype-only fields of the seed it came from.
+ */
+async function load(state: State & Partial<ProtoState>) {
+  const full: ProtoState = { ...seed(state.clock.today), ...state }
+  window.localStorage.setItem(KEY, JSON.stringify(full))
   vi.resetModules()
   const { AppShell } = await import('../src/components/AppShell')
-  return (children: ReactNode) => render(<AppShell>{children}</AppShell>)
+  const { ProtoProvider } = await import('../src/proto/ProtoProvider')
+  return (children: ReactNode) =>
+    render(
+      <ProtoProvider>
+        <AppShell>{children}</AppShell>
+      </ProtoProvider>,
+    )
 }
 
 /** The value next to a label in an order's detail list. */
@@ -71,6 +86,67 @@ afterEach(() => {
   cleanup()
 })
 
+describe('prototype provider', () => {
+  /** Render inside the provider and hand back its actions (fresh modules, like `load`). */
+  async function actionsFor(state: State) {
+    const show = await load(state)
+    const { useActions } = await import('../src/screens/app')
+    let actions: ReturnType<typeof useActions> | null = null
+    function Probe() {
+      actions = useActions()
+      return null
+    }
+    show(<Probe />)
+    return actions!
+  }
+  const stored = () => JSON.parse(window.localStorage.getItem(KEY)!) as ProtoState
+
+  test('CN-29: saving an edit drops its draft, and so does discarding one', async () => {
+    const s = seed(today)
+    const mine = s.orders.find((o) => o.customerId === s.me && o.date === today && o.status === 'confirmed')!
+    const a = await actionsFor(s)
+
+    expect((await a.startEdit(mine.id)).ok).toBe(true)
+    expect(stored().drafts[mine.id]).toBeDefined()
+    await a.discardEdit(mine.id)
+    expect(stored().drafts[mine.id]).toBeUndefined()
+    expect(stored().orders.find((o) => o.id === mine.id)!.status).toBe('confirmed')
+
+    await a.startEdit(mine.id)
+    const lines = mine.lines.map((l) => ({ ...l, qty: l.qty + 1 }))
+    const r = await a.editOrder(mine.id, lines, mine.buildingId, mine.note)
+    expect(r.ok && r.order?.status).toBe('placed')
+    expect(stored().drafts[mine.id]).toBeUndefined()
+  })
+
+  test('B32: while an action runs, the action buttons of the screen are disabled', async () => {
+    nav.path = '/day'
+    nav.params = new URLSearchParams({ d: today })
+    const show = await load(seed(today))
+    const { ActionsContext, useActions } = await import('../src/screens/app')
+    const { DayScreen } = await import('../src/screens/customer/DayScreen')
+    // The prototype's actions end at once, so `pending` is set here as the real provider will while it waits.
+    function Waiting({ children }: { children: ReactNode }) {
+      return <ActionsContext.Provider value={{ ...useActions(), pending: true }}>{children}</ActionsContext.Provider>
+    }
+    show(
+      <Waiting>
+        <DayScreen />
+      </Waiting>,
+    )
+    const adds = screen.getAllByRole('button', { name: 'Thêm' })
+    expect(adds.length).toBeGreaterThan(0)
+    expect(adds.every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
+    cleanup()
+
+    // Not waiting: the same buttons can be tapped.
+    const again = await load(seed(today))
+    const fresh = await import('../src/screens/customer/DayScreen')
+    again(<fresh.DayScreen />)
+    expect(screen.getAllByRole('button', { name: 'Thêm' }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true)
+  })
+})
+
 describe('day menu', () => {
   test('tapping "Add" again on a dish already in the cart gives feedback with the new quantity', async () => {
     nav.path = '/day'
@@ -81,10 +157,11 @@ describe('day menu', () => {
 
     const card = screen.getByText('Bún bò Huế').closest('li')!
     const add = within(card).getByRole('button', { name: 'Thêm' })
+    // The feedback comes after the awaited action (B23).
     fireEvent.click(add)
-    expect(within(card).getByText(/Đã thêm 1 Bún bò Huế\. Trong giỏ có 1 phần món này\./)).toBeDefined()
+    expect(await within(card).findByText(/Đã thêm 1 Bún bò Huế\. Trong giỏ có 1 phần món này\./)).toBeDefined()
     fireEvent.click(add)
-    expect(within(card).getByText(/Đã thêm 1 Bún bò Huế\. Trong giỏ có 2 phần món này\./)).toBeDefined()
+    expect(await within(card).findByText(/Đã thêm 1 Bún bò Huế\. Trong giỏ có 2 phần món này\./)).toBeDefined()
     // Still one cart line, now with 2 portions.
     const stored = JSON.parse(window.localStorage.getItem(KEY)!) as State
     expect(stored.carts[today]).toEqual([expect.objectContaining({ dishId: 'd-bunbo', qty: 2 })])
@@ -143,7 +220,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
     const o = s0.orders.find((x) => x.id === reportedId)!
     nav.path = '/pay'
     nav.params = new URLSearchParams({ id: reportedId })
-    const show = await load(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note)))
+    const show = await load(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)))
     const { PayScreen } = await import('../src/screens/customer/PayScreen')
     show(<PayScreen />)
     expect(screen.getByText('Đã báo chuyển 45.000 ₫, chờ shop xác nhận. Đơn đã sửa tăng tiền: cần chuyển thêm 40.000 ₫.')).toBeDefined()
@@ -154,7 +231,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   test('AC32, CN-39: a cancelled order still shows the transfer reported and waiting for the shop', async () => {
     nav.path = '/order'
     nav.params = new URLSearchParams({ id: reportedId })
-    const show = await load(must(cancelOrder(morning(), reportedId)))
+    const show = await load(must(cancelOrder(morning(), reportedId, newId)))
     const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
     show(<OrderScreen />)
     expect(row('Đã báo chuyển, chờ shop xác nhận')).toBe('45.000 ₫')
@@ -170,7 +247,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
     const o = s0.orders.find((x) => x.id === reportedId)!
     nav.path = '/shop/order'
     nav.params = new URLSearchParams({ id: reportedId })
-    const show = await load(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note)))
+    const show = await load(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)))
     const { ShopOrderScreen } = await import('../src/screens/shop/ShopOrderScreen')
     show(<ShopOrderScreen />)
     // UI13: on the detail the note above the buttons is gone; the block and the rows give the same amounts (CN-42).
@@ -205,9 +282,9 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   })
 
   test('CN-34: "Show QR again" on an Underpaid order whose difference is reported says it waits, never 0 owed', async () => {
-    let s = must(confirmPayment(morning(), reportedId, 'p-seed'))
+    let s = must(confirmPayment(morning(), reportedId, 'p-seed', newId))
     const o = s.orders.find((x) => x.id === reportedId)!
-    s = must(reportTransfer(must(editOrder(s, reportedId, [...o.lines, thitkho], o.buildingId, o.note)), reportedId))
+    s = must(reportTransfer(must(editOrder(s, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)), reportedId, newId))
     nav.path = '/pay'
     nav.params = new URLSearchParams({ id: reportedId, qr: '1' })
     const show = await load(s)
@@ -221,7 +298,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   test('CN-49: "Show QR again" with two open reports carries the latest one', async () => {
     const s0 = morning()
     const o = s0.orders.find((x) => x.id === reportedId)!
-    const s = must(reportTransfer(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note)), reportedId))
+    const s = must(reportTransfer(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)), reportedId, newId))
     nav.path = '/pay'
     nav.params = new URLSearchParams({ id: reportedId, qr: '1' })
     const show = await load(s)
@@ -234,7 +311,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   test('S-C7: after "Not received yet" on one of two reports, no "the edit costs more" notice', async () => {
     const s0 = morning()
     const o = s0.orders.find((x) => x.id === reportedId)!
-    let s = must(reportTransfer(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note)), reportedId))
+    let s = must(reportTransfer(must(editOrder(s0, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)), reportedId, newId))
     s = must(reportNotReceived(s, reportedId, 'p-seed'))
     nav.path = '/pay'
     nav.params = new URLSearchParams({ id: reportedId })
@@ -249,10 +326,10 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
 
   test('AC38, CN-47, CN-51: a Paid order with a report open; turned down, the customer gets the notice without a QR', async () => {
     // Paid 45,000, edited to 85,000, 40,000 reported, edited back to 45,000.
-    let s = must(confirmPayment(morning(), reportedId, 'p-seed'))
+    let s = must(confirmPayment(morning(), reportedId, 'p-seed', newId))
     const o = s.orders.find((x) => x.id === reportedId)!
-    s = must(reportTransfer(must(editOrder(s, reportedId, [...o.lines, thitkho], o.buildingId, o.note)), reportedId))
-    s = must(editOrder(s, reportedId, o.lines, o.buildingId, o.note))
+    s = must(reportTransfer(must(editOrder(s, reportedId, [...o.lines, thitkho], o.buildingId, o.note, newId)), reportedId, newId))
+    s = must(editOrder(s, reportedId, o.lines, o.buildingId, o.note, newId))
     const reportId = s.orders.find((x) => x.id === reportedId)!.reports[0].id
 
     nav.path = '/shop'
@@ -278,7 +355,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   test('CN-39: the shop\'s "Reported" filter keeps a cancelled order whose transfer is still reported', async () => {
     nav.path = '/shop'
     nav.params = new URLSearchParams()
-    const s = { ...must(cancelOrder(morning(), reportedId)), shopDay: today }
+    const s = { ...must(cancelOrder(morning(), reportedId, newId)), shopDay: today }
     const code = s.orders.find((x) => x.id === reportedId)!.code
     const show = await load(s)
     const { ShopOrdersScreen } = await import('../src/screens/shop/ShopOrdersScreen')
@@ -290,7 +367,7 @@ describe('reported transfer, not confirmed (CN-37 – CN-42)', () => {
   test('AC37, CN-44: a cancelled order shows the customer that the shop has not found the transfer', async () => {
     nav.path = '/order'
     nav.params = new URLSearchParams({ id: reportedId })
-    const show = await load(must(reportNotReceived(must(cancelOrder(morning(), reportedId)), reportedId, 'p-seed')))
+    const show = await load(must(reportNotReceived(must(cancelOrder(morning(), reportedId, newId)), reportedId, 'p-seed')))
     const { OrderScreen } = await import('../src/screens/customer/OrderScreen')
     show(<OrderScreen />)
     expect(screen.getByText('Shop chưa thấy khoản chuyển 45.000 ₫. Bạn kiểm tra lại hoặc gọi shop.')).toBeDefined()
@@ -310,9 +387,10 @@ describe('refunds: shown, reminded, cash or transfer (CN-53, CN-54)', () => {
     return r.state
   }
   function editedDown(): State {
-    const s0: State = { ...seed(today), me: 'c3', clock: { today, minutes: 8 * 60 }, shopDay: today }
+    // The seed already shows today on the shop screens (shopDay).
+    const s0: State = { ...seed(today), me: 'c3', clock: { today, minutes: 8 * 60 } }
     const o = s0.orders.find((x) => x.id === haId)!
-    return must(confirmOrder(must(editOrder(s0, haId, [{ ...o.lines[0], qty: 1 }], o.buildingId, o.note)), haId))
+    return must(confirmOrder(must(editOrder(s0, haId, [{ ...o.lines[0], qty: 1 }], o.buildingId, o.note, newId)), haId))
   }
 
   test('AC41, AC44, CN-53, CN-54: the delivery list shows the cash to give back; "Cash given back" records it', async () => {
@@ -403,7 +481,7 @@ describe('refunds: shown, reminded, cash or transfer (CN-53, CN-54)', () => {
 
   test('CN-54: cash chosen, order now delivering: changing the choice starts from an account', async () => {
     let s = must(setRefundTo(editedDown(), haId, { kind: 'cash' }))
-    const { startPreparing, markDelivering } = await import('../src/proto/logic')
+    const { startPreparing, markDelivering } = await import('../src/domain/logic')
     s = must(markDelivering(must(startPreparing(s, [haId])), [haId]))
     nav.path = '/order'
     nav.params = new URLSearchParams({ id: haId })
@@ -442,9 +520,9 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
   }
   /** Seed at 8:00 with a new order by Nguyễn Minh An (c1), placed after all the seed orders. */
   function withNewOrder(): [State, string] {
-    let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 }, shopDay: today }
-    s = must(addToCart(s, today, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }))
-    const r = placeOrder(s, today, 'b-bitexco', '')
+    let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 } }
+    s = must(addToCart(s, today, { kind: 'fixed', dishId: 'd-bunbo', qty: 1, unitPrice: 45000 }, newId))
+    const r = placeOrder(s, today, 'b-bitexco', '', newId)
     return [must(r), (r as { id: string }).id]
   }
   const codes = () =>
@@ -503,7 +581,7 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     let s: State = { ...seed(today), clock: { today, minutes: 8 * 60 } }
     // Lê Thu Hà (c3) cancels her paid Saturday order; Bình's refund of today is made.
     const sat = s.orders.find((o) => o.date === addDays(today, 1))!
-    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id))
+    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id, newId))
     const binh = s.orders.find((o) => o.id === `o-${today}-8`)!
     s = must(markRefunded(s, binh.id, binh.refunds[0].id, 'transfer'))
     nav.path = '/shop/refunds'
@@ -564,11 +642,11 @@ describe('sorting and searching on the shop screens (CN-56)', () => {
     // Bình's seed refund is made; he then cancels his other, paid, order of today.
     const old = s.orders.find((o) => o.id === `o-${today}-8`)!
     s = must(markRefunded(s, old.id, old.refunds[0].id, 'transfer'))
-    s = must(confirmPayment(s, `o-${today}-2`, 'p-seed'))
-    s = must(cancelOrder({ ...s, me: 'c2' }, `o-${today}-2`))
+    s = must(confirmPayment(s, `o-${today}-2`, 'p-seed', newId))
+    s = must(cancelOrder({ ...s, me: 'c2' }, `o-${today}-2`, newId))
     // Hà cancels her paid Saturday order, so two refunds are pending.
     const sat = s.orders.find((o) => o.date === addDays(today, 1))!
-    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id))
+    s = must(cancelOrder({ ...s, me: 'c3' }, sat.id, newId))
     nav.path = '/shop/refunds'
     nav.params = new URLSearchParams()
     const show = await load(s)
@@ -615,7 +693,7 @@ describe('an open edit blocked by someone else (BR-28a)', () => {
   test('BR-28a: when the shop starts preparing an order while its edit is open, the customer sees that it has just changed and why', async () => {
     const s = seed(today)
     const order = s.orders.find((o) => o.customerId === s.me && o.date === today && (o.status === 'placed' || o.status === 'confirmed'))!
-    const state: State = {
+    const state: ProtoState = {
       ...s,
       orders: s.orders.map((o) => (o.id === order.id ? { ...o, status: 'preparing' } : o)),
       drafts: { [order.id]: { lines: order.lines, buildingId: order.buildingId, note: order.note } },

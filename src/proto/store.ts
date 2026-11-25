@@ -1,28 +1,29 @@
 'use client'
 
 // Prototype store: the whole fake state lives in this browser's localStorage (no backend).
+// Screens reach it only through the prototype provider (ProtoProvider.tsx); the shell and demo bar use it directly.
 import { useSyncExternalStore } from 'react'
-import type { ErrorCode, Result } from './logic'
+import type { ErrorCode } from '@/domain/logic'
+import { vietnamNow } from '@/domain/time'
 import { seed } from './seed'
-import { vietnamNow } from './time'
-import type { State } from './types'
+import type { ProtoState } from './types'
 
 const KEY = 'lunch-prototype-v5'
 
-let state: State | null = null
+let state: ProtoState | null = null
 let lastError: { code: ErrorCode; at: number } | null = null
 const listeners = new Set<() => void>()
 
-function freshState(): State {
+function freshState(): ProtoState {
   const { today } = vietnamNow(new Date())
   return seed(today)
 }
 
-function load(): State {
+function load(): ProtoState {
   try {
     const raw = window.localStorage.getItem(KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as State
+      const parsed = JSON.parse(raw) as ProtoState
       if (parsed.version === 4) return parsed
     }
   } catch {
@@ -31,7 +32,7 @@ function load(): State {
   return freshState()
 }
 
-function save(next: State) {
+function save(next: ProtoState) {
   try {
     window.localStorage.setItem(KEY, JSON.stringify(next))
   } catch {
@@ -48,38 +49,31 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener)
 }
 
-function getSnapshot(): State {
+export function getSnapshot(): ProtoState {
   if (state === null) state = load()
   return state
 }
 
-const getServerSnapshot = (): State | null => null
+const getServerSnapshot = (): ProtoState | null => null
 
 /** Null during server rendering and hydration; the stored state afterwards. */
-export function useProto(): State | null {
+export function useProto(): ProtoState | null {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
-export function setState(next: State) {
+export function setState(next: ProtoState) {
   state = next
   save(next)
   emit()
 }
 
-/** Run an action; on error remember it so the shell can show a message. Returns the result. */
-export function run(action: (s: State) => Result): Result {
-  const r = action(getSnapshot())
-  if (r.ok) {
-    lastError = null
-    setState(r.state)
-  } else {
-    lastError = { code: r.error, at: Date.now() }
-    emit()
-  }
-  return r
+/** Remember an action's error so the shell can show a message; null clears it. */
+export function setLastError(code: ErrorCode | null) {
+  lastError = code === null ? null : { code, at: Date.now() }
+  emit()
 }
 
-export function update(fn: (s: State) => State) {
+export function update(fn: (s: ProtoState) => ProtoState) {
   setState(fn(getSnapshot()))
 }
 
@@ -97,6 +91,5 @@ export function useLastError() {
 }
 
 export function clearError() {
-  lastError = null
-  emit()
+  setLastError(null)
 }
