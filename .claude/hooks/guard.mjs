@@ -19,9 +19,18 @@
 //   - writing, editing, moving or deleting .claude/settings.json, .claude/settings.local.json or
 //     files in .claude/hooks/ (file tools, Bash output redirections and file arguments,
 //     sed/perl -i, git checkout/restore/mv). Reading them, and git add/commit, are allowed.
+//   - changing files in the repo from Bash (G19): output redirections, tee, dd, truncate,
+//     sed/perl -i, cp/install/rsync, git apply, patch and npm pkg set into the repo; inline
+//     interpreter code that writes a file anywhere; running a script file from outside the repo
+//     (an interpreter, a shell, tsx/ts-node/bun/deno, npx/npm exec/pnpm/yarn/bunx, source, or
+//     the file itself by its path). A path the guard cannot resolve counts as in the repo.
+//
+// Commands after shell keywords (do, then, else, {, !) and wrappers (env, sudo, timeout, ...)
+// are checked by every rule.
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -236,10 +245,11 @@ function splitCommands(src) {
   let cur = null
   let redirectNext = false
   let redirectOut = false
+  let redirectDup = false // >&N, N>&-: a file descriptor, not a file
   const pushWord = () => {
     if (cur !== null) {
       ;(redirectNext ? redirects : words).push(cur)
-      if (redirectNext && redirectOut) outputs.push(cur)
+      if (redirectNext && redirectOut && !(redirectDup && /^(\d+|-)$/.test(cur))) outputs.push(cur)
       redirectNext = false
     }
     cur = null
@@ -285,10 +295,17 @@ function splitCommands(src) {
     } else if (';&|\n()'.includes(c)) {
       endCommand()
     } else if (c === '<' || c === '>') {
-      // Redirection: the next word is the target file.
+      // Redirection: the next word is the target file. A number right before it (2>) is a file
+      // descriptor, not a word.
+      if (cur !== null && /^\d+$/.test(cur)) cur = null
       pushWord()
       redirectOut = c === '>'
-      while (src[i + 1] === '>' || src[i + 1] === '&' || src[i + 1] === '<') i++
+      redirectDup = false
+      if (c === '>' && src[i + 1] === '|') i++ // >| (overwrite even with noclobber)
+      while (src[i + 1] === '>' || src[i + 1] === '&' || src[i + 1] === '<') {
+        if (src[i + 1] === '&') redirectDup = true
+        i++
+      }
       redirectNext = true
     } else if (/\s/.test(c)) {
       pushWord()
@@ -335,6 +352,8 @@ function substitutions(src) {
 }
 
 const WRAPPERS = new Set(['sudo', 'command', 'exec', 'nohup', 'time', 'builtin', 'nice', 'caffeinate'])
+// Shell keywords a command can follow (for f in …; do rm …; done, if …; then …; fi, { …; }).
+const SHELL_KEYWORDS = new Set(['do', 'then', 'else', 'elif', 'if', 'while', 'until', '!', '{'])
 
 function stripPrefixes(words) {
   let w = [...words]
@@ -342,7 +361,14 @@ function stripPrefixes(words) {
     while (w.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(w[0])) w.shift()
     if (!w.length) return w
     const head = path.basename(w[0])
-    if (head === 'env') {
+    if (SHELL_KEYWORDS.has(w[0])) {
+      w.shift()
+    } else if (head === 'timeout') {
+      // timeout [-s SIGNAL] [-k DURATION] DURATION command
+      w.shift()
+      while (w.length && w[0].startsWith('-')) w.splice(0, ['-s', '--signal', '-k', '--kill-after'].includes(w[0]) ? 2 : 1)
+      w.shift()
+    } else if (head === 'env') {
       w.shift()
       while (w.length && (w[0].startsWith('-') || /^[A-Za-z_][A-Za-z0-9_]*=/.test(w[0]))) w.shift()
     } else if (WRAPPERS.has(head)) {
@@ -455,6 +481,7 @@ function checkGit(words, cwd) {
   if (sub === 'push') checkGitPush(rest, dir)
   if (sub === 'rm') checkDocsTargets(rest.filter((a) => !a.startsWith('-')), dir, 'git rm')
   checkGitGuardFiles(sub, rest, dir)
+  if (sub === 'apply') checkGitApply(rest, dir)
 }
 
 // ---------- gh ----------
@@ -654,6 +681,268 @@ function checkGitGuardFiles(sub, rest, dir) {
   if (['checkout', 'restore', 'mv'].includes(sub)) checkGuardTargets(operands(rest), dir)
 }
 
+// ---------- repo files changed from Bash (G19) ----------
+
+const REPO_WRITE_REASON =
+  'changing files in the repo with a script or a shell command is not allowed (G19). Use the Edit tool to change a file, or Write to create one.'
+const CODE_WRITE_REASON =
+  'inline code that writes a file is not allowed, wherever the file is (G19). Use the Edit tool to change a file, or Write to create one.'
+const unresolvedReason = (w) =>
+  `could not tell where "${w}" points, so it counts as a file in the repo (G19). Write the path in full, or use the Edit or Write tool.`
+const outsideScriptReason = (f) =>
+  `running the script file "${f}" from outside the repo is not allowed: a script written outside the repo can change files in it (G19). Use the Edit or Write tool; scripts in the repo and npm run are allowed.`
+
+// Expand $NAME and ${NAME} with variables set earlier in the same command, and HOME, TMPDIR,
+// PWD and CLAUDE_PROJECT_DIR. Returns null when a $ or a backtick is left that cannot be expanded.
+function expandVars(word, vars, cwd) {
+  const known = {
+    HOME: process.env.HOME,
+    TMPDIR: process.env.TMPDIR ?? tmpdir(),
+    PWD: cwd,
+    CLAUDE_PROJECT_DIR: process.env.CLAUDE_PROJECT_DIR ?? SCRIPT_ROOT,
+  }
+  let unresolved = false
+  const out = word.replace(/\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))/g, (_m, braced, bare) => {
+    const name = braced ?? bare
+    const value = Object.hasOwn(vars, name) ? vars[name] : known[name]
+    if (typeof value !== 'string') unresolved = true
+    return value ?? ''
+  })
+  return unresolved || /[$`]/.test(out) ? null : out
+}
+
+// Remember NAME=value (and export NAME=value) when it is a command of its own; NAME=value cmd
+// only sets the variable for cmd, after its words are expanded.
+const ASSIGNMENT = /^([A-Za-z_]\w*)=(.*)$/s
+function trackAssignments(raw, vars, cwd) {
+  const w = raw[0] === 'export' ? raw.slice(1) : raw
+  if (!w.length || !w.every((x) => ASSIGNMENT.test(x))) return
+  for (const x of w) {
+    const [, name, value] = x.match(ASSIGNMENT)
+    vars[name] = expandVars(value, vars, cwd)
+  }
+}
+
+function inRepo(target, cwd) {
+  const abs = path.resolve(cwd, target.replace(/^~(?=$|\/)/, process.env.HOME ?? '~'))
+  return projectRoots(cwd).some((root) => contains(root, abs))
+}
+
+// Block when a file a command writes is in the repo, or cannot be resolved.
+function checkWriteTargets(targets, cwd, vars) {
+  for (const t of targets) {
+    if (t === '') continue
+    const p = expandVars(t, vars, cwd)
+    if (p === null) block(unresolvedReason(t))
+    if (inRepo(p, cwd)) block(REPO_WRITE_REASON)
+  }
+}
+
+// Calls that write a file in Python, Node, Ruby and Perl code.
+const CODE_WRITES = [
+  /\bopen\s*\((?:[^,()\n]|\([^()\n]*\))+,\s*(?:mode\s*=\s*)?['"][rbtU]*[wax+][rbtU+]*['"]/, // open(p, 'w')
+  /\bmode\s*=\s*['"][rbtU]*[wax+]/, // open(p, mode='w')
+  /\bopen\s*\(?\s*(?:my\s+)?[$\w]+\s*,\s*['"]\s*(?:\+?>|\+<)/, // Perl open(my $f, '>', …)
+  /\.write_(?:text|bytes)\s*\(/, // pathlib
+  /\b(?:shutil\.(?:copy\w*|move)|os\.(?:rename|replace))\s*\(/,
+  /\binplace\s*=\s*(?:True|1)\b/, // fileinput
+  /\b(?:writeFile|appendFile|createWriteStream|copyFile|cpSync|renameSync|writeSync|truncateSync)/, // Node fs
+  /\bfs\w*\.(?:rename|cp|truncate|write)\w*\s*\(/,
+  /\b(?:File|IO)\.(?:write|binwrite)\b/, // Ruby
+  /\bFileUtils\.(?:cp|mv|copy|move|install)\b/,
+  /\b(?:file_put_contents|fwrite|fputs)\s*\(/, // PHP
+  /\b(?:Bun\.write|Deno\.write\w*)\s*\(/,
+]
+const codeWrites = (code) => CODE_WRITES.some((re) => re.test(code))
+
+// A here-document fed to one of these programs is code.
+const CODE_RUNNER_OPENER = /(^|[|;&(]\s*)(sudo\s+)?((npx|bunx|pnpx)\s+)?(node|python[\d.]*|ruby|perl|php|tsx|ts-node|bun|deno)\b/
+
+// Programs that run a script file, which must be in the repo. inline: flags after which there is
+// no script file (inline code, a module, stdin); code: inline flags whose value is code; values:
+// flags that take a value; file: flags whose value is the script file; subcommands: a first
+// word that is skipped once (bun run file).
+const NODE_LIKE = ['-e', '--eval', '-p', '--print']
+const SHELL_RUNNER = { inline: ['-c', '-s'], code: [], values: ['-o', '-O', '+o', '+O', '--rcfile', '--init-file'] }
+const SCRIPT_RUNNERS = {
+  node: {
+    inline: NODE_LIKE,
+    code: NODE_LIKE,
+    values: ['-r', '--require', '--import', '--loader', '--experimental-loader', '-C', '--conditions', '--env-file', '--input-type', '--title'],
+  },
+  python: { inline: ['-c', '-m'], code: ['-c'], values: ['-W', '-X'] },
+  ruby: { inline: ['-e'], code: ['-e'], values: ['-I', '-r', '-C', '-E'] },
+  perl: { inline: ['-e', '-E'], code: ['-e', '-E'], values: ['-I', '-M', '-m'] },
+  php: { inline: ['-r', '-a'], code: ['-r'], values: ['-d', '-c', '-z'], file: ['-f'] },
+  tsx: { inline: NODE_LIKE, code: NODE_LIKE, values: ['--tsconfig', '--env-file', '-r', '--require', '--import'], subcommands: ['watch'] },
+  'ts-node': {
+    inline: NODE_LIKE,
+    code: NODE_LIKE,
+    values: ['-P', '--project', '-r', '--require', '-C', '--compiler', '-O', '--compiler-options'],
+  },
+  bun: { inline: NODE_LIKE, code: NODE_LIKE, values: ['--cwd', '--config', '-r', '--preload'], subcommands: ['run', 'test'] },
+  deno: {
+    inline: [],
+    code: [],
+    values: ['-c', '--config', '--import-map', '--env-file', '--location'],
+    subcommands: ['run', 'test', 'bench', 'serve', 'compile'],
+  },
+  source: { inline: [], code: [], values: [] },
+}
+for (const sh of ['bash', 'sh', 'zsh', 'dash', 'ksh']) SCRIPT_RUNNERS[sh] = SHELL_RUNNER
+SCRIPT_RUNNERS['.'] = SCRIPT_RUNNERS.source
+
+function scriptRunner(head) {
+  if (/^python(\d+(\.\d+)*)?$/.test(head)) return SCRIPT_RUNNERS.python
+  return Object.hasOwn(SCRIPT_RUNNERS, head) ? SCRIPT_RUNNERS[head] : null
+}
+
+// The index in args of the script file a runner runs, or -1 for inline code, a module, stdin or
+// no script.
+function scriptIndex(runner, args) {
+  let subSkipped = false
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '--') return i + 1 < args.length ? i + 1 : -1
+    if (a === '-' || runner.inline.includes(a)) return -1
+    if (runner === SCRIPT_RUNNERS.perl && /^-[a-zA-Z0-9]*[eE]$/.test(a)) return -1 // -ne, -pe
+    if (runner.file?.includes(a)) return i + 1 < args.length ? i + 1 : -1
+    if (runner.values.includes(a)) i++
+    else if (!a.startsWith('-') && !a.startsWith('+')) {
+      if (!subSkipped && runner.subcommands?.includes(a)) subSkipped = true
+      else return i
+    }
+  }
+  return -1
+}
+
+// Package runners: npx tsx file, npm exec tsx file, pnpm tsx file, yarn tsx file, bun x tsx file.
+// 1: the first word is the program; 2: only after dlx/exec/x, or when the first word is a runner.
+const PACKAGE_RUNNERS = { npx: 1, bunx: 1, pnpx: 1, pnpm: 2, yarn: 2, npm: 2, bun: 2 }
+const PACKAGE_VALUE_FLAGS = ['-p', '--package', '-c', '--call', '-w', '--workspace', '--filter', '-C', '--dir', '--cwd', '--prefix']
+const packageName = (p) => p.replace(/(?<=.)@[^/@]*$/, '') // tsx@4 → tsx
+
+function skipPackageOptions(rest, i) {
+  while (i < rest.length && rest[i].startsWith('-')) i += PACKAGE_VALUE_FLAGS.includes(rest[i]) ? 2 : 1
+  return i
+}
+
+// The words of the program a package runner starts, or null.
+function packageCommand(words) {
+  const head = path.basename(words[0])
+  if (!Object.hasOwn(PACKAGE_RUNNERS, head)) return null
+  const rest = words.slice(1)
+  let i = skipPackageOptions(rest, 0)
+  if (PACKAGE_RUNNERS[head] === 2) {
+    if (['dlx', 'exec', 'x'].includes(rest[i])) i = skipPackageOptions(rest, i + 1)
+    else if (rest[i] === undefined || !scriptRunner(packageName(rest[i]))) return null
+  }
+  return i < rest.length ? [packageName(rest[i]), ...rest.slice(i + 1)] : null
+}
+
+// System folders only root can write to: programs run from there by path are not scripts Claude wrote.
+const SYSTEM_DIRS = ['/bin', '/sbin', '/usr/bin', '/usr/sbin', '/usr/libexec', '/System']
+
+function checkScriptPath(file, cwd, vars, allowSystem) {
+  const p = expandVars(file, vars, cwd)
+  if (p === null) block(unresolvedReason(file))
+  const abs = path.resolve(cwd, p.replace(/^~(?=$|\/)/, process.env.HOME ?? '~'))
+  if (allowSystem && SYSTEM_DIRS.some((d) => contains(d, abs))) return
+  if (!inRepo(p, cwd)) block(outsideScriptReason(file))
+}
+
+// Block a script file run from outside the repo, and inline code that writes a file.
+function checkScriptRun(words, cwd, vars, depth = 0) {
+  if (!words.length || depth > 5) return
+  const pkg = packageCommand(words)
+  if (pkg) return checkScriptRun(pkg, cwd, vars, depth + 1)
+  // A program named by a path (/tmp/fix.sh, ./fix.py) runs that file.
+  if (words[0].includes('/')) checkScriptPath(words[0], cwd, vars, true)
+  const runner = scriptRunner(path.basename(words[0]))
+  if (!runner) return
+  const args = words.slice(1)
+  args.forEach((a, i) => {
+    const isCode = runner.code.includes(a) || (runner === SCRIPT_RUNNERS.perl && /^-[a-zA-Z0-9]*[eE]$/.test(a))
+    if (isCode && args[i + 1] !== undefined && codeWrites(args[i + 1])) block(CODE_WRITE_REASON)
+  })
+  if (runner === SCRIPT_RUNNERS.deno && operands(args)[0] === 'eval' && args.some(codeWrites)) block(CODE_WRITE_REASON)
+  const i = scriptIndex(runner, args)
+  if (i === -1) return
+  // bun run tsx file: the script file is given to another runner.
+  if (!args[i].includes('/') && scriptRunner(args[i])) return checkScriptRun(args.slice(i), cwd, vars, depth + 1)
+  checkScriptPath(args[i], cwd, vars, false)
+}
+
+// sed / perl -i: the files given, without the script (first operand when no -e is given).
+function inPlaceFiles(args, scriptFlag, valueFlags) {
+  const files = []
+  let scriptGiven = false
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (scriptFlag(a)) {
+      scriptGiven = true
+      i++
+    } else if (valueFlags.includes(a)) i++
+    else if (a !== '' && !a.startsWith('-')) files.push(a)
+  }
+  return scriptGiven ? files : files.slice(1)
+}
+
+function checkRepoWrites(words, outputs, cwd, vars) {
+  checkWriteTargets(outputs, cwd, vars)
+  if (!words.length) return
+  const head = path.basename(words[0])
+  const args = words.slice(1)
+  checkScriptRun(words, cwd, vars)
+  if (head === 'find') {
+    // find … -exec cmd {} \; runs cmd on each file found.
+    args.forEach((a, i) => {
+      if (!['-exec', '-execdir', '-ok', '-okdir'].includes(a)) return
+      const end = args.findIndex((x, j) => j > i && (x === ';' || x === '+'))
+      checkRepoWrites(stripPrefixes(args.slice(i + 1, end === -1 ? undefined : end)), [], cwd, vars)
+    })
+  }
+  if (head === 'tee') checkWriteTargets(operands(args), cwd, vars)
+  if (head === 'dd') checkWriteTargets(args.filter((a) => a.startsWith('of=')).map((a) => a.slice(3)), cwd, vars)
+  if (head === 'truncate') checkWriteTargets(args.filter((a, i) => !a.startsWith('-') && !['-s', '-r'].includes(args[i - 1])), cwd, vars)
+  if ((head === 'sed' || head === 'gsed') && args.some((a) => /^-[a-zA-Z]*i/.test(a) || a.startsWith('--in-place'))) {
+    const files = inPlaceFiles(args, (a) => ['-e', '--expression', '-f', '--file'].includes(a), [])
+    checkWriteTargets(files.length ? files : ['__stdin__'], cwd, vars)
+  }
+  if (head === 'perl' && args.some((a) => /^-[a-zA-Z0-9]*i/.test(a))) {
+    const files = inPlaceFiles(args, (a) => /^-[a-zA-Z0-9]*[eE]$/.test(a), ['-I', '-M', '-m'])
+    checkWriteTargets(files.length ? files : ['__stdin__'], cwd, vars)
+  }
+  if (['cp', 'install', 'rsync'].includes(head)) {
+    let dirGiven = false
+    args.forEach((a, i) => {
+      const eq = a.match(/^--target-directory=(.*)$/s)
+      const dir = a === '-t' || a === '--target-directory' ? args[i + 1] : eq?.[1]
+      if (dir !== undefined) {
+        dirGiven = true
+        checkWriteTargets([dir], cwd, vars)
+      }
+    })
+    const ops = operands(args)
+    if (!dirGiven && ops.length > 1) checkWriteTargets([ops[ops.length - 1]], cwd, vars)
+  }
+  if (head === 'patch' && !args.some((a) => a === '--dry-run' || a === '--check')) {
+    const d = args.findIndex((a) => a === '-d' || a === '--directory')
+    checkWriteTargets([d !== -1 && args[d + 1] !== undefined ? args[d + 1] : '.', ...operands(args)], cwd, vars)
+  }
+  if (head === 'npm') {
+    const ops = operands(args)
+    if (ops[0] === 'pkg' && ops[1] === 'set') checkWriteTargets(['package.json'], cwd, vars)
+  }
+}
+
+// git apply changes the working tree (or the index with --cached); --check, --stat, --numstat
+// and --summary only read the patch, unless --apply is also given.
+function checkGitApply(rest, dir) {
+  const readOnly = rest.some((a) => ['--check', '--stat', '--numstat', '--summary'].includes(a)) && !rest.includes('--apply')
+  if (!readOnly) checkWriteTargets(['.'], dir, {})
+}
+
 // ---------- Bash ----------
 
 function checkShell(source, cwd, depth = 0) {
@@ -666,16 +955,21 @@ function checkShell(source, cwd, depth = 0) {
       const expands = !quoted && /\$\(|`/.test(body)
       if (expands ? ENV_IN_CODE.test(body) : codeNamesEnv(body)) block(ENV_REASON)
     }
+    if (!SHELL_OPENER.test(opener) && CODE_RUNNER_OPENER.test(opener) && codeWrites(body)) block(CODE_WRITE_REASON)
   }
   for (const inner of substitutions(command)) checkShell(inner, cwd, depth + 1)
+  const vars = {}
   for (const { words: raw, redirects, outputs } of splitCommands(command)) {
+    trackAssignments(raw, vars, cwd)
     const words = stripPrefixes(raw)
     checkGuardFiles(words, outputs, cwd)
     if (!words.length) {
       if (redirects.some(wordNamesEnv)) block(ENV_REASON)
+      checkRepoWrites(words, outputs, cwd, vars)
       continue
     }
     checkEnvFiles(words, redirects)
+    checkRepoWrites(words, outputs, cwd, vars)
     const head = path.basename(words[0])
     if (head === 'cd' || head === 'pushd') {
       // Follow "cd dir && rm ..." so relative paths resolve where the shell will be.
