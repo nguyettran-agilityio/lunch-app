@@ -298,3 +298,4 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 | X15 | Sign-in field: `0281234567`, then `lan@` | "Phone number is not valid", then "Email is not valid" (AC108) | Planned |
 | X16 | Not signed in, open an expired email-change link | Sign-in first, then back; a new link to the waiting address, no phone/email field (AC109) | Planned |
 | X17 | A customer waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com | No account created; "This email is waiting for its confirmation"; the customer can still confirm (AC110) | Planned |
+| X18 | A customer waits for lan2@gmail.com, its link expired (test sign-in mode); another sign-up with lan2@gmail.com; the customer changes the new email to lan3@gmail.com; the sign-up with lan2@gmail.com again | Refused with "This email is waiting for its confirmation"; then "Check your email to confirm"; the profile shows "Waiting for confirmation of lan3@gmail.com" (AC111, CN-66) | Planned |
