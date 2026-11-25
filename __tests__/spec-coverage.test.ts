@@ -78,6 +78,14 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC109: 'Expired links are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC110: 'Google sign-in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC111: 'Waiting emails are not in the prototype (P1) (CN-66); built in milestone M1 of docs/plan.md',
+  AC112: 'Language per account is not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
+  AC113: 'Account emails are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
+  AC114: 'Sign-up messages are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
+  AC115: 'Sign-up messages are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
+  AC116: 'Account emails are not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
+  AC117: 'Account emails are not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
+  AC118: 'Language per account is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
+  AC119: 'Signing in is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }

@@ -236,7 +236,7 @@ Written in the Plan step before any code (X6); each runs in the milestone of [pl
 | Q3 | At 10:00, today on the default 09:30; shop sets the default to 11:00 (M3) | Today stays closed for ordering; tomorrow closes at 11:00 (AC79) | Planned |
 | Q4 | Unpaid order; shop changes the bank; customer opens Payment (M3) | QR with the new bank (AC80) | Planned |
 | Q5 | Buildings: add "Tòa XYZ" at 11:45 (prototype: this PR; real: M2) | Approved at once; a customer can pick it (AC81) | Test |
-| Q6 | Shop declines a customer's pending default building; the customer goes to order (M4) | Profile first with "The shop does not deliver to …" (AC82) | Planned |
+| Q6 | Shop declines a customer's pending default building; the customer goes to order; in another case the customer signs in again to `/` (M4) | Profile first with "The shop does not deliver to …"; after saving, `/` (AC82, CN-67) | Planned |
 | Q7 | Sign up with a phone waiting for confirmation and a Google account's email (M1) | Both messages, one under each field (AC83) | Planned |
 | Q8 | Tap an expired link, enter the phone number, send (M1) | New link to the account's email; 60-second wait (AC84) | Planned |
 | Q9 | Upload a HEIC dish photo and a HEIC refund QR (M4; the refund QR part also tested in the prototype) | Converted and saved as smaller JPG; one that cannot be converted refused (AC85) | Planned |
@@ -311,3 +311,18 @@ Written before the code of PR M1-1c (X6, B45). They check the test sign-in mode 
 | E3 | `/test/sign-in` and `/test/session` with `E2E_TEST_AUTH` unset; with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set; with `E2E_TEST_AUTH=1` and each Supabase variable set | 404 every time (B25, B46) | Test |
 | E4 | Server start with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set, or with any Supabase variable set; start with `E2E_TEST_AUTH` unset, with `E2E_TEST_AUTH=0` next to Supabase and Vercel variables, and with the test mode alone | Refused, naming the variable; the other three start, and only the last one has the test mode on (B25, B46, B48) | Test |
 | E5 | Every `/proto` screen in Vietnamese and in English, at 375 px and 1280 px, on fresh fake data | No horizontal scroll: `scrollWidth <= clientWidth` (AC19, BR-31, B11, B28, B49) | Playwright |
+
+## 21. Open points of M1-2 (CN-67)
+
+Written when PR M1-2 started, before its code (X6), with the points of CN-68. They run in M1 (Y2 in M1-4, with "Forgot password"). The sign-in case of AC82 is in Q6 (M4).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| Y1 | Switch the sign-up page to English, sign up with 0912 345 678, tap the confirmation link | The account is saved as EN; the app stays in English after signing in (AC112) | Planned |
+| Y2 | A confirmation link sent to lan@gmail.com and tapped at once; 20 seconds later "Forgot password" for lan@gmail.com (M1-4) | Nothing sent; the button disabled until 60 seconds after the first email (AC113) | Planned |
+| Y3 | Confirmed account 0912 345 678 / lan@gmail.com; sign up with 0912345678 and lan@gmail.com | The phone message under the phone, "This email already has an account (signs in with a phone number)" under the email; nothing created (AC114) | Planned |
+| Y4 | Confirmed account with 0912 345 678, waiting account with huy@gmail.com; sign up with 0912345678 and huy@gmail.com | Only the phone message; nothing under the email; the waiting account and its link still work (AC115) | Planned |
+| Y6 | Waiting account with lan@gmial.com, link sent 20 seconds ago; sign up with another phone and lan@gmial.com | The waiting account replaced; the new link sent at once; "Check your email to confirm" (AC116) | Planned |
+| Y7 | Sign up; 15 seconds later sign in with the right password; in another case open the expired-link page and enter the phone | "Send the confirmation link again" and "Send a new link" disabled with the seconds left, then they send (AC117) | Planned |
+| Y8 | Sign up in Vietnamese; switch to English; sign up again with the same phone and email; tap the link | No new account; English after the link (AC118) | Planned |
+| Y9 | A signed-in customer opens `/shop` | Sent to `/` (AC119) | Planned |
