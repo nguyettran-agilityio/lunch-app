@@ -2,7 +2,7 @@
 
 Status: Plan step, for review by the Lead
 
-This plan says **how the app in [spec.md](spec.md) is built**: architecture, data model, environments, and the milestones and pull requests that take the clickable prototype to the real app. It adds no product rule: every behaviour comes from the spec, the look from [design.md](design.md), and every technical choice from [decisions.md](decisions.md) (section "Build", B1–B36). Where this plan and the spec disagree, the spec wins and this plan is fixed.
+This plan says **how the app in [spec.md](spec.md) is built**: architecture, data model, environments, and the milestones and pull requests that take the clickable prototype to the real app. It adds no product rule: every behaviour comes from the spec, the look from [design.md](design.md), and every technical choice from [decisions.md](decisions.md) (section "Build", B1–B41). Where this plan and the spec disagree, the spec wins and this plan is fixed.
 
 ## How to read a milestone
 
@@ -142,6 +142,8 @@ Postgres on Supabase, defined in `src/server/db/schema.ts` with Drizzle. Money i
 | `refunds` | `id`, `order_id`, `amount`, `reason`, `created_at`, `refunded_at`, `refunded_by`, `method` | | M4 |
 
 The customer's phone and name on shop screens are always read from `profiles`, never copied into `orders` (CN-58).
+
+How the first tables are built (PR M1-1b): `email` and `pending_email` are unique across both columns through a trigger (B37); `profiles.id` has no foreign key to Supabase's `auth.users` (B38); lists of values are Postgres enums (B39); the phone format and lower-case emails are CHECK constraints (B40); the migration tooling is B41.
 
 Migrations are generated with `drizzle-kit generate` into `drizzle/`, committed with the PR that needs them, and applied by the Lead with `npm run db:migrate` against the preview project before trying the preview, and against production before the release (B13). While PRs share the preview project, a migration only adds tables, columns and indexes; it never deletes or changes existing ones (B21). The Lead runs a PR's migration when trying that PR's preview.
 
