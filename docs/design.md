@@ -36,6 +36,8 @@ This file records the visual direction of the clickable prototype. It changes ho
 | UI14 | Stop labels on the shop's bar | "Shop's own labels": for example "Unpaid / Customer reported / Received" and "Needs refund / Refunded" |
 | UI15 | Shop setup screens not in the prototype (Dishes S-S1, Build-your-own rules S-S2, Days S-S3, Settings S-S4) | "Use the existing components": built with the tokens and components of the existing banana-leaf design; the Lead reviews them on the preview of each M2 PR; no separate design round (spec CN-59) |
 | UI16 | Account screens (Sign in / Sign up S-C1, Forgot password S-C1a, Profile S-C2, the reset password and expired link pages) | "A short design round first": before M1-2, a design round with 2–3 directions for these screens, for the Lead to choose (spec CN-62). Brief (spec CN-64): the directions stay inside the banana-leaf style and differ in layout and in how errors are shown |
+| UI17 | Direction of the account screens | "I choose direction A": "Leaf parcel", as offered in PR #60: one leaf-parcel card under the band with Sign in / Sign up tabs; a field's error is red text right under the field with a red field border; a message about the whole action is a Notice at the top of the card. The mockups are removed, all of them, as B50 says (the Lead's answer: "Delete all mockups (per B50)") |
+| UI18 | Texts of the account screens | "Approve the whole table": the Vietnamese and English texts listed in PR #60 are approved as they are; they are kept in "Texts approved by the Lead" below |
 
 ## How the money block reads the states
 
@@ -107,16 +109,88 @@ Content is left aligned. Cards are rounded more (leaf parcels) than buttons and 
 
 ## Account screens round (UI16)
 
-Status: Offered, waiting for the Lead to choose (PR M1-D).
+Status: Chosen by the Lead: direction A "Leaf parcel" (UI17); the texts below approved (UI18).
 
 The brief (UI16, spec CN-64): the directions stay inside banana-leaf and differ in layout and in how errors are shown. Every direction keeps a field's message under its field (BR-29a, CN-64) and uses the tokens above. The screens: Sign in / Sign up (S-C1), Forgot password (S-C1a), the reset password page, the expired link page, Profile (S-C2).
 
-The mockups are at `/proto/accounts` on the preview of PR M1-D: switch the direction, the screen and the case; each case fills the form and taps the main button on fake accounts (B50). Only the states the spec decides are drawn; an undecided part shows "Not decided" (B51). They follow the VI/EN switch (B53).
+The mockups were at `/proto/accounts` (PR M1-D, #60): switch the direction, the screen and the case; each case filled the form and tapped the main button on fake accounts (B50). Only the states the spec decides were drawn; an undecided part showed "Not decided" (B51). They followed the VI/EN switch (B53). They were removed once the Lead chose (B50); their code stays in the history of PR #60.
 
 | Direction | Layout | Errors |
 |---|---|---|
-| A "Leaf parcel" | One leaf-parcel card under the band, with Sign in / Sign up tabs | Red text right under the field and a red field border; a message about the whole action is a Notice at the top of the card |
+| **A "Leaf parcel" (chosen)** | One leaf-parcel card under the band, with Sign in / Sign up tabs | Red text right under the field and a red field border; a message about the whole action is a Notice at the top of the card |
 | B "Big leaf band" | A tall leaf band with the title and a drawing; the form straight on the paper; two columns on a computer | A chili-soft label with an icon under the field, and a summary box at the top of the form whose items jump to their field |
 | C "Step by step" | One question per step (phone or email first, then the password), with progress dots | The error under the field; a message about the whole action in a box right above the main button |
 
-Once the Lead chooses, the choice is recorded here as a new UI row and the mockups are removed (B50).
+### Direction A, as the mockup drew it
+
+- **Layout.** One column, at most 28rem wide, centred on the page, with its content left aligned. One leaf-parcel card (`.parcel`, card colour, a thin steel ring) holds the whole screen. On Sign in and Sign up the card starts with two tabs, "Sign in" and "Sign up", the current one underlined in leaf green; the other screens have no tabs. Then the page title (Bricolage Grotesque, 26 px, extra bold) and the intro in muted text.
+- **Fields.** Label above the input (14 px, muted); inputs at least 48 px high, 16 px text, rounded, with a steel ring that turns leaf green on focus; a hint (for example the password rule) in muted 13 px under the field while it has no error.
+- **Errors.** A field's message is chili text (13 px) right under the field, and the field's ring turns chili and thicker; the input carries `aria-invalid` and points to the message. A message about the whole action (for example "Wrong password", "You have not confirmed your email" with "Send the confirmation link again" under it, "Too many attempts…") is a Notice at the top of the card, under the title, with `role="alert"`; chili for a refusal, leaf for "Your email is already confirmed, please sign in" with a "Sign in" link.
+- **Actions.** The main button fills the card width (leaf green, at least 48 px high). On Sign in and Sign up, "or" between two thin lines, then "Continue with Google" as a secondary button. Under it, links in leaf green: "Forgot password?" on Sign in; Forgot password and the expired-link page link back to "Sign in".
+- **Sent.** Once a link is sent, the card shows the sent title (for example "Check your email to confirm"), one sentence, and "Send again", disabled with "Send again in N s" during the 60 seconds.
+- **Profile.** The same card: "Complete your profile" with its intro when the profile is incomplete, "Profile" otherwise; the declined-building notice (BR-16) as a chili Notice at the top; fields name, phone number, email (read-only with a note for a Google account; "Waiting for confirmation of <new email>" in turmeric under it, with "Send again"), the default building with the prototype's existing link to propose one (`m.cart.propose` and the other `m.cart.propose…` texts of `src/domain/i18n.ts`, not part of the UI18 table), the language, then "Save".
+
+### Texts approved by the Lead (UI18)
+
+The texts of the account screens, as listed in PR #60. "Spec" means the English is the spec's own; "Drafted" means Claude drafted both languages.
+
+| Vietnamese | English | Source |
+|---|---|---|
+| Đăng nhập | Sign in | Spec |
+| Đăng ký | Sign up | Spec |
+| Đăng nhập để đặt cơm | Sign in to order lunch | Drafted |
+| Tạo tài khoản | Create an account | Drafted |
+| Chỉ cần số điện thoại, email và mật khẩu. Tên và tòa nhà bạn điền sau khi xác nhận email. | Only a phone number, an email and a password. You add your name and building after confirming the email. | Drafted |
+| Số điện thoại hoặc email | Phone number or email | Drafted |
+| Số điện thoại / Email / Mật khẩu / Mật khẩu mới | Phone number / Email / Password / New password | Drafted |
+| Tiếp tục với Google | Continue with Google | Drafted |
+| hoặc | or | Drafted |
+| Quên mật khẩu? | Forgot password? | Spec ("Forgot password") |
+| Chưa có tài khoản? / Đã có tài khoản? | No account yet? / Already have an account? | Drafted |
+| Tiếp tục / Quay lại / Bước {i} trên {n} | Continue / Back / Step {i} of {n} | Drafted (direction C) |
+| Bắt buộc | Required | Spec |
+| Số điện thoại không hợp lệ | Phone number is not valid | Spec |
+| Email không hợp lệ | Email is not valid | Spec |
+| Ít nhất 8 ký tự, có cả chữ và số | At least 8 characters, with both letters and digits | Spec |
+| Sai mật khẩu | Wrong password | Spec |
+| Không có tài khoản nào với số điện thoại hoặc email này | No account with this phone number or email | Spec |
+| Tài khoản này đăng nhập bằng Google | This account signs in with Google | Spec |
+| Bạn chưa xác nhận email | You have not confirmed your email | Spec |
+| Gửi lại link xác nhận | Send the confirmation link again | Spec |
+| Thử quá nhiều lần, vui lòng thử lại sau vài phút | Too many attempts, please try again in a few minutes | Spec |
+| Kiểm tra email để xác nhận | Check your email to confirm | Spec |
+| Bấm vào link trong email để xác nhận tài khoản. Link dùng được một lần, trong 1 giờ. | Tap the link in the email to confirm the account. The link works once, for 1 hour. | Drafted |
+| Gửi lại | Send again | Spec |
+| Gửi lại sau {s} giây | Send again in {s} s | Drafted |
+| Email này đã có tài khoản (đăng nhập bằng Google) | This email already has an account (signs in with Google) | Spec |
+| Email này đã có tài khoản (đăng nhập bằng số điện thoại) | This email already has an account (signs in with a phone number) | Spec |
+| Số điện thoại này đã có tài khoản. Nếu là của bạn, hãy gọi cho shop | This phone number already has an account. If it is yours, call the shop | Spec |
+| Số điện thoại này đang chờ xác nhận email | This phone number is waiting for its email to be confirmed | Spec |
+| Email này đã có tài khoản đăng nhập bằng số điện thoại; hãy đăng nhập bằng số điện thoại và mật khẩu | This email already has an account that signs in with a phone number; sign in with phone + password | Spec |
+| Email này có tài khoản đăng nhập bằng số điện thoại và chưa được xác nhận | This email has an account that signs in with a phone number and is not confirmed yet | Spec |
+| Email này đã có tài khoản | This email already has an account | Spec |
+| Email này dành cho tài khoản của shop | This email is for a shop account | Spec |
+| Email này đang chờ xác nhận | This email is waiting for its confirmation | Spec |
+| Đang chờ xác nhận {email} | Waiting for confirmation of {email} | Spec |
+| Quên mật khẩu | Forgot password | Spec |
+| Nhập số điện thoại hoặc email của tài khoản. Link đặt lại mật khẩu được gửi tới email của tài khoản. | Enter the phone number or email of your account. The reset link goes to the email of the account. | Drafted |
+| Gửi link đặt lại mật khẩu | Send the reset link | Drafted |
+| Đã gửi link đặt lại mật khẩu | The reset link is sent | Drafted |
+| Mở email của tài khoản và bấm vào link. Link dùng được một lần, trong 1 giờ. | Open the email of your account and tap the link. The link works once, for 1 hour. | Drafted |
+| Đặt mật khẩu mới | Set a new password | Drafted |
+| Sau khi lưu, bạn được đăng nhập trên máy này và đăng xuất trên mọi máy khác. | Once it is saved, you are signed in on this device and signed out on every other device. | Drafted |
+| Lưu mật khẩu mới | Save the new password | Drafted |
+| Link đã hết hạn | The link has expired | Spec |
+| Nhập số điện thoại hoặc email của tài khoản để nhận link mới. | Enter the phone number or email of your account to get a new link. | Drafted |
+| Gửi link mới | Send a new link | Drafted |
+| Email của bạn đã được xác nhận, vui lòng đăng nhập | Your email is already confirmed, please sign in | Spec |
+| Hồ sơ / Hoàn tất hồ sơ | Profile / Complete your profile | Drafted |
+| Cho shop biết tên bạn và tòa nhà giao cơm trước khi đặt món. | Tell the shop your name and the building to deliver to before you order. | Drafted |
+| Tên / Tòa nhà mặc định / Chọn tòa nhà / Ngôn ngữ / Lưu | Name / Default building / Pick a building / Language / Save | Drafted |
+| Tối đa 80 ký tự | At most 80 characters | Drafted |
+| Email của tài khoản Google không đổi được. | The email of a Google account cannot be changed. | Drafted |
+| Email mới chỉ có hiệu lực sau khi bạn bấm link gửi tới email đó. | The new email takes effect only after you tap the link sent to it. | Drafted |
+| Shop không giao tới {tòa}; hãy chọn tòa khác | The shop does not deliver to {building}; pick another building | Spec |
+| Kiểm tra lại {n} chỗ bên dưới | Check {n} fields below | Drafted (direction B) |
+
+The rows marked "direction B" or "direction C" belong to directions that were not chosen; they are kept so the approved list stays as the Lead saw it. Messages that M1-2 to M1-5 need and this table does not have are drafted by Claude and listed in their PR for the Lead to review (CN-64).
