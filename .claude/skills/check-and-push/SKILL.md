@@ -23,7 +23,7 @@ What changed, from the user: $ARGUMENTS
 4. **Run the full check** from the **Check** section of `CLAUDE.md`: every command, in that order (six once `npm run test:e2e` exists, see `CLAUDE.md`). If any fails, fix it and run them all again; if you cannot fix it, stop and ask the user. Never push after running only some of them.
 5. **Commit** the files of this change only (`git add <paths>`, never `git add -A`), with a message that follows the Git rules in `CLAUDE.md`.
 6. **Push**: `git push -u origin HEAD`. If a hook blocks it, tell the user the reason and stop.
-7. **Open or update the PR.** If no PR is open for the branch (`gh pr view`), open it with the `open-pr` skill. If one is open, update its description with `gh pr edit <number> --body-file <file>` (file outside the repo) so every section of the template covers this change too, in particular "Changes", "How tested" and "Not checked".
+7. **Open or update the PR.** If no PR is open for the branch (`gh pr view`), open it with the `open-pr` skill. If one is open, update its description with `gh pr edit <number> --body-file <file>` (file outside the repo) so every section of the template covers this change too, in particular "Changes", "How tested" and "Not checked"; keep the `Closes #<issue>` line under "Related" (G21).
 8. **Report** to the user in Vietnamese:
    - the `spec-reviewer` result (defects fixed, open points asked, points written for a later milestone, untested criteria) and the verdict of the last run on the final files,
    - the check result (number of tests),
