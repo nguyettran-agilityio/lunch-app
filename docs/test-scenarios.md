@@ -4,7 +4,7 @@ Scenarios for the clickable prototype (PR #17), with the steps, the expected res
 
 **How run**
 - **Browser**: clicked through by hand in the Browser pane at 375px wide, on fresh fake data ("Reset data"). Since PR M1-1a the prototype is clicked under `/proto` (for example `/proto/cart`, `/proto/shop`) (B31).
-- **Test**: automated test in `__tests__/prototype-logic.test.ts` (logic) or `__tests__/screens.test.tsx` (screens). The test name starts with the AC or CN id.
+- **Test**: automated test in `__tests__/` (Vitest), for example `prototype-logic.test.ts` (logic) or `screens.test.tsx` (screens). The test name starts with the scenario, AC or CN id.
 - **Both**: clicked through and covered by an automated test.
 - **Playwright**: automated browser test run in CI (decision B19); the test name starts with the scenario, AC or CN id.
 - **Planned**: written before the code (decision X6) and not run yet.
@@ -299,3 +299,15 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 | X16 | Not signed in, open an expired email-change link | Sign-in first, then back; a new link to the waiting address, no phone/email field (AC109) | Planned |
 | X17 | A customer waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com | No account created; "This email is waiting for its confirmation"; the customer can still confirm (AC110) | Planned |
 | X18 | A customer waits for lan2@gmail.com, its link expired (test sign-in mode); another sign-up with lan2@gmail.com; the customer changes the new email to lan3@gmail.com; the sign-up with lan2@gmail.com again | Refused with "This email is waiting for its confirmation"; then "Check your email to confirm"; the profile shows "Waiting for confirmation of lan3@gmail.com" (AC111, CN-66) | Planned |
+
+## 20. Test infrastructure (PR M1-1c, B42–B49)
+
+Written before the code of PR M1-1c (X6, B45). They check the test sign-in mode and the layout test, not a product rule; D13 and UI-13 stay "Browser" until M6.
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| E1 | Test server: `/test/sign-in?account=customer` in one browser context and `?account=shop` in another; `/test/session` in each, and in a third context with no sign-in | `{email: "customer@example.test", role: "customer"}`; `{email: "shop@example.test", role: "shop"}`; the third context has no session (B42, B44) | Playwright |
+| E2 | Test server: `/test/sign-in?account=nobody` | Refused, no session (B42) | Playwright |
+| E3 | `/test/sign-in` and `/test/session` with `E2E_TEST_AUTH` unset; with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set; with `E2E_TEST_AUTH=1` and each Supabase variable set | 404 every time (B25, B46) | Test |
+| E4 | Server start with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set, or with any Supabase variable set; start with `E2E_TEST_AUTH` unset, with `E2E_TEST_AUTH=0` next to Supabase and Vercel variables, and with the test mode alone | Refused, naming the variable; the other three start, and only the last one has the test mode on (B25, B46, B48) | Test |
+| E5 | Every `/proto` screen in Vietnamese and in English, at 375 px and 1280 px, on fresh fake data | No horizontal scroll: `scrollWidth <= clientWidth` (AC19, BR-31, B11, B28, B49) | Playwright |
