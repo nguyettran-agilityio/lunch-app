@@ -104,3 +104,19 @@ Content is left aligned. Cards are rounded more (leaf parcels) than buttons and 
 - Colour carries state: green done, turmeric waiting, chili needs attention, the same on every screen.
 - Motion only answers a tap: a dish dropping onto the plate, "added" feedback. It is turned off with reduced motion.
 - Every picture is our own inline SVG; dishes the drawing set does not know get a plain rice bowl.
+
+## Account screens round (UI16)
+
+Status: Offered, waiting for the Lead to choose (PR M1-D).
+
+The brief (UI16, spec CN-64): the directions stay inside banana-leaf and differ in layout and in how errors are shown. Every direction keeps a field's message under its field (BR-29a, CN-64) and uses the tokens above. The screens: Sign in / Sign up (S-C1), Forgot password (S-C1a), the reset password page, the expired link page, Profile (S-C2).
+
+The mockups are at `/proto/accounts` on the preview of PR M1-D: switch the direction, the screen and the case; each case fills the form and taps the main button on fake accounts (B50). Only the states the spec decides are drawn; an undecided part shows "Not decided" (B51). They follow the VI/EN switch (B53).
+
+| Direction | Layout | Errors |
+|---|---|---|
+| A "Leaf parcel" | One leaf-parcel card under the band, with Sign in / Sign up tabs | Red text right under the field and a red field border; a message about the whole action is a Notice at the top of the card |
+| B "Big leaf band" | A tall leaf band with the title and a drawing; the form straight on the paper; two columns on a computer | A chili-soft label with an icon under the field, and a summary box at the top of the form whose items jump to their field |
+| C "Step by step" | One question per step (phone or email first, then the password), with progress dots | The error under the field; a message about the whole action in a box right above the main button |
+
+Once the Lead chooses, the choice is recorded here as a new UI row and the mockups are removed (B50).

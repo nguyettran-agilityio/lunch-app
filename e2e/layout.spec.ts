@@ -28,6 +28,14 @@ const SCREENS: Record<string, string> = {
   '/proto/shop/delivery': '/proto/shop/delivery',
   '/proto/shop/refunds': '/proto/shop/refunds',
   '/proto/shop/buildings': '/proto/shop/buildings',
+  // The M1-D mockups (UI16), on their longest screen; the other directions are in EXTRA.
+  '/proto/accounts': '/proto/accounts?dir=a&screen=profile&profile=pending',
+}
+
+// More views of one route: the other directions of the M1-D mockups.
+const EXTRA: Record<string, string> = {
+  '/proto/accounts (B)': '/proto/accounts?dir=b&screen=profile&profile=pending',
+  '/proto/accounts (C)': '/proto/accounts?dir=c&screen=signUp',
 }
 
 // Every page.tsx under src/app/proto, as a route.
@@ -60,7 +68,7 @@ for (const lang of ['vi', 'en'] as const)
         )
       })
 
-      for (const [route, url] of Object.entries(SCREENS)) {
+      for (const [route, url] of Object.entries({ ...SCREENS, ...EXTRA })) {
         test(`E5 AC19 ${route} has no horizontal scroll in ${lang} at ${width} px`, async ({ page }) => {
           await page.goto(url)
           await expect(page.locator('main')).toBeVisible()
