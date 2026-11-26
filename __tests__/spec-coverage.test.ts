@@ -86,6 +86,8 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC117: 'Account emails are not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
   AC118: 'Language per account is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
   AC119: 'Signing in is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
+  AC120: 'Signing in is not in the prototype (P1) (CN-69); built in milestone M1 of docs/plan.md',
+  AC121: 'Signing in is not in the prototype (P1) (CN-69); built in milestone M1 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
