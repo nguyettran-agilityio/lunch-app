@@ -29,7 +29,9 @@ describe('AC104 X10 the account emails (BR-29c)', () => {
     const html = readFileSync(path.join(TEMPLATES, file), 'utf8')
     expect(html.indexOf(vi)).toBeGreaterThan(-1)
     expect(html.indexOf(en)).toBeGreaterThan(html.indexOf(vi))
-    expect(html).toContain(`{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=${type}`)
+    // B64: the link starts with the /auth/confirm address the app sent, so each branch's preview gets its own.
+    expect(html).toContain(`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=${type}`)
+    expect(html).not.toContain('{{ .SiteURL }}')
   })
 
   it('AC123 Y13 each template gives a subject in both languages, Vietnamese first', () => {
