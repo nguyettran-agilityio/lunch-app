@@ -35,8 +35,8 @@ export const TEST_ACCOUNTS = {
     buildingId: null,
     lang: 'vi',
   },
-  // A Google account (no password), for the sign-up and sign-in messages of AC50, AC68 and
-  // AC83 before Google sign-in itself comes in M1-3.
+  // A Google account (no password, only a Google identity), for the sign-up and sign-in
+  // messages of AC50, AC68, AC83, AC126 and AC127, and a returning Google sign-in.
   google: {
     id: '00000000-0000-4000-8000-000000000003',
     email: 'google@example.test',
@@ -56,7 +56,26 @@ export const TEST_ACCOUNTS = {
     buildingId: TEST_BUILDING.id,
     lang: 'vi',
   },
+  // Lan, whose new email waits for its link (BR-29a, CN-65): for AC110 and AC128 before M1-5
+  // builds the email change.
+  lanWaitingChange: {
+    id: '00000000-0000-4000-8000-000000000005',
+    email: 'lan@example.test',
+    method: 'password',
+    phone: '0905555111',
+    name: 'Phạm Thị Lan',
+    buildingId: TEST_BUILDING.id,
+    lang: 'vi',
+    pendingEmail: 'lan2@example.test',
+  },
 } as const
+
+/** A shop email with no seeded account, put in SHOP_EMAILS by the e2e script: a shop account
+ * made by its first Google sign-in (A17, AC57). */
+export const TEST_GOOGLE_SHOP_EMAIL = 'shop-google@example.test'
+
+/** The identities of a seeded auth user: a Google account has only its Google identity. */
+export const seededIdentities = (method: string) => (method === 'google' ? ['google'] : ['email'])
 
 export type TestAccountKey = keyof typeof TEST_ACCOUNTS
 

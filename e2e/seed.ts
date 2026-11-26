@@ -5,7 +5,7 @@
 import type { PGlite } from '@electric-sql/pglite'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { TEST_ACCOUNTS, TEST_BUILDING, TEST_PASSWORD } from '../src/server/auth/test-accounts.ts'
+import { seededIdentities, TEST_ACCOUNTS, TEST_BUILDING, TEST_PASSWORD } from '../src/server/auth/test-accounts.ts'
 import { hashPassword } from '../src/server/auth/test-password.ts'
 
 export async function seedTestData(pg: PGlite) {
@@ -13,16 +13,16 @@ export async function seedTestData(pg: PGlite) {
   const b = TEST_BUILDING
   await pg.query('INSERT INTO buildings (id, name, address, state) VALUES ($1, $2, $3, $4)', [b.id, b.name, b.address, b.state])
   for (const a of Object.values(TEST_ACCOUNTS)) {
-    await pg.query('INSERT INTO profiles (id, email, method, phone, name, building_id, lang) VALUES ($1, $2, $3, $4, $5, $6, $7)', [
+    await pg.query(
+      'INSERT INTO profiles (id, email, method, phone, name, building_id, lang, pending_email) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [a.id, a.email, a.method, a.phone, a.name, a.buildingId, a.lang, 'pendingEmail' in a ? a.pendingEmail : null],
+    )
+    const hash = a.method === 'password' ? hashPassword(TEST_PASSWORD) : null
+    await pg.query('INSERT INTO test_auth_users (id, email, password_hash, confirmed_at, identities) VALUES ($1, $2, $3, now(), $4)', [
       a.id,
       a.email,
-      a.method,
-      a.phone,
-      a.name,
-      a.buildingId,
-      a.lang,
+      hash,
+      seededIdentities(a.method),
     ])
-    const hash = a.method === 'password' ? hashPassword(TEST_PASSWORD) : null
-    await pg.query('INSERT INTO test_auth_users (id, email, password_hash, confirmed_at) VALUES ($1, $2, $3, now())', [a.id, a.email, hash])
   }
 }

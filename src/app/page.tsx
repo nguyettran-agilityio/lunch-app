@@ -1,5 +1,6 @@
 // The customer home of M1 (B61): the name, or the phone number grouped 4-3-3 while the
-// profile has no name yet; the default building when there is one; and the prototype link.
+// profile has no name yet, or the email when it has neither (a Google name left empty,
+// CN-72); the default building when there is one; and the prototype link.
 // The week view moves here in M2. A visitor not signed in is sent to sign in (CN-65).
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -20,6 +21,8 @@ export default function Page() {
 async function Home() {
   const [account, lang] = await Promise.all([currentAccount(), getLang()])
   if (!account) redirect('/sign-in')
+  // A shop account on a customer page goes to /shop (CN-72); proxy.ts does it first.
+  if (account.user.role === 'shop') redirect('/shop')
   const m = messages[lang].real
   const who = account.name ?? (account.phone ? formatPhone(account.phone) : account.user.email)
   return (

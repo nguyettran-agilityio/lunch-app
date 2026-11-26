@@ -5,11 +5,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { authMailLog, profiles } from '@/server/db/schema'
-import type { AuthProvider } from '@/server/auth/provider'
+import type { AuthProvider, GoogleUser } from '@/server/auth/provider'
 import { createTestDb, type TestDb } from './helpers/db'
 
 vi.mock('server-only', () => ({}))
-const { sendConfirmation, signIn, signUp } = await import('@/server/auth/accounts')
+const { googleSignIn, sendConfirmation, sendGoogleConfirmation, signIn, signUp } = await import('@/server/auth/accounts')
 
 type FakeUser = { id: string; email: string; password: string; confirmed: boolean }
 
@@ -17,11 +17,27 @@ type FakeUser = { id: string; email: string; password: string; confirmed: boolea
 function fakeAuth() {
   const users = new Map<string, FakeUser>()
   const sent: string[] = []
+  const removed: { userId: string; unconfirm: boolean }[] = []
+  const recovered: string[] = []
+  let signOuts = 0
+  let googleAnswer: Awaited<ReturnType<AuthProvider['exchangeGoogleCode']>> = { ok: false, error: 'failed' }
   let next = 1
   let limited = false
   const auth: AuthProvider = {
     getUser: async () => null,
-    signOut: async () => {},
+    signOut: async () => void signOuts++,
+    googleSignInUrl: async () => '/test/google',
+    async sendRecovery(email) {
+      if (limited) return { ok: false, error: 'rateLimited' }
+      recovered.push(email)
+      return { ok: true }
+    },
+    exchangeGoogleCode: async () => googleAnswer,
+    removeGoogleIdentity: async (userId, { unconfirm }) => {
+      removed.push({ userId, unconfirm })
+      const u = users.get(userId)
+      if (u && unconfirm) u.confirmed = false
+    },
     async signUp(email, password) {
       if (limited) return { ok: false, error: 'rateLimited' }
       const id = `00000000-0000-4000-8000-${String(next++).padStart(12, '0')}`
@@ -45,7 +61,18 @@ function fakeAuth() {
     isConfirmed: async (id) => users.get(id)?.confirmed ?? false,
     deleteUser: async (id) => void users.delete(id),
   }
-  return { auth, users, sent, confirm: (id: string) => (users.get(id)!.confirmed = true), limit: () => (limited = true) }
+  return {
+    auth,
+    users,
+    sent,
+    removed,
+    recovered,
+    signOuts: () => signOuts,
+    confirm: (id: string) => (users.get(id)!.confirmed = true),
+    limit: () => (limited = true),
+    /** What the next Google code signs in as. */
+    google: (user: GoogleUser | null) => (googleAnswer = user ? { ok: true, user } : { ok: false, error: 'failed' }),
+  }
 }
 
 let t: TestDb
@@ -244,5 +271,176 @@ describe('sign-in (BR-29a)', () => {
       notice: { code: 'notConfirmed', identifier: '0912345678', wait: 45 },
     })
     expect(await signIn(deps(15), { identifier: '0912345678', password: 'wrong123' })).toMatchObject({ notice: { code: 'wrongPassword' } })
+  })
+})
+
+// The test names give AC ids, not CN-72: CN-72 is cited by many criteria (X7).
+describe('sign-in with the phone or email of a Google account', () => {
+  it('AC127 the phone number on a Google account profile gets "This account signs in with Google"', async () => {
+    await google('0938111222', 'minh@gmail.com')
+    expect(await signIn(deps(), { identifier: '0938111222', password: PW })).toMatchObject({ notice: { code: 'googleAccount' } })
+  })
+
+  it('AC126 a Google account email on the expired sign-up link page gets the same message, nothing sent', async () => {
+    await google('0938111222', 'minh@gmail.com')
+    expect(await sendConfirmation(deps(), 'minh@gmail.com')).toMatchObject({ notice: { code: 'googleAccount' } })
+    expect(f.sent).toEqual([])
+  })
+})
+
+const gUser = (id: string, email: string, identities: GoogleUser['identities'], name: string | null = 'Minh Trần'): GoogleUser => ({
+  id,
+  email,
+  name,
+  identities,
+})
+const GOOGLE = { provider: 'google', verified: true } as const
+const uid = (n: number) => `00000000-0000-4000-8000-0000000009${String(n).padStart(2, '0')}`
+
+describe('the Google callback: the linking guard and a first Google sign-in (plan.md section 1.5)', () => {
+  it('AC49 A1 a confirmed phone account joined by automatic linking: the Google identity is taken off, signed out, nothing joined', async () => {
+    await confirmed('0912345678', 'lan@gmail.com')
+    const p = await profileOf('lan@gmail.com')
+    f.google(gUser(p.id, 'lan@gmail.com', [{ provider: 'email', verified: true }, GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleTakenPhone' })
+    expect(f.removed).toEqual([{ userId: p.id, unconfirm: false }])
+    expect(f.signOuts()).toBe(1)
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ method: 'password', needsPassword: false })
+  })
+
+  it('AC91 V6 B63 a waiting phone account joined by linking: "not confirmed", its confirmation time cleared, its password kept', async () => {
+    await signUp(deps(), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const p = await profileOf('lan@gmail.com')
+    f.confirm(p.id) // the Google sign-in set the confirmation time
+    f.google(gUser(p.id, 'lan@gmail.com', [{ provider: 'email', verified: false }, GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleNotConfirmed', email: 'lan@gmail.com' })
+    expect(f.removed).toEqual([{ userId: p.id, unconfirm: true }])
+    expect(f.users.get(p.id)!.confirmed).toBe(false)
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ needsPassword: false })
+  })
+
+  it('a waiting account left with only the Google identity (password dropped): kept, signed out, its profile needs a password', async () => {
+    await signUp(deps(), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const p = await profileOf('lan@gmail.com')
+    f.google(gUser(p.id, 'lan@gmail.com', [GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toMatchObject({ status: 'refused', code: 'googleNotConfirmed' })
+    expect(f.users.has(p.id)).toBe(true)
+    expect(f.signOuts()).toBe(1)
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ needsPassword: true, phone: '0912345678' })
+  })
+
+  it('another auth user made for the email of a waiting account: that user is deleted, the waiting account stays', async () => {
+    await signUp(deps(), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const p = await profileOf('lan@gmail.com')
+    f.users.set(uid(1), { id: uid(1), email: 'lan@gmail.com', password: '', confirmed: true })
+    f.google(gUser(uid(1), 'lan@gmail.com', [GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toMatchObject({ status: 'refused', code: 'googleNotConfirmed' })
+    expect(f.users.has(uid(1))).toBe(false)
+    expect(f.users.has(p.id)).toBe(true)
+  })
+
+  it('X17 Z5 an email waiting as another account new email: no account, the new user deleted, for Huy and Lan alike', async () => {
+    await confirmed('0912345678', 'lan@gmail.com')
+    await t.db.update(profiles).set({ pendingEmail: 'lan2@gmail.com' }).where(eq(profiles.email, 'lan@gmail.com'))
+    for (const id of [uid(2), uid(3)]) {
+      f.users.set(id, { id, email: 'lan2@gmail.com', password: '', confirmed: true })
+      f.google(gUser(id, 'lan2@gmail.com', [GOOGLE]))
+      expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleWaiting' })
+      expect(f.users.has(id)).toBe(false)
+    }
+    expect(await profileOf('lan2@gmail.com')).toBeUndefined()
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ pendingEmail: 'lan2@gmail.com' })
+  })
+
+  it('AC131 a first Google sign-in: a Google profile with the Google name and the language in use; the next one signs in to it', async () => {
+    f.google(gUser(uid(4), 'Minh@Gmail.com', [GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'en')).toMatchObject({
+      status: 'signedIn',
+      profile: { email: 'minh@gmail.com', method: 'google', name: 'Minh Trần', lang: 'en', phone: null },
+    })
+    expect(await googleSignIn(deps(), 'c2', 'vi')).toMatchObject({ status: 'signedIn', profile: { lang: 'en' } })
+  })
+
+  it('AC135 Z12 an empty or blank Google name is not stored; spaces are trimmed, then the name is cut to 80 characters', async () => {
+    const long = 'Nguyễn'.repeat(15) // 90 characters
+    const cases: [string, string | null, string | null][] = [
+      ['an@gmail.com', null, null],
+      ['binh@gmail.com', '   ', null],
+      ['minh@gmail.com', `  ${long}`, Array.from(long).slice(0, 80).join('')],
+    ]
+    for (const [i, [email, name, stored]] of cases.entries()) {
+      f.google(gUser(uid(10 + i), email, [GOOGLE], name))
+      await googleSignIn(deps(), 'c', 'vi')
+      expect((await profileOf(email)).name).toBe(stored)
+    }
+  })
+
+  it('AC133 no code, or a code that does not sign in: "Could not sign in with Google"', async () => {
+    expect(await googleSignIn(deps(), null, 'vi')).toEqual({ status: 'refused', code: 'googleFailed' })
+    f.google(null)
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleFailed' })
+  })
+
+  it('AC134 Z11 "Send the confirmation link again" after an AC91 refusal: within 1 hour it sends, later or without the kept email not', async () => {
+    await signUp(deps(-120), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const kept = { email: 'lan@gmail.com', at: at(0).getTime() }
+    expect(await sendGoogleConfirmation(deps(10), kept)).toMatchObject({ status: 'sent' })
+    expect(f.sent).toEqual(['lan@gmail.com', 'lan@gmail.com'])
+    expect(await sendGoogleConfirmation(deps(3661), kept)).toMatchObject({ notice: { code: 'googleFailed' } })
+    expect(await sendGoogleConfirmation(deps(10), null)).toMatchObject({ notice: { code: 'googleFailed' } })
+    expect(f.sent).toHaveLength(2)
+  })
+
+  it('AC136 Z13 a waiting account whose password was removed: "not confirmed" for any password, the button sends the recovery link', async () => {
+    await signUp(deps(-120), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    await t.db.update(profiles).set({ needsPassword: true }).where(eq(profiles.email, 'lan@gmail.com'))
+    for (const password of [PW, 'abc12345'])
+      expect(await signIn(deps(), { identifier: '0912345678', password })).toEqual({
+        status: 'error',
+        fields: {},
+        notice: { code: 'notConfirmed', identifier: '0912345678', wait: 0 },
+      })
+    expect(await signIn(deps(), { identifier: 'lan@gmail.com', password: 'abc12345' })).toMatchObject({ notice: { code: 'notConfirmed' } })
+    expect(await sendConfirmation(deps(), '0912345678')).toMatchObject({ status: 'sent' })
+    expect(f.recovered).toEqual(['lan@gmail.com'])
+    expect(f.sent).toEqual(['lan@gmail.com']) // only the sign-up's own link
+    const [log] = await t.db.select().from(authMailLog).where(eq(authMailLog.kind, 'reset'))
+    expect(log).toMatchObject({ email: 'lan@gmail.com' })
+  })
+
+  it('AC137 Z14 the AC91 button after the account was confirmed: "already confirmed", nothing sent', async () => {
+    await signUp(deps(-120), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    f.confirm((await profileOf('lan@gmail.com')).id)
+    expect(await sendGoogleConfirmation(deps(), { email: 'lan@gmail.com', at: at(-10).getTime() })).toMatchObject({
+      notice: { code: 'alreadyConfirmed' },
+    })
+    expect(f.sent).toEqual(['lan@gmail.com']) // only the sign-up's own link
+  })
+
+  it('AC139 Z16 the AC91 button after the email became a Google account: "This account signs in with Google", nothing sent', async () => {
+    await google('0938111222', 'lan@gmail.com')
+    expect(await sendGoogleConfirmation(deps(), { email: 'lan@gmail.com', at: at(-10).getTime() })).toMatchObject({
+      notice: { code: 'googleAccount' },
+    })
+    expect(f.sent).toEqual([])
+  })
+
+  it('AC140 Z17 Google with the email of an email + password shop account: the AC49 sentence, nothing joined', async () => {
+    await t.db.insert(profiles).values({ id: uid(20), email: 'shop@comla.vn', method: 'password' })
+    f.users.set(uid(20), { id: uid(20), email: 'shop@comla.vn', password: PW, confirmed: true })
+    f.google(gUser(uid(20), 'shop@comla.vn', [{ provider: 'email', verified: true }, GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleTakenPhone' })
+    expect(f.removed).toEqual([{ userId: uid(20), unconfirm: false }])
+  })
+
+  it('AC138 Z15 the AC91 button after a new sign-up replaced the waiting account: the link goes to the account waiting now', async () => {
+    await signUp(deps(-300), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const old = await profileOf('lan@gmail.com')
+    await signUp(deps(-120), { phone: '0987654321', email: 'lan@gmail.com', password: PW }, 'vi')
+    const now = await profileOf('lan@gmail.com')
+    expect(now.id).not.toBe(old.id)
+    expect(await sendGoogleConfirmation(deps(), { email: 'lan@gmail.com', at: at(-200).getTime() })).toMatchObject({ status: 'sent' })
+    expect(f.sent).toEqual(['lan@gmail.com', 'lan@gmail.com', 'lan@gmail.com'])
+    expect(now.phone).toBe('0987654321')
   })
 })

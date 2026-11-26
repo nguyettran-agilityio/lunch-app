@@ -6,11 +6,12 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { PgDialect } from 'drizzle-orm/pg-core'
 
 vi.mock('server-only', () => ({}))
 const { clockAt } = await import('@/server/clock')
 const { testLimitReached, TEST_LIMITS } = await import('@/server/auth/test-provider')
-const { createSupabaseProvider, mapSignInError } = await import('@/server/auth/supabase-provider')
+const { createSupabaseProvider, mapSignInError, metadataName } = await import('@/server/auth/supabase-provider')
 const { isOpenPath, proxy } = await import('@/proxy')
 
 afterEach(() => {
@@ -93,11 +94,92 @@ function fakeClients(answers: Record<string, unknown>) {
     signInWithPassword: call('signInWithPassword'),
     verifyOtp: call('verifyOtp'),
     exchangeCodeForSession: call('exchangeCodeForSession'),
+    signInWithOAuth: call('signInWithOAuth'),
+    resetPasswordForEmail: call('resetPasswordForEmail'),
     admin: { getUserById: call('getUserById'), deleteUser: call('deleteUser') },
   }
   const client = { auth } as never
-  return createSupabaseProvider({ session: async () => client, admin: () => client })
+  sqlRun.length = 0
+  return createSupabaseProvider({
+    session: async () => client,
+    admin: () => client,
+    runSql: async (q) => {
+      const { sql, params } = new PgDialect().sqlToQuery(q)
+      sqlRun.push({ sql, params })
+    },
+  })
 }
+const sqlRun: { sql: string; params: unknown[] }[] = []
+
+describe('Google with the Supabase provider and a fake client (plan.md section 1.5)', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://lunch.example/')
+  })
+
+  it('AC142 starts Google with the plain /auth/callback of this site and the account chooser every time, without leaving the Server Action', async () => {
+    const p = fakeClients({ signInWithOAuth: { data: { url: 'https://accounts.google.test/x' }, error: null } })
+    expect(await p.googleSignInUrl()).toBe('https://accounts.google.test/x')
+    expect(calls.signInWithOAuth[0]).toEqual({
+      provider: 'google',
+      options: {
+        redirectTo: 'https://lunch.example/auth/callback',
+        skipBrowserRedirect: true,
+        queryParams: { prompt: 'select_account' },
+      },
+    })
+  })
+
+  it('AC131 reads the identities, whether the email identity was verified, and the first non-blank Google name', async () => {
+    const user = {
+      id: 'u1',
+      email: 'lan@gmail.com',
+      user_metadata: { full_name: '  ', name: 'Lan Phạm' },
+      identities: [
+        { provider: 'email', identity_data: { email_verified: false } },
+        { provider: 'google', identity_data: { email_verified: true } },
+      ],
+    }
+    expect(await fakeClients({ exchangeCodeForSession: { data: { user }, error: null } }).exchangeGoogleCode('c1')).toEqual({
+      ok: true,
+      user: {
+        id: 'u1',
+        email: 'lan@gmail.com',
+        name: 'Lan Phạm',
+        identities: [
+          { provider: 'email', verified: false },
+          { provider: 'google', verified: true },
+        ],
+      },
+    })
+    expect(metadataName({ full_name: 'Minh Trần', name: 'x' })).toBe('Minh Trần')
+    expect(metadataName({})).toBeNull()
+  })
+
+  it('AC136 sends the recovery link back to /auth/confirm of this site, and maps the limit to "Too many attempts"', async () => {
+    const p = fakeClients({ resetPasswordForEmail: { data: {}, error: null } })
+    expect(await p.sendRecovery('lan@gmail.com')).toEqual({ ok: true })
+    expect(calls.resetPasswordForEmail).toEqual(['lan@gmail.com', { redirectTo: 'https://lunch.example/auth/confirm' }])
+    const limited = fakeClients({ resetPasswordForEmail: { data: {}, error: { status: 429 } } })
+    expect(await limited.sendRecovery('lan@gmail.com')).toEqual({ ok: false, error: 'rateLimited' })
+  })
+
+  it('AC133 a code that does not sign in (another browser, used twice) fails', async () => {
+    const p = fakeClients({ exchangeCodeForSession: { data: { user: null }, error: { code: 'flow_state_not_found', status: 404 } } })
+    expect(await p.exchangeGoogleCode('c1')).toEqual({ ok: false, error: 'failed' })
+  })
+
+  it('B62 B63 takes the Google identity off through the database, and clears the confirmation time only when asked', async () => {
+    const p = fakeClients({})
+    await p.removeGoogleIdentity('u1', { unconfirm: false })
+    expect(sqlRun).toEqual([{ sql: `DELETE FROM auth.identities WHERE user_id = $1 AND provider = 'google'`, params: ['u1'] }])
+    await p.removeGoogleIdentity('u1', { unconfirm: true })
+    expect(sqlRun.map((q) => q.sql)).toEqual([
+      `DELETE FROM auth.identities WHERE user_id = $1 AND provider = 'google'`,
+      `DELETE FROM auth.identities WHERE user_id = $1 AND provider = 'google'`,
+      'UPDATE auth.users SET email_confirmed_at = NULL WHERE id = $1',
+    ])
+  })
+})
 
 describe('the Supabase provider with a fake client (plan.md section 4)', () => {
   beforeEach(() => {

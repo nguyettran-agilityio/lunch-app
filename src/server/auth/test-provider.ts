@@ -7,7 +7,7 @@
 // Used only when `isTestMode()` is true.
 import 'server-only'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { and, count, eq, gt, isNull } from 'drizzle-orm'
+import { and, count, eq, gt, isNotNull, isNull, sql } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { getDb } from '@/server/db/client'
 import { profiles } from '@/server/db/schema'
@@ -17,7 +17,7 @@ import { roleOf } from './role'
 import { TEST_ACCOUNTS, type TestAccountKey } from './test-accounts'
 import { isTestMode } from './test-mode'
 import { hashPassword, passwordMatches } from './test-password'
-import { testAuthUsers, testMailbox, testSessions, testSignInFailures } from './test-tables'
+import { testAuthUsers, testMailbox, testOAuthCodes, testSessions, testSignInFailures } from './test-tables'
 
 export const TEST_SESSION_COOKIE = 'test_session'
 
@@ -98,9 +98,17 @@ const testAuthProvider: AuthProvider = {
     const [user] = await getDb()
       .select({ id: testAuthUsers.id, confirmedAt: testAuthUsers.confirmedAt })
       .from(testAuthUsers)
-      .where(eq(testAuthUsers.email, email))
+      .where(and(eq(testAuthUsers.email, email), isNotNull(testAuthUsers.passwordHash)))
     // Like Supabase, nothing is sent for an unknown or confirmed address, and no error says so.
     if (user && !user.confirmedAt) await sendLink(user.id, email, 'signup', date)
+    return { ok: true }
+  },
+
+  async sendRecovery(email) {
+    const { date } = await now()
+    if (testLimitReached('email', await emailsSentRecently(email, date))) return { ok: false, error: 'rateLimited' }
+    const [user] = await getDb().select({ id: testAuthUsers.id }).from(testAuthUsers).where(eq(testAuthUsers.email, email))
+    if (user) await sendLink(user.id, email, 'recovery', date)
     return { ok: true }
   },
 
@@ -112,7 +120,10 @@ const testAuthProvider: AuthProvider = {
       .from(testSignInFailures)
       .where(and(eq(testSignInFailures.email, email), gt(testSignInFailures.at, new Date(date.getTime() - TEST_LIMITS.failedWindowMs))))
     if (testLimitReached('signIn', recent.n)) return { ok: false, error: 'rateLimited' }
-    const [user] = await db.select().from(testAuthUsers).where(eq(testAuthUsers.email, email))
+    const [user] = await db
+      .select()
+      .from(testAuthUsers)
+      .where(and(eq(testAuthUsers.email, email), isNotNull(testAuthUsers.passwordHash)))
     if (!user || !passwordMatches(password, user.passwordHash)) {
       await db.insert(testSignInFailures).values({ id: randomUUID(), email, at: date })
       return { ok: false, error: 'invalidCredentials' }
@@ -149,6 +160,77 @@ const testAuthProvider: AuthProvider = {
   async deleteUser(userId) {
     await getDb().delete(testAuthUsers).where(eq(testAuthUsers.id, userId))
   },
+
+  // The stand-in for Google's page: /test/google reads what the test asked for.
+  async googleSignInUrl() {
+    return '/test/google'
+  },
+
+  // Does what Supabase does with a Google sign-in, by the code's outcome when the email is
+  // already a user's (plan.md section 1.5): 'linked' joins the Google identity and sets the
+  // confirmation time (the worst case for the guard, B63); 'dropped' removes the password
+  // identity (CN-63); 'new' makes another user. An unknown email makes a new Google user.
+  async exchangeGoogleCode(code) {
+    const { date } = await now()
+    const db = getDb()
+    const [row] = await db.select().from(testOAuthCodes).where(eq(testOAuthCodes.code, code))
+    if (!row || row.usedAt || date.getTime() - row.createdAt.getTime() > 10 * 60 * 1000) return { ok: false, error: 'failed' }
+    await db.update(testOAuthCodes).set({ usedAt: date }).where(eq(testOAuthCodes.code, code))
+    const email = row.email.toLowerCase()
+    const [existing] = await db.select().from(testAuthUsers).where(eq(testAuthUsers.email, email))
+    let user: { id: string; identities: { provider: 'email' | 'google'; verified: boolean }[] }
+    if (!existing || row.outcome === 'new') {
+      const id = randomUUID()
+      await db.insert(testAuthUsers).values({ id, email, confirmedAt: date, identities: ['google'], createdAt: date })
+      user = { id, identities: [{ provider: 'google', verified: true }] }
+    } else if (existing.identities.includes('google') && !existing.identities.includes('email')) {
+      user = { id: existing.id, identities: [{ provider: 'google', verified: true }] }
+    } else if (row.outcome === 'dropped') {
+      await db
+        .update(testAuthUsers)
+        .set({ passwordHash: null, identities: ['google'], confirmedAt: date })
+        .where(eq(testAuthUsers.id, existing.id))
+      user = { id: existing.id, identities: [{ provider: 'google', verified: true }] }
+    } else {
+      await db
+        .update(testAuthUsers)
+        .set({ identities: ['email', 'google'], confirmedAt: existing.confirmedAt ?? date })
+        .where(eq(testAuthUsers.id, existing.id))
+      user = {
+        id: existing.id,
+        identities: [
+          { provider: 'email', verified: !!existing.confirmedAt },
+          { provider: 'google', verified: true },
+        ],
+      }
+    }
+    await startSession(user.id)
+    return { ok: true, user: { ...user, email, name: row.name } }
+  },
+
+  async removeGoogleIdentity(userId, { unconfirm }) {
+    await getDb()
+      .update(testAuthUsers)
+      .set({
+        identities: sql`array_remove(${testAuthUsers.identities}, 'google')`,
+        ...(unconfirm ? { confirmedAt: null } : {}),
+      })
+      .where(eq(testAuthUsers.id, userId))
+  },
+}
+
+/** What the test asked the stand-in for Google to answer, from its `test_google` cookie. */
+export type TestGoogle = { email?: string; name?: string | null; outcome?: 'linked' | 'dropped' | 'new'; error?: boolean }
+
+/** /test/google: a code for /auth/callback, or Google's cancel error (AC130). */
+export async function testGoogleAnswer(ask: TestGoogle | null): Promise<string> {
+  if (!ask?.email || ask.error) return '/auth/callback?error=access_denied&error_description=cancelled'
+  const code = randomBytes(24).toString('hex')
+  const { date } = await now()
+  await getDb()
+    .insert(testOAuthCodes)
+    .values({ code, email: ask.email, name: ask.name ?? null, outcome: ask.outcome ?? 'linked', createdAt: date })
+  return `/auth/callback?code=${code}`
 }
 
 export { testAuthProvider }

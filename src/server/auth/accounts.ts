@@ -4,7 +4,16 @@
 // fake provider. Results carry message codes; the texts are in i18n.ts (`auth`).
 import 'server-only'
 import { desc, eq } from 'drizzle-orm'
-import { checkSignIn, checkSignUp, readIdentifier, type FieldError, type Identifier, type NoticeCode } from '@/domain/account'
+import {
+  checkSignIn,
+  checkSignUp,
+  googleName,
+  readIdentifier,
+  type FieldError,
+  type GoogleRefusal,
+  type Identifier,
+  type NoticeCode,
+} from '@/domain/account'
 import type { Lang } from '@/domain/types'
 import type { AnyDb } from '@/server/db/client'
 import { authMailLog, profiles } from '@/server/db/schema'
@@ -50,8 +59,8 @@ export async function mailWait(db: AnyDb, email: string, at: Date): Promise<numb
   return left > 0 ? Math.ceil(left) : 0
 }
 
-async function logMail(db: AnyDb, email: string, at: Date): Promise<void> {
-  await db.insert(authMailLog).values({ email, kind: 'confirm', sentAt: at })
+async function logMail(db: AnyDb, email: string, at: Date, kind: 'confirm' | 'reset' = 'confirm'): Promise<void> {
+  await db.insert(authMailLog).values({ email, kind, sentAt: at })
 }
 
 /** Whether an account is confirmed, waiting for its email, or a Google account (CN-63). */
@@ -157,17 +166,17 @@ export async function sendConfirmation(deps: Deps, rawIdentifier: string): Promi
   const p = await byIdentifier(db, id)
   if (!p) return error({}, { notice: { code: 'noAccount' } })
   const state = await accountState(auth, p)
-  // TODO(E1, plan.md "Open for the Lead", decided by the Lead in M1-3): a Google account has
-  // no confirmation link; until the Lead decides, it gets the message the other pages give a
-  // Google account (Claude's proposal (b)).
+  // A Google account has no confirmation link: the message of "Forgot password" (CN-72, AC126).
   if (state === 'google') return error({}, { notice: { code: 'googleAccount' } })
   if (state === 'confirmed') return error({}, { notice: { code: 'alreadyConfirmed' } })
   const wait = await mailWait(db, p.email, at)
   const identifier = id.kind === 'phone' ? id.phone : id.email
   if (wait > 0) return { status: 'wait', sendAgain: { identifier, wait } }
-  const sent = await auth.resendConfirmation(p.email)
+  // An account whose password the sign-in service removed gets the link that confirms the
+  // email and sets the password again, only to its own email (CN-63, CN-72, AC136).
+  const sent = p.needsPassword ? await auth.sendRecovery(p.email) : await auth.resendConfirmation(p.email)
   if (!sent.ok) return error({}, { notice: { code: 'tooMany' } })
-  await logMail(db, p.email, at)
+  await logMail(db, p.email, at, p.needsPassword ? 'reset' : 'confirm')
   return { status: 'sent', sendAgain: { identifier, wait: SEND_AGAIN_SECONDS } }
 }
 
@@ -180,13 +189,104 @@ export async function signIn(deps: Deps, input: { identifier: string; password: 
   if ('errors' in checked) return { status: 'error', fields: checked.errors }
   const p = await byIdentifier(db, checked.identifier)
   if (!p) return { status: 'error', fields: {}, notice: { code: 'noAccount' } }
-  // TODO(E4, plan.md "Open for the Lead", decided by the Lead in M1-3): signing in with the
-  // phone number of a Google account gives the same message as its email (Claude's proposal (a)).
+  // The email of a Google account, or the phone number on its profile (CN-72, AC127).
   if (p.method === 'google') return { status: 'error', fields: {}, notice: { code: 'googleAccount' } }
+  const identifier = checked.identifier.kind === 'phone' ? checked.identifier.phone : checked.identifier.email
+  // The service removed this account's password (CN-63): there is none left to check, so any
+  // password gets "not confirmed" with the button (CN-72, AC136).
+  if (p.needsPassword)
+    return { status: 'error', fields: {}, notice: { code: 'notConfirmed', identifier, wait: await mailWait(db, p.email, at) } }
   const result = await auth.signInWithPassword(p.email, checked.password)
   if (result.ok) return { status: 'signedIn', profile: p }
   if (result.error === 'rateLimited') return { status: 'error', fields: {}, notice: { code: 'tooMany' } }
   if (result.error === 'invalidCredentials') return { status: 'error', fields: {}, notice: { code: 'wrongPassword' } }
-  const identifier = checked.identifier.kind === 'phone' ? checked.identifier.phone : checked.identifier.email
   return { status: 'error', fields: {}, notice: { code: 'notConfirmed', identifier, wait: await mailWait(db, p.email, at) } }
+}
+
+export type GoogleResult = { status: 'signedIn'; profile: Profile } | { status: 'refused'; code: GoogleRefusal; email?: string }
+
+const refused = (code: GoogleRefusal, email?: string): GoogleResult => ({ status: 'refused', code, ...(email ? { email } : {}) })
+
+/**
+ * The code of /auth/callback after "Continue with Google" (plan.md section 1.5): the linking
+ * guard and the first Google sign-in. The guard looks at the result, not at one Supabase
+ * behaviour (CN-62, CN-63): for the email of a phone + password account, a new auth user
+ * (another id) is deleted; on the same user with both identities the Google identity is taken
+ * off (B62), and for a waiting account the confirmation time Google set is cleared (B63); on
+ * the same user left with only the Google identity, the user is kept and its profile marked
+ * `needs_password` (CN-63). Each refusal signs this browser out. A new Google user whose
+ * email waits as another account's new email is deleted (CN-65, CN-72); otherwise its profile
+ * is created with Google's name (CN-72) and the language in use (BR-30).
+ */
+export async function googleSignIn(deps: Deps, code: string | null, lang: Lang): Promise<GoogleResult> {
+  const { db, auth } = deps
+  if (!code) return refused('googleFailed')
+  const exchanged = await auth.exchangeGoogleCode(code)
+  if (!exchanged.ok) return refused('googleFailed')
+  const u = exchanged.user
+  const email = u.email.trim().toLowerCase()
+  const p = await byEmail(db, email)
+
+  if (p && p.method === 'password') {
+    const emailIdentity = u.identities.find((i) => i.provider === 'email')
+    let waiting: boolean
+    if (u.id !== p.id) {
+      // Supabase made another user: the phone + password account itself is untouched.
+      waiting = p.needsPassword || !(await auth.isConfirmed(p.id))
+      await auth.signOut()
+      await auth.deleteUser(u.id)
+    } else if (emailIdentity) {
+      // Joined by automatic linking: the email identity tells whether it was confirmed.
+      waiting = p.needsPassword || !emailIdentity.verified
+      await auth.removeGoogleIdentity(u.id, { unconfirm: waiting && !p.needsPassword })
+      await auth.signOut()
+    } else {
+      // The sign-in service dropped the unconfirmed password identity (CN-63): the user stays.
+      waiting = true
+      await auth.signOut()
+      await db.update(profiles).set({ needsPassword: true }).where(eq(profiles.id, p.id))
+    }
+    return waiting ? refused('googleNotConfirmed', email) : refused('googleTakenPhone')
+  }
+
+  if (p) {
+    if (p.id === u.id) return { status: 'signedIn', profile: p }
+    // A Google profile whose auth user is another one: nothing to sign in to.
+    await auth.signOut()
+    return refused('googleFailed')
+  }
+
+  // A first Google sign-in. An email waiting as another account's new email is taken (CN-65):
+  // the same for Lan herself, whose waiting address is not her account's email (CN-72).
+  const [pending] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.pendingEmail, email))
+  if (pending) {
+    await auth.signOut()
+    await auth.deleteUser(u.id)
+    return refused('googleWaiting')
+  }
+  try {
+    const [created] = await db
+      .insert(profiles)
+      .values({ id: u.id, email, method: 'google', name: googleName(u.name), lang })
+      .returning()
+    return { status: 'signedIn', profile: created }
+  } catch {
+    // Another sign-up took the email at the same moment: undo, nothing is kept.
+    await auth.signOut()
+    await auth.deleteUser(u.id)
+    return refused('googleFailed')
+  }
+}
+
+/** How long the email of an AC91 refusal is kept for "Send the confirmation link again" (CN-72). */
+export const GOOGLE_REFUSAL_SECONDS = 60 * 60
+
+/**
+ * "Send the confirmation link again" after an AC91 refusal (CN-72, AC134): `kept` is the email
+ * and the time of the refusal that the callback stored; missing or more than 1 hour old, nothing
+ * is sent and the answer is "Could not sign in with Google, please try again".
+ */
+export async function sendGoogleConfirmation(deps: Deps, kept: { email: string; at: number } | null): Promise<FormState> {
+  if (!kept || deps.at.getTime() - kept.at > GOOGLE_REFUSAL_SECONDS * 1000) return error({}, { notice: { code: 'googleFailed' } })
+  return sendConfirmation(deps, kept.email)
 }

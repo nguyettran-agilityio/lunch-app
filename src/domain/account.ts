@@ -16,7 +16,46 @@ export type FieldError =
   | 'emailWaiting'
 
 /** A message about the whole action, shown as a Notice at the top of the card (UI17). */
-export type NoticeCode = 'wrongPassword' | 'noAccount' | 'googleAccount' | 'notConfirmed' | 'tooMany' | 'alreadyConfirmed'
+export type NoticeCode = 'wrongPassword' | 'noAccount' | 'googleAccount' | 'notConfirmed' | 'tooMany' | 'alreadyConfirmed' | GoogleRefusal
+
+/**
+ * Why a Google sign-in came back without signing in (BR-29a, CN-62, CN-65, CN-72), shown
+ * under the Google button of the tab where Google was tapped: the email of a phone + password
+ * account (AC49), of one not confirmed yet (AC91), an email waiting as a new email (AC110,
+ * AC128), or a cancel or failure (AC130, AC133, AC134).
+ */
+export type GoogleRefusal = 'googleTakenPhone' | 'googleNotConfirmed' | 'googleWaiting' | 'googleFailed'
+
+export const GOOGLE_REFUSALS: readonly GoogleRefusal[] = ['googleTakenPhone', 'googleNotConfirmed', 'googleWaiting', 'googleFailed']
+
+export function isGoogleRefusal(v: unknown): v is GoogleRefusal {
+  return typeof v === 'string' && (GOOGLE_REFUSALS as readonly string[]).includes(v)
+}
+
+/**
+ * Where a Google sign-in that did not sign in comes back (CN-72): the tab where Google was
+ * tapped, `next` kept, and the code of its message; no email in the URL.
+ */
+export function googleRefusalPath(start: { tab: 'signIn' | 'signUp'; next: string | null } | null, code: GoogleRefusal): string {
+  const params = new URLSearchParams()
+  if (start?.next) params.set('next', start.next)
+  params.set('google', code)
+  return `${start?.tab === 'signUp' ? '/sign-up' : '/sign-in'}?${params}`
+}
+
+/** The longest name, counted in characters after Unicode NFC normalization (BR-29a, CN-64). */
+export const NAME_MAX = 80
+
+/**
+ * The name stored from Google at the first Google sign-in (CN-72, AC131, AC135): the spaces at
+ * its start and end removed first; empty means no name; then cut to 80 characters.
+ */
+export function googleName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const name = raw.normalize('NFC').trim()
+  if (!name) return null
+  return Array.from(name).slice(0, NAME_MAX).join('')
+}
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -94,15 +133,36 @@ export function returnPath(next: string | null | undefined, role: 'customer' | '
 
 /**
  * Where the app goes after signing in, and for someone already signed in who opens /sign-in or
- * /sign-up (CN-65, CN-69): a shop account to /shop; a customer whose profile is incomplete to
- * the profile first (from PR M1-5; until then to /, plan.md section 1.5); else `next`, or /.
+ * /sign-up (CN-65, CN-69): a shop account to /shop, whatever `next` is, also a page open to
+ * everyone (CN-72); a customer whose profile is incomplete to the profile first (from PR M1-5;
+ * until then to /, plan.md section 1.5); else `next`, or /.
  */
 export function afterSignIn({ role, complete, next }: { role: 'customer' | 'shop'; complete: boolean; next?: string | null }): string {
-  // TODO(F2, plan.md "Open for the Lead", decided by the Lead in M1-3): a shop account goes to
-  // /shop even when `next` is a page open to everyone (Claude's proposal (a)).
   if (role === 'shop') return '/shop'
   if (!complete) return '/'
   return returnPath(next, role) ?? '/'
+}
+
+/** The pages open to everyone (B55, CN-64): the prototype, the account pages and the test routes. */
+const OPEN = ['/proto', '/sign-in', '/sign-up', '/forgot-password', '/auth', '/test']
+
+const isUnder = (path: string, p: string) => path === p || path.startsWith(`${p}/`)
+
+export function isOpenPath(path: string): boolean {
+  return OPEN.some((p) => isUnder(path, p))
+}
+
+/**
+ * Where a signed-in account that opens `path` is sent, or null to show the page (CN-68,
+ * CN-72): a customer on a shop page of the real app to /; a shop account on a customer page
+ * of the real app (any page not open to everyone and not under /shop) to /shop.
+ */
+export function roleRedirect(path: string, role: 'customer' | 'shop'): string | null {
+  if (isOpenPath(path)) return null
+  const shopPage = isUnder(path, '/shop')
+  if (role === 'customer' && shopPage) return '/'
+  if (role === 'shop' && !shopPage) return '/shop'
+  return null
 }
 
 /** A complete profile: name, phone number and a default building not declined (BR-15, CN-61). */

@@ -9,7 +9,7 @@ import { drizzle } from 'drizzle-orm/pglite'
 import { migrate } from 'drizzle-orm/pglite/migrator'
 import { spawn } from 'node:child_process'
 import { seedTestData } from '../e2e/seed.ts'
-import { TEST_ACCOUNTS } from '../src/server/auth/test-accounts.ts'
+import { TEST_ACCOUNTS, TEST_GOOGLE_SHOP_EMAIL } from '../src/server/auth/test-accounts.ts'
 
 const DB_PORT = Number(process.env.E2E_DB_PORT ?? 54329)
 const APP_PORT = Number(process.env.E2E_APP_PORT ?? 3100)
@@ -32,7 +32,7 @@ const app = spawn('npx', ['next', 'start', '--port', String(APP_PORT)], {
     NODE_ENV: 'test',
     DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${DB_PORT}/postgres`,
     E2E_TEST_AUTH: '1',
-    SHOP_EMAILS: TEST_ACCOUNTS.shop.email,
+    SHOP_EMAILS: `${TEST_ACCOUNTS.shop.email},${TEST_GOOGLE_SHOP_EMAIL}`,
   },
 })
 

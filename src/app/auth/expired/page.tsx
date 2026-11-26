@@ -17,8 +17,13 @@ export default function Page({ searchParams }: PageProps<'/auth/expired'>) {
 async function Expired({ searchParams }: { searchParams: PageProps<'/auth/expired'>['searchParams'] }) {
   const [sp, lang, account] = await Promise.all([searchParams, getLang(), currentAccount()])
   return (
-    <RealShell lang={lang} signedIn={!!account}>
-      {(sp.type ?? 'signup') === 'signup' ? <ExpiredSignUpForm lang={lang} signedIn={!!account} /> : <ExpiredOther lang={lang} />}
+    <RealShell lang={lang} signedIn={!!account} home={account?.user.role === 'shop' ? '/shop' : '/'}>
+      {(sp.type ?? 'signup') === 'signup' ? (
+        // "Go to the home page" leads a shop account to /shop (CN-72, AC125).
+        <ExpiredSignUpForm lang={lang} signedIn={!!account} home={account?.user.role === 'shop' ? '/shop' : '/'} />
+      ) : (
+        <ExpiredOther lang={lang} />
+      )}
     </RealShell>
   )
 }

@@ -2,7 +2,18 @@
 // The pure account rules of M1-2 (BR-29a, CN-64, CN-65, CN-69): phone numbers, the password
 // rule, the form checks and where the app goes after signing in.
 import { describe, expect, it } from 'vitest'
-import { afterSignIn, checkSignIn, checkSignUp, isProfileComplete, readIdentifier, returnPath } from '@/domain/account'
+import {
+  afterSignIn,
+  checkSignIn,
+  checkSignUp,
+  googleName,
+  googleRefusalPath,
+  isGoogleRefusal,
+  isProfileComplete,
+  readIdentifier,
+  returnPath,
+  roleRedirect,
+} from '@/domain/account'
 import { isValidPassword } from '@/domain/password'
 import { formatPhone, isValidPhone, normalizePhone } from '@/domain/phone'
 
@@ -78,5 +89,48 @@ describe('Y10 Y11 where the app goes after signing in (BR-29a)', () => {
     expect(isProfileComplete({ name: 'Lan', phone: '0912345678', buildingState: 'declined' })).toBe(false)
     expect(isProfileComplete({ name: null, phone: '0912345678', buildingState: 'approved' })).toBe(false)
     expect(isProfileComplete({ name: 'Lan', phone: '0912345678', buildingState: null })).toBe(false)
+  })
+})
+
+// The test names below give AC ids, not CN-72: CN-72 is cited by many criteria (X7).
+describe('AC124 Z1 a shop account always goes to /shop', () => {
+  it('AC124 whatever `next` is, a page open to everyone included', () => {
+    for (const next of ['/proto', '/proto/shop', '/auth/expired?type=signup', '/forgot-password', '/sign-up', null])
+      expect(afterSignIn({ role: 'shop', complete: false, next })).toBe('/shop')
+  })
+})
+
+describe('AC119 AC129 Z6 the role redirects of proxy.ts', () => {
+  it('AC129 sends a shop account from a customer page of the real app to /shop', () => {
+    for (const p of ['/', '/profile', '/orders', '/shopx']) expect(roleRedirect(p, 'shop')).toBe('/shop')
+    for (const p of ['/shop', '/shop/day', '/proto', '/proto/cart', '/auth/expired', '/sign-in', '/test/session'])
+      expect(roleRedirect(p, 'shop')).toBeNull()
+  })
+  it('AC119 sends a customer from a shop page of the real app to /, not from the prototype', () => {
+    for (const p of ['/shop', '/shop/day']) expect(roleRedirect(p, 'customer')).toBe('/')
+    for (const p of ['/', '/profile', '/proto/shop', '/shopx']) expect(roleRedirect(p, 'customer')).toBeNull()
+  })
+})
+
+describe('AC130 AC132 AC133 where a Google sign-in comes back without signing in', () => {
+  it('goes back to the tab where Google was tapped, keeping `next`, with the message code and no email', () => {
+    expect(googleRefusalPath({ tab: 'signUp', next: '/proto' }, 'googleTakenPhone')).toBe('/sign-up?next=%2Fproto&google=googleTakenPhone')
+    expect(googleRefusalPath({ tab: 'signIn', next: null }, 'googleFailed')).toBe('/sign-in?google=googleFailed')
+    expect(googleRefusalPath(null, 'googleFailed')).toBe('/sign-in?google=googleFailed')
+  })
+  it('knows the message codes only', () => {
+    expect(isGoogleRefusal('googleWaiting')).toBe(true)
+    expect(isGoogleRefusal('lan@gmail.com')).toBe(false)
+  })
+})
+
+describe('AC131 AC135 the Google name', () => {
+  it('trims, keeps no blank name, then cuts to 80 characters after NFC', () => {
+    expect(googleName('  Minh Trần ')).toBe('Minh Trần')
+    expect(googleName('   ')).toBeNull()
+    expect(googleName(null)).toBeNull()
+    const decomposed = 'é'.repeat(90) // 90 characters once composed
+    expect(Array.from(googleName(decomposed)!)).toHaveLength(80)
+    expect(googleName(decomposed)).toBe('é'.repeat(80))
   })
 })
