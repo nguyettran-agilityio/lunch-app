@@ -1,17 +1,16 @@
 // Redirects only, never the real check (plan.md sections 1.1 and 1.5, B23, CN-64, CN-65):
-// a visitor not signed in who opens a page of the real app goes to /sign-in?next=<path>.
-// The prototype, the account pages and the test routes are open to everyone (B55). With
-// Supabase, this is also where the session cookies are refreshed. Pages, routes and Server
-// Actions check the session again themselves. M1-3 adds the shop/customer redirects.
+// a visitor not signed in who opens a page of the real app goes to /sign-in?next=<path>; a
+// signed-in customer who opens a shop page goes to / (CN-68), a shop account that opens a
+// customer page goes to /shop (CN-72). The prototype, the account pages and the test routes
+// are open to everyone (B55). With Supabase, this is also where the session cookies are
+// refreshed. Pages, routes and Server Actions check the session and the role again themselves.
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isOpenPath, roleRedirect } from '@/domain/account'
+import { roleOf } from '@/server/auth/role'
 import { isTestMode } from '@/server/auth/test-mode'
 
-const OPEN = ['/proto', '/sign-in', '/sign-up', '/forgot-password', '/auth', '/test']
-
-export function isOpenPath(path: string): boolean {
-  return OPEN.some((p) => path === p || path.startsWith(`${p}/`))
-}
+export { isOpenPath }
 
 /** Where a visitor not signed in is sent: the sign-in page, with the page to return to. */
 export function signInRedirect(request: NextRequest): URL {
@@ -25,14 +24,40 @@ export function signInRedirect(request: NextRequest): URL {
   return url
 }
 
-// Whether a session is there, and the response that carries any refreshed session cookies.
-async function session(request: NextRequest): Promise<{ ok: boolean; response: NextResponse }> {
+type Session = { ok: boolean; email: string | null; response: NextResponse }
+
+// The email of the test session's account, or null; a failed lookup only skips the role
+// redirect, the page checks again.
+async function testSessionEmail(token: string): Promise<string | null> {
+  try {
+    const [{ getDb }, { profiles }, { testSessions }, { eq }] = await Promise.all([
+      import('@/server/db/client'),
+      import('@/server/db/schema'),
+      import('@/server/auth/test-tables'),
+      import('drizzle-orm'),
+    ])
+    const [row] = await getDb()
+      .select({ email: profiles.email })
+      .from(testSessions)
+      .innerJoin(profiles, eq(profiles.id, testSessions.userId))
+      .where(eq(testSessions.token, token))
+    return row?.email ?? null
+  } catch {
+    return null
+  }
+}
+
+// Whether a session is there, its email, and the response that carries any refreshed cookies.
+async function session(request: NextRequest): Promise<Session> {
   let response = NextResponse.next({ request })
-  // The test version keeps its session token in this cookie (test-provider.ts).
-  if (isTestMode()) return { ok: request.cookies.has('test_session'), response }
+  if (isTestMode()) {
+    // The test version keeps its session token in this cookie (test-provider.ts).
+    const token = request.cookies.get('test_session')?.value
+    return { ok: !!token, email: token && !isOpenPath(request.nextUrl.pathname) ? await testSessionEmail(token) : null, response }
+  }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  if (!url || !key) return { ok: false, response }
+  if (!url || !key) return { ok: false, email: null, response }
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll: () => request.cookies.getAll(),
@@ -44,13 +69,23 @@ async function session(request: NextRequest): Promise<{ ok: boolean; response: N
     },
   })
   const { data } = await supabase.auth.getClaims()
-  return { ok: !!data?.claims, response }
+  const email = typeof data?.claims?.email === 'string' ? data.claims.email : null
+  return { ok: !!data?.claims, email, response }
 }
 
 export async function proxy(request: NextRequest) {
-  const { ok, response } = await session(request)
-  if (ok || isOpenPath(request.nextUrl.pathname)) return response
-  return NextResponse.redirect(signInRedirect(request))
+  const { ok, email, response } = await session(request)
+  const path = request.nextUrl.pathname
+  if (!ok) return isOpenPath(path) ? response : NextResponse.redirect(signInRedirect(request))
+  const to = email ? roleRedirect(path, roleOf(email)) : null
+  if (!to) return response
+  const url = request.nextUrl.clone()
+  url.pathname = to
+  url.search = ''
+  const redirect = NextResponse.redirect(url)
+  // Keep any session cookies Supabase refreshed on this request.
+  for (const c of response.cookies.getAll()) redirect.cookies.set(c)
+  return redirect
 }
 
 export const config = {

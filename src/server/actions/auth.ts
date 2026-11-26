@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { afterSignIn, isProfileComplete } from '@/domain/account'
 import type { Lang } from '@/domain/types'
 import * as accounts from '@/server/auth/accounts'
+import { getGoogleRefused, setGoogleStart } from '@/server/auth/google-cookies'
 import { getAuthProvider } from '@/server/auth/provider'
 import { roleOf } from '@/server/auth/role'
 import { now } from '@/server/clock'
@@ -47,6 +48,24 @@ export async function signInAction(_prev: accounts.FormState, fd: FormData): Pro
   const [b] = p.buildingId ? await getDb().select({ state: buildings.state }).from(buildings).where(eq(buildings.id, p.buildingId)) : []
   const complete = isProfileComplete({ name: p.name, phone: p.phone, buildingState: b?.state ?? null })
   redirect(afterSignIn({ role: roleOf(p.email), complete, next: text(fd, 'next') }))
+}
+
+/**
+ * "Continue with Google" on the Sign in or Sign up tab (plan.md section 1.5): keeps the tab and
+ * the page to return to for the callback (CN-72), and gives where Google is (in the test
+ * sign-in mode, its stand-in); the page goes there with a full navigation, as for any page
+ * outside the app.
+ */
+export async function startGoogleAction(fd: FormData): Promise<string> {
+  const tab = text(fd, 'tab') === 'signUp' ? 'signUp' : 'signIn'
+  const next = text(fd, 'next') || null
+  await setGoogleStart({ tab, next })
+  return (await getAuthProvider()).googleSignInUrl()
+}
+
+/** "Send the confirmation link again" under the Google button after an AC91 refusal (AC134). */
+export async function sendGoogleConfirmationAction(): Promise<accounts.FormState> {
+  return accounts.sendGoogleConfirmation(await deps(), await getGoogleRefused())
 }
 
 export async function signOutAction(): Promise<void> {

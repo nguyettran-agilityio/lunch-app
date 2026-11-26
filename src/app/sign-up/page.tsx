@@ -7,7 +7,10 @@ import { AccountPage, firstParam } from '@/screens/account/AccountPage'
 export default function Page({ searchParams }: PageProps<'/sign-up'>) {
   return (
     <Suspense>
-      <AccountPage searchParams={searchParams} render={(lang, sp) => <SignUpForm lang={lang} next={firstParam(sp.next)} />} />
+      <AccountPage
+        searchParams={searchParams}
+        render={(lang, sp, google) => <SignUpForm lang={lang} next={firstParam(sp.next)} google={google} />}
+      />
     </Suspense>
   )
 }

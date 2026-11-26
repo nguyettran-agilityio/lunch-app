@@ -3,7 +3,20 @@
 // completes (X7, B56); a test that covers only the M1-2 part of an AC gives its scenario id only.
 import { expect, test } from '@playwright/test'
 import { TEST_ACCOUNTS, TEST_PASSWORD } from '@/server/auth/test-accounts'
-import { PASSWORD, confirmedAccount, fieldError, fresh, mailbox, notice, setClock, setLang, signIn, signOut, signUp } from './helpers'
+import {
+  PASSWORD,
+  SUBMIT,
+  confirmedAccount,
+  fieldError,
+  fresh,
+  mailbox,
+  notice,
+  setClock,
+  setLang,
+  signIn,
+  signOut,
+  signUp,
+} from './helpers'
 
 const customer = TEST_ACCOUNTS.customer
 const google = TEST_ACCOUNTS.google
@@ -12,16 +25,16 @@ test('AC96 X2 the sign-up checks show each message under its field', async ({ pa
   await page.goto('/sign-up')
   await page.locator('#field-phone:visible').fill('028 1234 567')
   await page.locator('#field-email:visible').fill('lan@')
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(fieldError(page, 'phone')).toHaveText('Số điện thoại không hợp lệ')
   await expect(fieldError(page, 'email')).toHaveText('Email không hợp lệ')
   await expect(fieldError(page, 'password')).toHaveText('Bắt buộc')
   await expect(page.locator('#field-phone:visible')).toHaveAttribute('aria-invalid', 'true')
   await page.locator('#field-phone:visible').fill('0912 345')
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(fieldError(page, 'phone')).toHaveText('Số điện thoại không hợp lệ')
   await page.locator('#field-phone:visible').fill(fresh('ac96').phone)
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(fieldError(page, 'phone')).toHaveCount(0)
 })
 
@@ -29,10 +42,10 @@ test('AC108 X15 the sign-in field reads a phone number or an email', async ({ pa
   await page.goto('/sign-in')
   await page.locator('#field-identifier:visible').fill('0281234567')
   await page.locator('#field-password:visible').fill('x')
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(fieldError(page, 'identifier')).toHaveText('Số điện thoại không hợp lệ')
   await page.locator('#field-identifier:visible').fill('lan@')
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(fieldError(page, 'identifier')).toHaveText('Email không hợp lệ')
 })
 
@@ -377,7 +390,7 @@ test('X14 a shop account goes to /shop after signing in (shop part)', async ({ p
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fprofile$/)
   await page.locator('#field-identifier:visible').fill(TEST_ACCOUNTS.shop.email)
   await page.locator('#field-password:visible').fill(TEST_PASSWORD)
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(page).toHaveURL(/\/shop$/)
   await expect(page.getByRole('heading', { name: 'Xin chào shop' })).toBeVisible()
 })
@@ -423,7 +436,7 @@ test('AC121 Y11 where `next` leads, signed in and after signing in with the form
   await expect(tab).toHaveURL(/\/sign-in\?next=%2Fsign-up$/)
   await tab.locator('#field-identifier:visible').fill(customer.email)
   await tab.locator('#field-password:visible').fill(TEST_PASSWORD)
-  await tab.locator('form button[type=submit]:visible').click()
+  await tab.locator(SUBMIT).click()
   await expect(tab).toHaveURL(/127\.0\.0\.1:\d+\/$/)
   await signedOut.close()
 })
@@ -438,7 +451,7 @@ test('X1 a visitor not signed in goes to sign-in, switches to English, and comes
   await expect(page.getByRole('heading', { name: 'Sign in to order lunch' })).toBeVisible()
   await page.locator('#field-identifier:visible').fill(customer.email)
   await page.locator('#field-password:visible').fill(TEST_PASSWORD)
-  await page.locator('form button[type=submit]:visible').click()
+  await page.locator(SUBMIT).click()
   await expect(page).toHaveURL(/\/proto\/cart$/)
   const other = await browser.newContext()
   const tab = await other.newPage()

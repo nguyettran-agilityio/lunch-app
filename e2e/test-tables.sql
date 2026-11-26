@@ -1,20 +1,36 @@
 -- Tables of the test sign-in mode only (B43), run by scripts/e2e-server.mts after the
 -- migrations of drizzle/. Never applied to Supabase. Keep in step with
 -- src/server/auth/test-tables.ts.
-CREATE TABLE test_sessions (
-  token text PRIMARY KEY,
-  user_id uuid NOT NULL REFERENCES profiles (id) ON DELETE CASCADE,
+-- The auth users of the test mode, standing in for Supabase's auth.users (B25): the password
+-- hash, when the email was confirmed, and the identities ('email', 'google'). No foreign key
+-- to profiles, as in Supabase (B38). The email is not unique: a Google sign-in can make
+-- another user with the email of a waiting one (plan.md section 1.5, outcome "new").
+CREATE TABLE test_auth_users (
+  id uuid PRIMARY KEY,
+  email text NOT NULL,
+  password_hash text,
+  confirmed_at timestamptz,
+  identities text[] NOT NULL DEFAULT '{email}',
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- The auth users of the test mode, standing in for Supabase's auth.users (B25): the password
--- hash and when the email was confirmed. No foreign key to profiles, as in Supabase (B38).
-CREATE TABLE test_auth_users (
-  id uuid PRIMARY KEY,
-  email text NOT NULL UNIQUE,
-  password_hash text,
-  confirmed_at timestamptz,
+-- A session belongs to an auth user, which may have no profile yet (a first Google sign-in).
+CREATE TABLE test_sessions (
+  token text PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES test_auth_users (id) ON DELETE CASCADE,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+
+-- The codes of the test mode's stand-in for Google (/test/google), used once by
+-- /auth/callback: the Google email and name, and what the sign-in service does when the email
+-- is already a user's ('linked', 'dropped' or 'new', plan.md section 1.5).
+CREATE TABLE test_oauth_codes (
+  code text PRIMARY KEY,
+  email text NOT NULL,
+  name text,
+  outcome text NOT NULL DEFAULT 'linked',
+  created_at timestamptz NOT NULL,
+  used_at timestamptz
 );
 
 -- The test mailbox (B43): every account email the test mode "sends", with its link token.

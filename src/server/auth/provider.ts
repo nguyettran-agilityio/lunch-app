@@ -14,6 +14,19 @@ export type LinkType = 'signup' | 'recovery' | 'email_change'
 
 export type Result<T, E extends string> = ({ ok: true } & T) | { ok: false; error: E }
 
+/**
+ * The auth user that a Google sign-in signed in (plan.md section 1.5): its identities, with
+ * whether its email identity was verified (Supabase's `identity_data.email_verified`), so the
+ * linking guard can tell a confirmed phone + password account from a waiting one (CN-62).
+ */
+export type GoogleUser = {
+  id: string
+  email: string
+  /** Google's name: the first of `full_name` and `name` not empty once trimmed, else null. */
+  name: string | null
+  identities: { provider: 'email' | 'google'; verified: boolean }[]
+}
+
 export interface AuthProvider {
   /** The account signed in on this request, or null. */
   getUser(): Promise<SessionUser | null>
@@ -21,6 +34,11 @@ export interface AuthProvider {
   signOut(): Promise<void>
   /** Creates an unconfirmed account and sends its confirmation email at once. */
   signUp(email: string, password: string): Promise<Result<{ userId: string }, 'rateLimited' | 'emailTaken'>>
+  /**
+   * Sends the link that confirms the email and sets the password again, to an account whose
+   * password the sign-in service removed at a Google sign-in (CN-63, CN-72, AC136).
+   */
+  sendRecovery(email: string): Promise<Result<object, 'rateLimited'>>
   /** Sends a new confirmation link to an unconfirmed account; older links stop working. */
   resendConfirmation(email: string): Promise<Result<object, 'rateLimited'>>
   /** Signs this browser in. The password is checked before the confirmation. */
@@ -39,6 +57,18 @@ export interface AuthProvider {
   isConfirmed(userId: string): Promise<boolean>
   /** Deletes an auth user (a replaced waiting account, CN-62); its links stop working. */
   deleteUser(userId: string): Promise<void>
+  /**
+   * Where the browser goes to sign in with Google; its callback is /auth/callback. Called from
+   * a Server Action, which may set cookies (Supabase keeps the PKCE verifier there).
+   */
+  googleSignInUrl(): Promise<string>
+  /** Uses the code of /auth/callback once: signs this browser in as the Google user. */
+  exchangeGoogleCode(code: string): Promise<Result<{ user: GoogleUser }, 'failed'>>
+  /**
+   * Takes off the Google identity that Supabase linked to an existing account (B62) and, with
+   * `unconfirm`, clears the email confirmation time that Google set on a waiting account (B63).
+   */
+  removeGoogleIdentity(userId: string, options: { unconfirm: boolean }): Promise<void>
 }
 
 export async function getAuthProvider(): Promise<AuthProvider> {

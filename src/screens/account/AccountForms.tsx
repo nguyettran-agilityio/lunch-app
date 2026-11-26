@@ -3,14 +3,22 @@
 // The account screens of the real app in direction A "Leaf parcel" (UI17, design.md): one
 // leaf-parcel card with Sign in / Sign up tabs; a field's message is chili text right under it
 // with a chili ring; a message about the whole action is a Notice at the top of the card.
-// The Google button and "Forgot password?" come in M1-3 and M1-4 (B58).
+// "Continue with Google" is on both tabs since M1-3; "Forgot password?" comes in M1-4 (B58).
 import Link from 'next/link'
 import { useActionState, useEffect, useState, useTransition, type ReactNode } from 'react'
+import { useFormStatus } from 'react-dom'
 import { Notice, cx } from '@/components/ui'
-import type { FieldError } from '@/domain/account'
+import type { FieldError, GoogleRefusal, NoticeCode } from '@/domain/account'
 import { messages } from '@/domain/i18n'
 import type { Lang } from '@/domain/types'
-import { sendConfirmationAction, sendNewLinkAction, signInAction, signUpAction } from '@/server/actions/auth'
+import {
+  sendConfirmationAction,
+  sendGoogleConfirmationAction,
+  sendNewLinkAction,
+  signInAction,
+  signUpAction,
+  startGoogleAction,
+} from '@/server/actions/auth'
 import type { FormState, Notice as NoticeState, SendAgain as SendAgainState } from '@/server/auth/accounts'
 
 const IDLE: FormState = { status: 'idle' }
@@ -169,18 +177,38 @@ function useCountdown(start: number): [number, (n: number) => void] {
  * A button that sends an account email to the account of `identifier`; disabled with
  * "Send again in N s" while the 60-second wait of that address runs (CN-67, CN-68).
  */
-export function SendAgainButton({ lang, start, label }: { lang: Lang; start: SendAgainState; label: string }) {
+export function SendAgainButton({
+  lang,
+  start,
+  label,
+  action,
+  onNotice,
+  onSent,
+}: {
+  lang: Lang
+  start: SendAgainState
+  label: string
+  /** What the button sends; by default the confirmation link of `start.identifier`. */
+  action?: () => Promise<FormState>
+  /** Takes a refusal instead of showing it under the button, when it returns true. */
+  onNotice?: (n: NoticeState) => boolean
+  /** Told when the button has sent, or the wait still runs. */
+  onSent?: () => void
+}) {
   const m = messages[lang].auth
   const [left, setLeft] = useCountdown(start.wait)
   const [notice, setNotice] = useState<NoticeState | null>(null)
   const [pending, run] = useTransition()
   const send = () =>
     run(async () => {
-      const r = await sendConfirmationAction(start.identifier)
+      const r = await (action ? action() : sendConfirmationAction(start.identifier))
       if (r.status === 'sent' || r.status === 'wait') {
         setNotice(null)
         setLeft(r.sendAgain.wait)
-      } else if (r.status === 'error' && r.notice) setNotice(r.notice)
+        onSent?.()
+      } else if (r.status === 'error' && r.notice) {
+        if (!onNotice?.(r.notice)) setNotice(r.notice)
+      }
     })
   return (
     <div className="flex flex-col gap-2">
@@ -215,7 +243,78 @@ function SentCard({ lang, sendAgain }: { lang: Lang; sendAgain: SendAgainState }
 
 const fieldsOf = (s: FormState) => (s.status === 'error' ? s.fields : {})
 
-export function SignInForm({ lang, next }: { lang: Lang; next: string | null }) {
+/** A Google sign-in that came back without signing in, as the page found it in its URL. */
+export type GoogleState = { code: GoogleRefusal; wait: number }
+
+/**
+ * "or" and "Continue with Google" (B58, design.md), with the message of a Google sign-in that
+ * came back without signing in right under the button (CN-72). After an AC91 refusal the
+ * button "Send the confirmation link again" sends to the email the callback kept; once that is
+ * gone, the message and the button give way to "Could not sign in with Google…" (AC134).
+ */
+function GoogleSection({ lang, tab, next, google }: { lang: Lang; tab: 'signIn' | 'signUp'; next: string | null; google?: GoogleState }) {
+  const m = messages[lang].auth
+  const [code, setCode] = useState<NoticeCode | null>(google?.code ?? null)
+  const [button, setButton] = useState(google?.code === 'googleNotConfirmed')
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-3 text-sm text-muted" aria-hidden>
+        <span className="h-px flex-1 bg-steel" />
+        {m.or}
+        <span className="h-px flex-1 bg-steel" />
+      </div>
+      <form
+        action={async (fd) => {
+          window.location.assign(await startGoogleAction(fd))
+        }}
+        data-google
+      >
+        <input type="hidden" name="tab" value={tab} />
+        {next && <input type="hidden" name="next" value={next} />}
+        <GoogleButton label={m.continueWithGoogle} />
+      </form>
+      {code && (
+        <div id="google-notice" role="alert" className="flex flex-col gap-2">
+          <p className="text-[13px] font-medium text-chili">{m.notice[code]}</p>
+          {button && (
+            <SendAgainButton
+              lang={lang}
+              start={{ identifier: '', wait: google?.wait ?? 0 }}
+              label={m.sendConfirmationAgain}
+              action={sendGoogleConfirmationAction}
+              // The sentence of the case replaces the message and the button: the kept email
+              // gone (AC134), already confirmed or no account (AC137), now a Google account
+              // (AC139). "Too many attempts" replaces only the message; the button stays (CN-72).
+              onNotice={(n) => {
+                setCode(n.code)
+                setButton(n.code === 'tooMany')
+                return true
+              }}
+              // A send after "Too many attempts" brings the AC91 message back, with the
+              // countdown (CN-72, AC141).
+              onSent={() => setCode('googleNotConfirmed')}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GoogleButton({ label }: { label: string }) {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="min-h-12 w-full rounded-xl bg-card px-4 text-[16px] font-semibold text-ink ring-1 ring-steel hover:bg-leaf-soft disabled:opacity-60"
+    >
+      {label}
+    </button>
+  )
+}
+
+export function SignInForm({ lang, next, google }: { lang: Lang; next: string | null; google?: GoogleState }) {
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(signInAction, IDLE)
   const [identifier, setIdentifier] = useState('')
@@ -247,11 +346,12 @@ export function SignInForm({ lang, next }: { lang: Lang; next: string | null }) 
         />
         <Submit pending={pending}>{m.signIn}</Submit>
       </form>
+      <GoogleSection lang={lang} tab="signIn" next={next} google={google} />
     </Card>
   )
 }
 
-export function SignUpForm({ lang, next }: { lang: Lang; next: string | null }) {
+export function SignUpForm({ lang, next, google }: { lang: Lang; next: string | null; google?: GoogleState }) {
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(signUpAction, IDLE)
   const [phone, setPhone] = useState('')
@@ -304,6 +404,7 @@ export function SignUpForm({ lang, next }: { lang: Lang; next: string | null }) 
         />
         <Submit pending={pending}>{m.signUp}</Submit>
       </form>
+      <GoogleSection lang={lang} tab="signUp" next={next} google={google} />
     </Card>
   )
 }
@@ -313,7 +414,7 @@ export function SignUpForm({ lang, next }: { lang: Lang; next: string | null }) 
  * CN-64). Someone signed in gets the same form, but no "Sign in" link: the "already
  * confirmed" notice has none and the link under the card goes to the home page (CN-70).
  */
-export function ExpiredSignUpForm({ lang, signedIn }: { lang: Lang; signedIn: boolean }) {
+export function ExpiredSignUpForm({ lang, signedIn, home = '/' }: { lang: Lang; signedIn: boolean; home?: string }) {
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(sendNewLinkAction, IDLE)
   const [identifier, setIdentifier] = useState('')
@@ -338,7 +439,7 @@ export function ExpiredSignUpForm({ lang, signedIn }: { lang: Lang; signedIn: bo
           <Submit pending={pending}>{m.sendNewLink}</Submit>
         )}
       </form>
-      <Link href={signedIn ? '/' : '/sign-in'} className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
+      <Link href={signedIn ? home : '/sign-in'} className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
         {signedIn ? m.toHome : m.signIn}
       </Link>
     </Card>

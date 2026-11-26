@@ -33,7 +33,31 @@ export async function mailbox(page: Page, email: string): Promise<Mail[]> {
   return res.json()
 }
 
-const submit = (page: Page) => page.locator('form button[type=submit]:visible')
+/** The submit button of the card's own form, not the "Continue with Google" one (M1-3). */
+export const SUBMIT = 'form:not([data-google]) button[type=submit]:visible'
+
+const submit = (page: Page) => page.locator(SUBMIT)
+
+/**
+ * What the test sign-in mode's stand-in for Google answers (plan.md section 4): the Google
+ * email and name, what the sign-in service does with an email already a user's, or a cancel.
+ */
+export async function googleAs(
+  context: BrowserContext,
+  ask: { email?: string; name?: string | null; outcome?: 'linked' | 'dropped' | 'new'; error?: boolean },
+) {
+  await context.addCookies([{ name: 'test_google', value: encodeURIComponent(JSON.stringify(ask)), url: BASE }])
+}
+
+/** Taps "Continue with Google" and waits until the browser has come back from the callback. */
+export async function tapGoogle(page: Page) {
+  await page.getByRole('button', { name: /Tiếp tục với Google|Continue with Google/ }).click()
+  await page.waitForURL((u) => !u.pathname.startsWith('/test/google') && !u.pathname.startsWith('/auth/callback'))
+  await page.waitForLoadState('networkidle')
+}
+
+/** The message under the Google button. */
+export const googleNotice = (page: Page) => page.locator('#google-notice:visible')
 
 /** Submits a form and waits until its Server Action (a POST) has answered. */
 async function send(page: Page) {

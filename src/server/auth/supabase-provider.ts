@@ -6,7 +6,9 @@
 import 'server-only'
 import { createServerClient } from '@supabase/ssr'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { sql, type SQL } from 'drizzle-orm'
 import { cookies } from 'next/headers'
+import { getDb } from '@/server/db/client'
 import type { AuthProvider, LinkType } from './provider'
 import { roleOf } from './role'
 
@@ -63,10 +65,22 @@ export function adminClient(): SupabaseClient {
   })
 }
 
-export type SupabaseClients = { session: () => Promise<SupabaseClient>; admin: () => SupabaseClient }
+/** Runs one SQL statement on the app's database connection (B62, B63). */
+export type RunSql = (query: SQL) => Promise<unknown>
+
+export type SupabaseClients = { session: () => Promise<SupabaseClient>; admin: () => SupabaseClient; runSql: RunSql }
+
+/** The first of `full_name` and `name` of Google's metadata that is not empty once trimmed (CN-72). */
+export function metadataName(meta: Record<string, unknown> | undefined): string | null {
+  for (const key of ['full_name', 'name']) {
+    const v = meta?.[key]
+    if (typeof v === 'string' && v.trim()) return v
+  }
+  return null
+}
 
 /** The provider over two clients; tests pass fake ones. */
-export function createSupabaseProvider({ session, admin }: SupabaseClients): AuthProvider {
+export function createSupabaseProvider({ session, admin, runSql }: SupabaseClients): AuthProvider {
   return {
     async getUser() {
       const { data } = await (await session()).auth.getUser()
@@ -96,6 +110,15 @@ export function createSupabaseProvider({ session, admin }: SupabaseClients): Aut
       if (!error) return { ok: true }
       if (isRateLimited(error)) return { ok: false, error: 'rateLimited' }
       throw new Error(`Supabase resend failed: ${error.code ?? error.status}`)
+    },
+
+    async sendRecovery(email) {
+      // The default template's link comes back to /auth/confirm with ?code= (CN-71); the
+      // reset page that sets the password comes in M1-4.
+      const { error } = await (await session()).auth.resetPasswordForEmail(email, { redirectTo: confirmUrl() })
+      if (!error) return { ok: true }
+      if (isRateLimited(error)) return { ok: false, error: 'rateLimited' }
+      throw new Error(`Supabase recovery failed: ${error.code ?? error.status}`)
     },
 
     async signInWithPassword(email, password) {
@@ -132,9 +155,40 @@ export function createSupabaseProvider({ session, admin }: SupabaseClients): Aut
       const { error } = await admin().auth.admin.deleteUser(userId)
       if (error && error.status !== 404) throw new Error(`Supabase delete user failed: ${error.code ?? error.status}`)
     },
+
+    async googleSignInUrl() {
+      // PKCE: the code verifier goes into this browser's cookies; the callback needs it.
+      const { data, error } = await (
+        await session()
+      ).auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/callback`, skipBrowserRedirect: true },
+      })
+      if (error || !data.url) throw new Error(`Supabase Google sign-in failed: ${error?.code ?? error?.status ?? 'no url'}`)
+      return data.url
+    },
+
+    async exchangeGoogleCode(code) {
+      // Finished in another browser (no verifier), used twice, or expired: not signed in.
+      const { data, error } = await (await session()).auth.exchangeCodeForSession(code)
+      const user = data?.user
+      if (error || !user?.email) return { ok: false, error: 'failed' }
+      const identities = (user.identities ?? []).map((i) => ({
+        provider: i.provider === 'google' ? ('google' as const) : ('email' as const),
+        verified: i.identity_data?.email_verified === true,
+      }))
+      return { ok: true, user: { id: user.id, email: user.email, name: metadataName(user.user_metadata), identities } }
+    },
+
+    async removeGoogleIdentity(userId, { unconfirm }) {
+      // B62: the identity row itself, with "Enable Manual Linking" off; B63: the confirmation
+      // time that the Google sign-in set on a waiting account.
+      await runSql(sql`DELETE FROM auth.identities WHERE user_id = ${userId} AND provider = 'google'`)
+      if (unconfirm) await runSql(sql`UPDATE auth.users SET email_confirmed_at = NULL WHERE id = ${userId}`)
+    },
   }
 }
 
 export function supabaseAuthProvider(): AuthProvider {
-  return createSupabaseProvider({ session: sessionClient, admin: adminClient })
+  return createSupabaseProvider({ session: sessionClient, admin: adminClient, runSql: (q) => getDb().execute(q) })
 }
