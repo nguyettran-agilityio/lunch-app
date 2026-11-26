@@ -64,6 +64,18 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC110: 'Google sign-in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC111: 'Waiting emails are not in the prototype (P1) (CN-66); built in milestone M1 of docs/plan.md',
   AC113: 'Account emails are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
+  AC124: 'Shop accounts at sign-in are not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC125: 'Expired links are not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC126: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC127: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC128: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC129: 'Shop accounts at sign-in are not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC130: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC131: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC132: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC133: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC134: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC135: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
