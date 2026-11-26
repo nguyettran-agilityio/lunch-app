@@ -116,12 +116,16 @@ describe('Google with the Supabase provider and a fake client (plan.md section 1
     vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://lunch.example/')
   })
 
-  it('starts Google with the plain /auth/callback of this site, without leaving the Server Action', async () => {
+  it('AC142 starts Google with the plain /auth/callback of this site and the account chooser every time, without leaving the Server Action', async () => {
     const p = fakeClients({ signInWithOAuth: { data: { url: 'https://accounts.google.test/x' }, error: null } })
     expect(await p.googleSignInUrl()).toBe('https://accounts.google.test/x')
     expect(calls.signInWithOAuth[0]).toEqual({
       provider: 'google',
-      options: { redirectTo: 'https://lunch.example/auth/callback', skipBrowserRedirect: true },
+      options: {
+        redirectTo: 'https://lunch.example/auth/callback',
+        skipBrowserRedirect: true,
+        queryParams: { prompt: 'select_account' },
+      },
     })
   })
 

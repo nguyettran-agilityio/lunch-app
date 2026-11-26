@@ -158,11 +158,16 @@ export function createSupabaseProvider({ session, admin, runSql }: SupabaseClien
 
     async googleSignInUrl() {
       // PKCE: the code verifier goes into this browser's cookies; the callback needs it.
+      // CN-72: Google always shows its account chooser, since office computers can be shared.
       const { data, error } = await (
         await session()
       ).auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/callback`, skipBrowserRedirect: true },
+        options: {
+          redirectTo: `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/callback`,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: 'select_account' },
+        },
       })
       if (error || !data.url) throw new Error(`Supabase Google sign-in failed: ${error?.code ?? error?.status ?? 'no url'}`)
       return data.url
