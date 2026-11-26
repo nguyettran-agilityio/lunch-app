@@ -4,7 +4,7 @@
 // Supabase error mapping with a fake client (plan.md section 4), and proxy.ts (B55, CN-65).
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
 vi.mock('server-only', () => ({}))
@@ -75,9 +75,16 @@ describe('B60 the low limits apply only in the test sign-in mode', () => {
   })
 })
 
-// A fake Supabase client: only the calls the provider makes, answering what each test gives.
+// A fake Supabase client: only the calls the provider makes, answering what each test gives
+// and keeping the arguments of each call.
+const calls: Record<string, unknown[]> = {}
 function fakeClients(answers: Record<string, unknown>) {
-  const call = (name: string) => async () => answers[name]
+  const call =
+    (name: string) =>
+    async (...args: unknown[]) => {
+      calls[name] = args
+      return answers[name]
+    }
   const auth = {
     getUser: call('getUser'),
     signOut: call('signOut'),
@@ -85,6 +92,7 @@ function fakeClients(answers: Record<string, unknown>) {
     resend: call('resend'),
     signInWithPassword: call('signInWithPassword'),
     verifyOtp: call('verifyOtp'),
+    exchangeCodeForSession: call('exchangeCodeForSession'),
     admin: { getUserById: call('getUserById'), deleteUser: call('deleteUser') },
   }
   const client = { auth } as never
@@ -92,6 +100,10 @@ function fakeClients(answers: Record<string, unknown>) {
 }
 
 describe('the Supabase provider with a fake client (plan.md section 4)', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://lunch.example')
+  })
+
   it('AC98 maps HTTP 429 and the rate-limit codes to "Too many attempts"', async () => {
     expect(mapSignInError({ status: 429 })).toBe('rateLimited')
     expect(mapSignInError({ code: 'over_request_rate_limit' })).toBe('rateLimited')
@@ -156,6 +168,30 @@ describe('the Supabase provider with a fake client (plan.md section 4)', () => {
       ok: false,
       error: 'invalidLink',
     })
+  })
+})
+
+describe('Y14 the link of the default Supabase template (until M1-4)', () => {
+  it('signs up and sends again with the link coming back to /auth/confirm of this site', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://lunch.example/')
+    const p = fakeClients({ signUp: { data: { user: { id: 'u1', identities: [{}] } }, error: null }, resend: { error: null } })
+    await p.signUp('lan@gmail.com', 'abcdef12')
+    expect(calls.signUp[0]).toMatchObject({ options: { emailRedirectTo: 'https://lunch.example/auth/confirm' } })
+    await p.resendConfirmation('lan@gmail.com')
+    expect(calls.resend[0]).toMatchObject({ type: 'signup', options: { emailRedirectTo: 'https://lunch.example/auth/confirm' } })
+  })
+
+  it('exchanges the code once; an expired or unknown code is an invalid link', async () => {
+    expect(await fakeClients({ exchangeCodeForSession: { data: { user: { id: 'u1' } }, error: null } }).exchangeCode('c1')).toEqual({
+      ok: true,
+      userId: 'u1',
+    })
+    expect(calls.exchangeCodeForSession[0]).toBe('c1')
+    expect(
+      await fakeClients({
+        exchangeCodeForSession: { data: { user: null }, error: { code: 'flow_state_not_found', status: 404 } },
+      }).exchangeCode('c1'),
+    ).toEqual({ ok: false, error: 'invalidLink' })
   })
 })
 

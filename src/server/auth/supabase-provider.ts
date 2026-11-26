@@ -24,10 +24,20 @@ export function mapSignInError(error: NonNullable<AuthErrorLike>): 'rateLimited'
   throw new Error(`Supabase sign-in failed: ${error.code ?? error.status ?? 'unknown'}`)
 }
 
-function env(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' | 'SUPABASE_SECRET_KEY'): string {
+function env(
+  name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' | 'SUPABASE_SECRET_KEY' | 'NEXT_PUBLIC_SITE_URL',
+): string {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is not set (plan.md section 3)`)
   return value
+}
+
+/**
+ * Where Supabase's default email link comes back after checking it (CN-71): /auth/confirm of
+ * this site (NEXT_PUBLIC_SITE_URL, plan.md section 3), which must be in Supabase's Redirect URLs.
+ */
+function confirmUrl(): string {
+  return `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/confirm`
 }
 
 /** The browser's session client of this request (Server Components, Actions, Route Handlers). */
@@ -70,7 +80,7 @@ export function createSupabaseProvider({ session, admin }: SupabaseClients): Aut
     },
 
     async signUp(email, password) {
-      const { data, error } = await (await session()).auth.signUp({ email, password })
+      const { data, error } = await (await session()).auth.signUp({ email, password, options: { emailRedirectTo: confirmUrl() } })
       if (error) {
         if (isRateLimited(error)) return { ok: false, error: 'rateLimited' }
         if (error.code === 'user_already_exists' || error.code === 'email_exists') return { ok: false, error: 'emailTaken' }
@@ -82,7 +92,7 @@ export function createSupabaseProvider({ session, admin }: SupabaseClients): Aut
     },
 
     async resendConfirmation(email) {
-      const { error } = await (await session()).auth.resend({ type: 'signup', email })
+      const { error } = await (await session()).auth.resend({ type: 'signup', email, options: { emailRedirectTo: confirmUrl() } })
       if (!error) return { ok: true }
       if (isRateLimited(error)) return { ok: false, error: 'rateLimited' }
       throw new Error(`Supabase resend failed: ${error.code ?? error.status}`)
@@ -97,6 +107,14 @@ export function createSupabaseProvider({ session, admin }: SupabaseClients): Aut
     async verifyLink(tokenHash, type: LinkType) {
       const { data, error } = await (await session()).auth.verifyOtp({ token_hash: tokenHash, type })
       // An expired or used link, or one of a deleted account: all open the expired-link page.
+      if (error || !data.user) return { ok: false, error: 'invalidLink' }
+      return { ok: true, userId: data.user.id }
+    },
+
+    async exchangeCode(code) {
+      // The code verifier was stored in this browser's cookies at sign-up or "Send again"
+      // (PKCE): opened in another browser, the exchange fails and the expired-link page opens.
+      const { data, error } = await (await session()).auth.exchangeCodeForSession(code)
       if (error || !data.user) return { ok: false, error: 'invalidLink' }
       return { ok: true, userId: data.user.id }
     },

@@ -41,6 +41,7 @@ function fakeAuth() {
       return u.confirmed ? { ok: true, userId: u.id } : { ok: false, error: 'notConfirmed' }
     },
     verifyLink: async () => ({ ok: false, error: 'invalidLink' }),
+    exchangeCode: async () => ({ ok: false, error: 'invalidLink' }),
     isConfirmed: async (id) => users.get(id)?.confirmed ?? false,
     deleteUser: async (id) => void users.delete(id),
   }

@@ -135,6 +135,12 @@ const testAuthProvider: AuthProvider = {
     return { ok: true, userId: link.userId }
   },
 
+  // The default template's link comes back with a code (CN-71); here the code is the token of
+  // the mailbox row, with the same rules: once, within 1 hour, a confirmation link.
+  async exchangeCode(code) {
+    return this.verifyLink(code, 'signup')
+  },
+
   async isConfirmed(userId) {
     const [user] = await getDb().select({ confirmedAt: testAuthUsers.confirmedAt }).from(testAuthUsers).where(eq(testAuthUsers.id, userId))
     return !!user?.confirmedAt

@@ -24,7 +24,8 @@ export async function setLang(context: BrowserContext, lang: 'vi' | 'en') {
   await context.addCookies([{ name: 'lang', value: lang, url: BASE }])
 }
 
-export type Mail = { kind: string; link: string; sentAt: string }
+/** `link` is the default Supabase template's link (?code=, CN-71); `tokenHashLink` the repository templates' one. */
+export type Mail = { kind: string; link: string; tokenHashLink: string; sentAt: string }
 
 export async function mailbox(page: Page, email: string): Promise<Mail[]> {
   const res = await page.request.get(`/test/mailbox?email=${encodeURIComponent(email)}`)

@@ -78,6 +78,41 @@ test('AC51 A5 A6 A7 P8 sign-in waits for the confirmation; "Send again" after 60
   await expect(page).toHaveURL(/\/auth\/expired\?type=signup/)
 })
 
+test('Y14 the link of the default Supabase template: ?code= works once; an error or a bad code opens the expired-link page', async ({
+  page,
+  browser,
+}) => {
+  const a = fresh('y14')
+  await signUp(page, a)
+  const [mail] = await mailbox(page, a.email)
+  expect(mail.link).toMatch(/^\/auth\/confirm\?code=/)
+  // What Supabase sends back for an expired or used link, and a code it does not know.
+  for (const bad of [
+    '/auth/confirm?error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired',
+    '/auth/confirm?code=nope',
+    '/auth/confirm',
+  ]) {
+    await page.goto(bad)
+    await expect(page).toHaveURL(/\/auth\/expired\?type=signup$/)
+  }
+  await page.goto(mail.link)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+  // Used once: a second tap, in another browser, has expired.
+  const other = await browser.newContext()
+  const tab = await other.newPage()
+  await tab.goto(mail.link)
+  await expect(tab).toHaveURL(/\/auth\/expired\?type=signup$/)
+  await other.close()
+})
+
+test('Y14 the link of the repository templates (token_hash) still signs in', async ({ page }) => {
+  const a = fresh('y14b')
+  await signUp(page, a)
+  const [mail] = await mailbox(page, a.email)
+  await page.goto(mail.tokenHashLink)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+})
+
 test('AC52 A8 A9 X3 the link signs in; sign in with +84 and with the email; the number cannot sign up again', async ({ page }) => {
   const a = fresh('ac52')
   await confirmedAccount(page, a)

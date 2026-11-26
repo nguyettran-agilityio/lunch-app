@@ -30,6 +30,11 @@ export interface AuthProvider {
   ): Promise<Result<{ userId: string }, 'invalidCredentials' | 'notConfirmed' | 'rateLimited'>>
   /** Uses a link once: confirms the email (for `signup`) and signs this browser in. */
   verifyLink(tokenHash: string, type: LinkType): Promise<Result<{ userId: string }, 'invalidLink'>>
+  /**
+   * The link of Supabase's default template (CN-71): Supabase checks it and comes back to
+   * /auth/confirm with `?code=`; the code, used once, signs this browser in.
+   */
+  exchangeCode(code: string): Promise<Result<{ userId: string }, 'invalidLink'>>
   /** Whether the email of this auth user is confirmed. */
   isConfirmed(userId: string): Promise<boolean>
   /** Deletes an auth user (a replaced waiting account, CN-62); its links stop working. */
