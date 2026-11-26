@@ -17,10 +17,7 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC19: 'Layout on phone and computer: the Playwright layout test (B11) is completed in milestone M6 of docs/plan.md, when every screen is in it; since PR M1-1c it runs on the /proto screens (B28, e2e/layout.spec.ts)',
   AC20: 'Forgot password is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC49: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC50: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC51: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC52: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC53: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
+  AC53: 'The sign-up part is tested since PR M1-2 (scenario A10); the reset part comes with Forgot password in PR M1-4 of docs/plan.md',
   AC54: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC55: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M5 of docs/plan.md',
   AC56: 'Sign-up and sign-in details (CN-58) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
@@ -34,60 +31,39 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC64: 'Price changes during an edit (CN-60) need dish management, not in the prototype (P2); built in milestone M4 of docs/plan.md',
   AC65: 'Price changes while placing (CN-60) need dish management, not in the prototype (P2); built in milestone M3 of docs/plan.md',
   AC66: 'Two devices of one customer (CN-60) need a server, not in the prototype (P1); built in milestone M4 of docs/plan.md',
-  AC67: 'Sign-up details (CN-60) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC68: 'Sign-in messages (CN-60) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC69: 'Email confirmation (CN-60) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
+  AC69: 'The sign-in part is tested since PR M1-2 (scenario P8); the "Forgot password" part comes in PR M1-4 of docs/plan.md',
   AC70: 'Profile email changes (CN-60) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC71: 'Language per account (CN-60) needs sign-in, not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC72: 'Phone display on the profile and the real delivery list (CN-60) needs sign-in, not in the prototype (P1); built in milestone M5 of docs/plan.md',
   AC73: 'Build-your-own rules screen (CN-60) is not in the prototype (P2); built in milestone M2 of docs/plan.md',
   AC74: 'Photo uploads to storage (CN-60) need a server, not in the prototype (P1); built in milestone M4 of docs/plan.md',
   AC75: 'Settings screen (CN-60) is not in the prototype (P2); built in milestone M3 of docs/plan.md',
-  AC76: 'Sign-up form (CN-60) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
+  AC76: 'The sign-up form is tested since PR M1-2 (scenario P15); the profile asked after confirming comes in PR M1-5 of docs/plan.md',
   AC77: 'Dishes screen checks (CN-61) need dish management, not in the prototype (P2); built in milestone M2 of docs/plan.md',
   AC78: 'Plate rule changes (CN-61) need the rules screen, not in the prototype (P2); built in milestone M3 of docs/plan.md',
   AC79: 'Default cutoff changes (CN-61) need the settings screen, not in the prototype (P2); built in milestone M3 of docs/plan.md',
   AC80: 'Bank changes (CN-61) need the settings screen, not in the prototype (P2); built in milestone M3 of docs/plan.md',
   AC82: 'A declined default building (CN-61) needs the profile, not in the prototype (P1); built in milestone M4 of docs/plan.md',
-  AC83: 'Sign-up messages (CN-61) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC84: 'Expired links (CN-61) need email, not in the prototype (P1); built in milestone M1 of docs/plan.md',
+  AC84: 'The expired confirmation link is tested since PR M1-2 (scenario Q8); the expired reset link comes in PR M1-4 of docs/plan.md',
   AC85: 'The refund QR part is tested in the prototype (BR-29b); dish photos and storage need a server, not in the prototype (P1, P2); built in milestone M4 of docs/plan.md',
   AC86: 'Price changes during an edit (CN-62) need dish management, not in the prototype (P2); built in milestone M4 of docs/plan.md',
   AC87: 'Plate rule changes (CN-62) need the rules screen, not in the prototype (P2); built in milestone M4 of docs/plan.md',
   AC88: 'Cutoff changes (CN-62) need the days and settings screens, not in the prototype (P2); built in milestone M3 of docs/plan.md',
   AC89: 'Day menu changes (CN-62) need the days screen, not in the prototype (P2); built in milestone M5 of docs/plan.md',
-  AC90: 'Sign-up replacement (CN-62) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC91: 'Google sign-in (CN-62) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC92: 'Profile phone checks (CN-63) are not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC93: 'Sign-up replacement (CN-63) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
   AC94: 'Google sign-in recovery (CN-63) is not in the prototype (P1); built in milestone M1 of docs/plan.md',
-  AC95: 'Signing in is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC96: 'The sign-up form is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC97: 'Email confirmation is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC98: 'Sign-in limits are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC99: 'Expired links are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
+  AC95: 'Sign-in from the home page is tested since PR M1-2 (scenario X1); the profile page comes in PR M1-5 of docs/plan.md',
+  AC97: 'The link signing in is tested since PR M1-2 (scenario X3, it opens / until then); the profile page comes in PR M1-5 of docs/plan.md',
   AC100: 'Password reset is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
   AC101: 'Profile email changes are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC102: 'Sessions are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
   AC103: 'Profile completion is not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
-  AC104: 'Account emails are not in the prototype (P1) (CN-64); built in milestone M1 of docs/plan.md',
   AC105: 'Expired links are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC106: 'Profile email changes are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
-  AC107: 'Signing in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
-  AC108: 'The sign-in form is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
+  AC107: 'The shop part is tested since PR M1-2 (scenario X14); the profile first comes in PR M1-5 of docs/plan.md',
   AC109: 'Expired links are not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC110: 'Google sign-in is not in the prototype (P1) (CN-65); built in milestone M1 of docs/plan.md',
   AC111: 'Waiting emails are not in the prototype (P1) (CN-66); built in milestone M1 of docs/plan.md',
-  AC112: 'Language per account is not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
   AC113: 'Account emails are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
-  AC114: 'Sign-up messages are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
-  AC115: 'Sign-up messages are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
-  AC116: 'Account emails are not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
-  AC117: 'Account emails are not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
-  AC118: 'Language per account is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
-  AC119: 'Signing in is not in the prototype (P1) (CN-68); built in milestone M1 of docs/plan.md',
-  AC120: 'Signing in is not in the prototype (P1) (CN-69); built in milestone M1 of docs/plan.md',
-  AC121: 'Signing in is not in the prototype (P1) (CN-69); built in milestone M1 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
@@ -143,9 +119,16 @@ describe('parsing', () => {
 
 describe('docs/spec.md acceptance criteria', () => {
   const criteria = parseCriteria(readFileSync(path.join(ROOT, 'docs', 'spec.md'), 'utf8'))
-  const sources = readdirSync(TESTS)
-    .filter((f) => /\.test\.tsx?$/.test(f) && f !== 'spec-coverage.test.ts')
-    .map((f) => readFileSync(path.join(TESTS, f), 'utf8'))
+  // Vitest files and the Playwright tests of e2e/, with one rule for both (B56).
+  const E2E = path.join(ROOT, 'e2e')
+  const sources = [
+    ...readdirSync(TESTS)
+      .filter((f) => /\.test\.tsx?$/.test(f) && f !== 'spec-coverage.test.ts')
+      .map((f) => readFileSync(path.join(TESTS, f), 'utf8')),
+    ...readdirSync(E2E)
+      .filter((f) => /\.spec\.ts$/.test(f))
+      .map((f) => readFileSync(path.join(E2E, f), 'utf8')),
+  ]
   const missing = uncovered(criteria, testNames(sources))
 
   it('finds the acceptance criteria', () => {

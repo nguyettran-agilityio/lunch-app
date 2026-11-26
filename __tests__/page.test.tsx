@@ -2,14 +2,10 @@ import { afterEach, expect, test, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import ProtoLayout from '../src/app/proto/layout'
 import ProtoHome from '../src/app/proto/page'
-import RootPage from '../src/app/page'
-
-const nav = vi.hoisted(() => ({ redirect: vi.fn() }))
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/proto',
   useRouter: () => ({ push: vi.fn() }),
-  redirect: nav.redirect,
 }))
 
 afterEach(() => {
@@ -37,9 +33,4 @@ test('the prototype week view at /proto opens in Vietnamese and switches app tex
   expect(screen.getAllByText(/Caramelised pork ribs/).length).toBeGreaterThan(0)
   expect(screen.queryByText(/Sườn ram mặn ngọt/)).toBeNull()
   expect(screen.getAllByText(/Bún chả/).length).toBeGreaterThan(0)
-})
-
-test('until M1-2, `/` sends visitors to the prototype at /proto (B31)', () => {
-  RootPage()
-  expect(nav.redirect).toHaveBeenCalledWith('/proto')
 })

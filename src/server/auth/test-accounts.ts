@@ -1,6 +1,8 @@
 // The seeded accounts of the test sign-in mode (B44). The e2e script writes them into
-// `profiles` and puts the shop email in SHOP_EMAILS; `/test/sign-in?account=<key>` signs
-// one in. Each later PR adds the accounts it needs. Fixed ids keep the tests readable.
+// `profiles` and `test_auth_users` (confirmed), and puts the shop email in SHOP_EMAILS;
+// `/test/sign-in?account=<key>` signs one in, and the phone + password ones can also sign in
+// with TEST_PASSWORD through the form. Each later PR adds the accounts it needs. Fixed ids
+// keep the tests readable.
 // The customer's default building, approved: a complete profile is name, phone number and
 // default building (BR-15), and a declined building makes it incomplete (CN-61).
 export const TEST_BUILDING = {
@@ -10,6 +12,9 @@ export const TEST_BUILDING = {
   state: 'approved',
 } as const
 
+// A test value for the seeded accounts only (they exist only in the in-memory test database).
+export const TEST_PASSWORD = 'testpass123'
+
 export const TEST_ACCOUNTS = {
   customer: {
     id: '00000000-0000-4000-8000-000000000001',
@@ -18,6 +23,7 @@ export const TEST_ACCOUNTS = {
     phone: '0912345678',
     name: 'Nguyễn Văn Test',
     buildingId: TEST_BUILDING.id,
+    lang: 'vi',
   },
   // A shop account needs no customer profile (BR-15).
   shop: {
@@ -27,6 +33,28 @@ export const TEST_ACCOUNTS = {
     phone: null,
     name: null,
     buildingId: null,
+    lang: 'vi',
+  },
+  // A Google account (no password), for the sign-up and sign-in messages of AC50, AC68 and
+  // AC83 before Google sign-in itself comes in M1-3.
+  google: {
+    id: '00000000-0000-4000-8000-000000000003',
+    email: 'google@example.test',
+    method: 'google',
+    phone: '0938111222',
+    name: 'Trần Thị Google',
+    buildingId: TEST_BUILDING.id,
+    lang: 'vi',
+  },
+  // A complete customer saved in Vietnamese, for AC71 (the account's language wins).
+  viCustomer: {
+    id: '00000000-0000-4000-8000-000000000004',
+    email: 'vi-customer@example.test',
+    method: 'password',
+    phone: '0977000111',
+    name: 'Lê Thị Việt',
+    buildingId: TEST_BUILDING.id,
+    lang: 'vi',
   },
 } as const
 
