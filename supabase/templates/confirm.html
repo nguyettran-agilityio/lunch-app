@@ -1,12 +1,12 @@
 <!-- Supabase "Confirm signup" template (BR-29c, plan.md section 1.5): Vietnamese first, then English.
-     The Lead pastes it into the Supabase dashboard (Authentication → Emails). The link opens /auth/confirm.
+     The Lead pastes it into the Supabase dashboard (Authentication → Emails). The link opens /auth/confirm of the site that asked for the email (the redirect address the app sends, B64).
      Subject (CN-70): Xác nhận tài khoản Cơm Lá / Confirm your Cơm Lá account -->
 <h2>Xác nhận tài khoản Cơm Lá</h2>
 <p>Bấm vào nút dưới đây để xác nhận email và đăng nhập. Link dùng được một lần, trong 1 giờ.</p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup">Xác nhận email</a></p>
+<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup">Xác nhận email</a></p>
 <p>Nếu bạn không đăng ký Cơm Lá, hãy bỏ qua email này.</p>
 <hr />
 <h2>Confirm your Cơm Lá account</h2>
 <p>Tap the button below to confirm your email and sign in. The link works once, for 1 hour.</p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup">Confirm email</a></p>
+<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup">Confirm email</a></p>
 <p>If you did not sign up for Cơm Lá, ignore this email.</p>

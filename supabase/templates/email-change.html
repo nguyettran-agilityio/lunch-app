@@ -1,12 +1,12 @@
 <!-- Supabase "Change email address" template (BR-29c, plan.md section 1.5): Vietnamese first, then English.
-     Sent to the new address only ("Secure email change" off, plan.md section 3). The link opens /auth/confirm.
+     Sent to the new address only ("Secure email change" off, plan.md section 3). The link opens /auth/confirm of the site that asked for the email (the redirect address the app sends, B64).
      Subject (CN-70): Xác nhận email mới cho Cơm Lá / Confirm your new email for Cơm Lá -->
 <h2>Xác nhận email mới cho Cơm Lá</h2>
 <p>
   Bấm vào nút dưới đây để dùng {{ .NewEmail }} cho tài khoản của bạn. Email mới chỉ có hiệu lực sau khi bạn bấm link. Link dùng được một
   lần, trong 1 giờ.
 </p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email_change">Xác nhận email mới</a></p>
+<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email_change">Xác nhận email mới</a></p>
 <p>Nếu bạn không đổi email, hãy bỏ qua email này.</p>
 <hr />
 <h2>Confirm your new email for Cơm Lá</h2>
@@ -14,5 +14,5 @@
   Tap the button below to use {{ .NewEmail }} for your account. The new email takes effect only after you tap the link. The link works once,
   for 1 hour.
 </p>
-<p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email_change">Confirm new email</a></p>
+<p><a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=email_change">Confirm new email</a></p>
 <p>If you did not change your email, ignore this email.</p>

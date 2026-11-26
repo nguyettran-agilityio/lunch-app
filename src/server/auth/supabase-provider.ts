@@ -9,6 +9,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { sql, type SQL } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { getDb } from '@/server/db/client'
+import { siteUrl } from '@/server/site-url'
 import type { AuthProvider, LinkType } from './provider'
 import { roleOf } from './role'
 
@@ -26,20 +27,19 @@ export function mapSignInError(error: NonNullable<AuthErrorLike>): 'rateLimited'
   throw new Error(`Supabase sign-in failed: ${error.code ?? error.status ?? 'unknown'}`)
 }
 
-function env(
-  name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' | 'SUPABASE_SECRET_KEY' | 'NEXT_PUBLIC_SITE_URL',
-): string {
+function env(name: 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY' | 'SUPABASE_SECRET_KEY'): string {
   const value = process.env[name]
   if (!value) throw new Error(`${name} is not set (plan.md section 3)`)
   return value
 }
 
 /**
- * Where Supabase's default email link comes back after checking it (CN-71): /auth/confirm of
- * this site (NEXT_PUBLIC_SITE_URL, plan.md section 3), which must be in Supabase's Redirect URLs.
+ * /auth/confirm of this site (`siteUrl`, B64), which must match Supabase's Redirect URLs. Supabase's
+ * default email link comes back there after checking it (CN-71), and the repo's templates build
+ * their link from it as `{{ .RedirectTo }}` (B64).
  */
 function confirmUrl(): string {
-  return `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/confirm`
+  return `${siteUrl()}/auth/confirm`
 }
 
 /** The browser's session client of this request (Server Components, Actions, Route Handlers). */
@@ -164,7 +164,7 @@ export function createSupabaseProvider({ session, admin, runSql }: SupabaseClien
       ).auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${env('NEXT_PUBLIC_SITE_URL').replace(/\/$/, '')}/auth/callback`,
+          redirectTo: `${siteUrl()}/auth/callback`,
           skipBrowserRedirect: true,
           queryParams: { prompt: 'select_account' },
         },
