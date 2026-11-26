@@ -360,30 +360,37 @@ test('AC120 Y10 someone signed in does not see the sign-in or sign-up form', asy
     await page.goto(url)
     await expect(page).toHaveURL(to)
     await expect(page.locator('#field-password:visible')).toHaveCount(0)
+    await page.waitForLoadState('networkidle')
   }
 })
 
-test('AC121 Y11 where `next` leads, signed in and after signing in with the form', async ({ page, context }) => {
+test('AC121 Y11 where `next` leads, signed in and after signing in with the form', async ({ page, browser }) => {
   await page.request.get('/test/sign-in?account=customer')
-  await page.goto('/sign-in?next=/shop')
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
-  await page.goto(`/sign-in?next=${encodeURIComponent('/sign-up?next=/proto')}`)
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
-  await page.goto(`/sign-in?next=${encodeURIComponent('/auth/expired?type=signup')}`)
-  await expect(page).toHaveURL(/\/auth\/expired\?type=signup$/)
-  await page.goto('/sign-in?next=/proto/shop')
-  await expect(page).toHaveURL(/\/proto\/shop$/)
+  const cases: [string, RegExp][] = [
+    ['/sign-in?next=/shop', /127\.0\.0\.1:\d+\/$/],
+    [`/sign-in?next=${encodeURIComponent('/sign-up?next=/proto')}`, /127\.0\.0\.1:\d+\/$/],
+    [`/sign-in?next=${encodeURIComponent('/auth/expired?type=signup')}`, /\/auth\/expired\?type=signup$/],
+    ['/sign-in?next=/proto/shop', /\/proto\/shop$/],
+  ]
+  for (const [url, to] of cases) {
+    await page.goto(url)
+    await expect(page).toHaveURL(to)
+    await page.waitForLoadState('networkidle')
+  }
 
-  await context.clearCookies()
-  await page.goto('/sign-in?next=/sign-up')
-  await page.getByRole('link', { name: 'Đăng ký' }).click()
-  await expect(page).toHaveURL(/\/sign-up\?next=%2Fsign-up$/)
-  await page.getByRole('link', { name: 'Đăng nhập' }).click()
-  await expect(page).toHaveURL(/\/sign-in\?next=%2Fsign-up$/)
-  await page.locator('#field-identifier:visible').fill(customer.email)
-  await page.locator('#field-password:visible').fill(TEST_PASSWORD)
-  await page.locator('form button[type=submit]:visible').click()
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+  // Signed out: a fresh browser context, so no redirect of the signed-in part is still running.
+  const signedOut = await browser.newContext()
+  const tab = await signedOut.newPage()
+  await tab.goto('/sign-in?next=/sign-up')
+  await tab.getByRole('link', { name: 'Đăng ký' }).click()
+  await expect(tab).toHaveURL(/\/sign-up\?next=%2Fsign-up$/)
+  await tab.getByRole('link', { name: 'Đăng nhập' }).click()
+  await expect(tab).toHaveURL(/\/sign-in\?next=%2Fsign-up$/)
+  await tab.locator('#field-identifier:visible').fill(customer.email)
+  await tab.locator('#field-password:visible').fill(TEST_PASSWORD)
+  await tab.locator('form button[type=submit]:visible').click()
+  await expect(tab).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+  await signedOut.close()
 })
 
 test('X1 a visitor not signed in goes to sign-in, switches to English, and comes back (M1-2 part)', async ({ page, browser }) => {
