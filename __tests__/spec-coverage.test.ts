@@ -65,6 +65,22 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC113: 'Account emails are not in the prototype (P1) (CN-67); built in milestone M1 of docs/plan.md',
   AC128:
     'The Google part is tested since PR M1-3 (scenario Z5); the profile still showing the waiting email comes in PR M1-5 of docs/plan.md',
+  AC143: 'Forgot password is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC144: 'Forgot password is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC145: 'Forgot password is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC146: 'The reset page is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC147: 'The reset page is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC148: 'The expired reset link is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC149: 'The reset page is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC150: 'The reset page is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC151: 'The reset page is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC152: 'Forgot password is not in the prototype (P1) (CN-73); built in PR M1-4 of docs/plan.md',
+  AC153: 'The reset page is not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
+  AC154: 'The reset page is not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
+  AC155: 'Forgot password is not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
+  AC156: 'Account emails are not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
+  AC157: 'The reset page is not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
+  AC158: 'The reset page is not in the prototype (P1) (CN-74); built in PR M1-4 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
