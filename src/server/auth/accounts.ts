@@ -123,7 +123,8 @@ export async function signUp(deps: Deps, input: { phone: string; email: string; 
   // holding both fields was answered above, so these are two different ones.) The waiting
   // account of the email goes first, because the sign-in service knows an account by its email;
   // the one of the phone only once the new account exists, so a refusal (for example the
-  // service's limit) leaves it as it was.
+  // service's limit) leaves it as it was. A refusal after the email's waiting account was
+  // deleted loses that account: the Lead accepted this exception (CN-70).
   if (pEmail) await deleteAccount(deps, pEmail)
 
   const created = await auth.signUp(email, password)
@@ -156,8 +157,9 @@ export async function sendConfirmation(deps: Deps, rawIdentifier: string): Promi
   const p = await byIdentifier(db, id)
   if (!p) return error({}, { notice: { code: 'noAccount' } })
   const state = await accountState(auth, p)
-  // A Google account has no confirmation link; which message it gets here is E1 of plan.md
-  // (asked in M1-3); until then the one the other pages give a Google account.
+  // TODO(E1, plan.md "Open for the Lead", decided by the Lead in M1-3): a Google account has
+  // no confirmation link; until the Lead decides, it gets the message the other pages give a
+  // Google account (Claude's proposal (b)).
   if (state === 'google') return error({}, { notice: { code: 'googleAccount' } })
   if (state === 'confirmed') return error({}, { notice: { code: 'alreadyConfirmed' } })
   const wait = await mailWait(db, p.email, at)
@@ -178,6 +180,8 @@ export async function signIn(deps: Deps, input: { identifier: string; password: 
   if ('errors' in checked) return { status: 'error', fields: checked.errors }
   const p = await byIdentifier(db, checked.identifier)
   if (!p) return { status: 'error', fields: {}, notice: { code: 'noAccount' } }
+  // TODO(E4, plan.md "Open for the Lead", decided by the Lead in M1-3): signing in with the
+  // phone number of a Google account gives the same message as its email (Claude's proposal (a)).
   if (p.method === 'google') return { status: 'error', fields: {}, notice: { code: 'googleAccount' } }
   const result = await auth.signInWithPassword(p.email, checked.password)
   if (result.ok) return { status: 'signedIn', profile: p }

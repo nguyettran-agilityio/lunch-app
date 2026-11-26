@@ -164,6 +164,16 @@ describe('sign-up (plan.md section 1.5)', () => {
     expect(f.users.size).toBe(1)
   })
 
+  it('V5 the exception: a refusal after the waiting account of the email was deleted loses that account', async () => {
+    await signUp(deps(), { phone: '0912345678', email: 'lan@gmial.com', password: PW }, 'vi')
+    f.limit()
+    expect(await signUp(deps(20), { phone: '0987654321', email: 'lan@gmial.com', password: PW }, 'vi')).toMatchObject({
+      notice: { code: 'tooMany' },
+    })
+    expect(await profileOf('lan@gmial.com')).toBeUndefined()
+    expect(f.users.size).toBe(0)
+  })
+
   it('a failing delete of a waiting account changes nothing', async () => {
     await signUp(deps(), { phone: '0912345678', email: 'lan@gmial.com', password: PW }, 'vi')
     f.auth.deleteUser = async () => {

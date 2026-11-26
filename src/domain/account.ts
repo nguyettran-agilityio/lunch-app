@@ -98,6 +98,8 @@ export function returnPath(next: string | null | undefined, role: 'customer' | '
  * the profile first (from PR M1-5; until then to /, plan.md section 1.5); else `next`, or /.
  */
 export function afterSignIn({ role, complete, next }: { role: 'customer' | 'shop'; complete: boolean; next?: string | null }): string {
+  // TODO(F2, plan.md "Open for the Lead", decided by the Lead in M1-3): a shop account goes to
+  // /shop even when `next` is a page open to everyone (Claude's proposal (a)).
   if (role === 'shop') return '/shop'
   if (!complete) return '/'
   return returnPath(next, role) ?? '/'
