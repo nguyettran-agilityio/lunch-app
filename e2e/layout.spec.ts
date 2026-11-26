@@ -30,6 +30,15 @@ const SCREENS: Record<string, string> = {
   '/proto/shop/buildings': '/proto/shop/buildings',
 }
 
+// The real screens of M1-2 (B28), each with the seeded account it is opened as, if any.
+const REAL: { url: string; account?: 'customer' | 'shop' }[] = [
+  { url: '/sign-in' },
+  { url: '/sign-up' },
+  { url: '/auth/expired?type=signup' },
+  { url: '/', account: 'customer' },
+  { url: '/shop', account: 'shop' },
+]
+
 // Every page.tsx under src/app/proto, as a route.
 function protoRoutes(dir = path.resolve('src/app/proto'), base = '/proto'): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -61,11 +70,28 @@ for (const lang of ['vi', 'en'] as const)
       })
 
       for (const [route, url] of Object.entries(SCREENS)) {
-        test(`E5 AC19 ${route} has no horizontal scroll in ${lang} at ${width} px`, async ({ page }) => {
+        test(`E5${route} has no horizontal scroll in ${lang} at ${width} px`, async ({ page }) => {
           await page.goto(url)
           await expect(page.locator('main')).toBeVisible()
           // The demo bar's label proves the screen is in the language under test.
           await expect(page.getByText(lang === 'vi' ? 'Dữ liệu thử' : 'Prototype data').first()).toBeVisible()
+          await page.waitForLoadState('networkidle')
+          const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+            scrollWidth: document.documentElement.scrollWidth,
+            clientWidth: document.documentElement.clientWidth,
+          }))
+          expect(scrollWidth, `${url} is ${scrollWidth - clientWidth} px too wide`).toBeLessThanOrEqual(clientWidth)
+        })
+      }
+
+      for (const { url, account } of REAL) {
+        test(`E5${url} has no horizontal scroll in ${lang} at ${width} px`, async ({ page, context }) => {
+          await context.addCookies([{ name: 'lang', value: lang, url: 'http://127.0.0.1:3100' }])
+          if (account) expect((await page.request.get(`/test/sign-in?account=${account}`)).status()).toBe(200)
+          await page.goto(url)
+          await expect(page.locator('main')).toBeVisible()
+          // The real shell sets <html lang> to the language under test.
+          await expect(page.locator('html')).toHaveAttribute('lang', lang)
           await page.waitForLoadState('networkidle')
           const { scrollWidth, clientWidth } = await page.evaluate(() => ({
             scrollWidth: document.documentElement.scrollWidth,

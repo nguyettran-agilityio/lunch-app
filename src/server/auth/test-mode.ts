@@ -7,8 +7,15 @@
 
 type Env = Record<string, string | undefined>
 
-// Any of these counts as a Supabase variable, the URL included (B47).
-export const SUPABASE_VARS = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY'] as const
+// Any of these counts as a Supabase variable, the URL included (B47): the publishable and secret
+// keys of B57, and the two legacy key names, so a leftover old key also refuses the test mode.
+export const SUPABASE_VARS = [
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+  'SUPABASE_SECRET_KEY',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+] as const
 
 // A variable counts as set when it is defined at all, even empty: the stricter reading.
 const isSet = (env: Env, name: string) => env[name] !== undefined
