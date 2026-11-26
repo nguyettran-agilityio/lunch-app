@@ -79,6 +79,8 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC136: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
   AC137: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
   AC138: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC139: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
+  AC140: 'Google sign-in is not in the prototype (P1) (CN-72); built in PR M1-3 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
