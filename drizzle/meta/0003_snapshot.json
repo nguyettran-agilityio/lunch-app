@@ -1,0 +1,567 @@
+{
+  "id": "dbd5791d-19e2-4b61-a957-ed27a4cc6d07",
+  "prevId": "bf104378-0a63-4d2d-a086-58977480799d",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.auth_mail_log": {
+      "name": "auth_mail_log",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "mail_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sent_at": {
+          "name": "sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "auth_mail_log_email_sent_at_idx": {
+          "name": "auth_mail_log_email_sent_at_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sent_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "auth_mail_log_email_lower": {
+          "name": "auth_mail_log_email_lower",
+          "value": "\"auth_mail_log\".\"email\" = lower(\"auth_mail_log\".\"email\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.buildings": {
+      "name": "buildings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "delivery_time": {
+          "name": "delivery_time",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "building_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proposed_by": {
+          "name": "proposed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "buildings_proposed_by_profiles_id_fk": {
+          "name": "buildings_proposed_by_profiles_id_fk",
+          "tableFrom": "buildings",
+          "tableTo": "profiles",
+          "columnsFrom": ["proposed_by"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    },
+    "public.dish_groups": {
+      "name": "dish_groups",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min": {
+          "name": "min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max": {
+          "name": "max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "included": {
+          "name": "included",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "extra_fee": {
+          "name": "extra_fee",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dish_groups_name_key_unique": {
+          "name": "dish_groups_name_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["name_key"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "dish_groups_counts": {
+          "name": "dish_groups_counts",
+          "value": "0 <= \"dish_groups\".\"min\" AND \"dish_groups\".\"min\" <= \"dish_groups\".\"included\" AND \"dish_groups\".\"included\" <= \"dish_groups\".\"max\" AND \"dish_groups\".\"max\" >= 1"
+        },
+        "dish_groups_extra_fee": {
+          "name": "dish_groups_extra_fee",
+          "value": "\"dish_groups\".\"extra_fee\" >= 0"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.dishes": {
+      "name": "dishes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name_key": {
+          "name": "name_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "name_en": {
+          "name": "name_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "description_en": {
+          "name": "description_en",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "photo_path": {
+          "name": "photo_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "drawing": {
+          "name": "drawing",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "price": {
+          "name": "price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "surcharge": {
+          "name": "surcharge",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dishes_group_id_dish_groups_id_fk": {
+          "name": "dishes_group_id_dish_groups_id_fk",
+          "tableFrom": "dishes",
+          "tableTo": "dish_groups",
+          "columnsFrom": ["group_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "dishes_name_key_unique": {
+          "name": "dishes_name_key_unique",
+          "nullsNotDistinct": false,
+          "columns": ["name_key"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "dishes_money": {
+          "name": "dishes_money",
+          "value": "(\"dishes\".\"price\" IS NULL OR \"dishes\".\"price\" >= 0) AND \"dishes\".\"surcharge\" >= 0"
+        },
+        "dishes_kind": {
+          "name": "dishes_kind",
+          "value": "\"dishes\".\"price\" IS NOT NULL OR \"dishes\".\"group_id\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.profiles": {
+      "name": "profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "building_id": {
+          "name": "building_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lang": {
+          "name": "lang",
+          "type": "lang",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'vi'"
+        },
+        "method": {
+          "name": "method",
+          "type": "auth_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "needs_password": {
+          "name": "needs_password",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "pending_email": {
+          "name": "pending_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profiles_building_id_buildings_id_fk": {
+          "name": "profiles_building_id_buildings_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "buildings",
+          "columnsFrom": ["building_id"],
+          "columnsTo": ["id"],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "profiles_phone_unique": {
+          "name": "profiles_phone_unique",
+          "nullsNotDistinct": false,
+          "columns": ["phone"]
+        },
+        "profiles_email_unique": {
+          "name": "profiles_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["email"]
+        },
+        "profiles_pending_email_unique": {
+          "name": "profiles_pending_email_unique",
+          "nullsNotDistinct": false,
+          "columns": ["pending_email"]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "profiles_phone_format": {
+          "name": "profiles_phone_format",
+          "value": "\"profiles\".\"phone\" ~ '^0[35789][0-9]{8}$'"
+        },
+        "profiles_email_lower": {
+          "name": "profiles_email_lower",
+          "value": "\"profiles\".\"email\" = lower(\"profiles\".\"email\")"
+        },
+        "profiles_pending_email_lower": {
+          "name": "profiles_pending_email_lower",
+          "value": "\"profiles\".\"pending_email\" = lower(\"profiles\".\"pending_email\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.shop_settings": {
+      "name": "shop_settings",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "base_price": {
+          "name": "base_price",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_cutoff": {
+          "name": "default_cutoff",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_bin": {
+          "name": "bank_bin",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_account": {
+          "name": "bank_account",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bank_holder": {
+          "name": "bank_holder",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reminder_seen_at": {
+          "name": "reminder_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "shop_settings_one_row": {
+          "name": "shop_settings_one_row",
+          "value": "\"shop_settings\".\"id\""
+        },
+        "shop_settings_base_price": {
+          "name": "shop_settings_base_price",
+          "value": "\"shop_settings\".\"base_price\" IS NULL OR \"shop_settings\".\"base_price\" >= 0"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "public.used_reset_links": {
+      "name": "used_reset_links",
+      "schema": "",
+      "columns": {
+        "digest": {
+          "name": "digest",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {
+    "public.auth_method": {
+      "name": "auth_method",
+      "schema": "public",
+      "values": ["password", "google"]
+    },
+    "public.building_state": {
+      "name": "building_state",
+      "schema": "public",
+      "values": ["approved", "pending", "declined"]
+    },
+    "public.lang": {
+      "name": "lang",
+      "schema": "public",
+      "values": ["vi", "en"]
+    },
+    "public.mail_kind": {
+      "name": "mail_kind",
+      "schema": "public",
+      "values": ["confirm", "reset", "change"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

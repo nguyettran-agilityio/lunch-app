@@ -178,14 +178,24 @@ export function returnPath(next: string | null | undefined, role: 'customer' | '
   return `${path}${url.search}`
 }
 
+/** The shop pages the app has (CN-80): a shop `next` to one of them is followed, with its query. */
+export const SHOP_PAGES = ['/shop', '/shop/dishes', '/shop/rules'] as const
+
+/** Whether `path` (no query) is a shop page the app has (CN-80, AC201). */
+export const isShopPage = (path: string): boolean => (SHOP_PAGES as readonly string[]).includes(path)
+
 /**
  * Where the app goes after signing in, and for someone already signed in who opens /sign-in or
- * /sign-up (CN-65, CN-69): a shop account to /shop, whatever `next` is, also a page open to
- * everyone (CN-72); a customer whose profile is incomplete to the profile first, carrying the
- * page to return to once it is saved (CN-65, plan.md section 1.5); else `next`, or /.
+ * /sign-up (CN-65, CN-69): a shop account to the shop page of `next` when the app has that page,
+ * its query kept, else to /shop, also for a page open to everyone (CN-72, CN-80); a customer
+ * whose profile is incomplete to the profile first, carrying the page to return to once it is
+ * saved (CN-65, plan.md section 1.5); else `next`, or /.
  */
 export function afterSignIn({ role, complete, next }: { role: 'customer' | 'shop'; complete: boolean; next?: string | null }): string {
-  if (role === 'shop') return '/shop'
+  if (role === 'shop') {
+    const back = returnPath(next, role)
+    return back && isShopPage(back.split('?')[0]) ? back : '/shop'
+  }
   const back = returnPath(next, role)
   if (!complete) return back && back !== '/' && !back.startsWith('/profile') ? `/profile?next=${encodeURIComponent(back)}` : '/profile'
   return back ?? '/'
