@@ -1,4 +1,4 @@
-// The shop home (B61): a greeting, the real shop screens of M2-1 (Dishes, Build-your-own rules) and
+// The shop home (B61): a greeting, the real shop screens of M2-1 and M2-2 (Dishes, Build-your-own rules, Days, Settings) and
 // the link to the prototype. A customer who opens it is sent to / (CN-68), by proxy.ts and here.
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -31,6 +31,12 @@ async function ShopHome() {
           </Link>
           <Link href="/shop/rules" className={`${link} bg-leaf text-on-leaf hover:bg-leaf-dark`}>
             {s.navRules}
+          </Link>
+          <Link href="/shop/days" className={`${link} bg-leaf text-on-leaf hover:bg-leaf-dark`}>
+            {s.navDays}
+          </Link>
+          <Link href="/shop/settings" className={`${link} bg-leaf text-on-leaf hover:bg-leaf-dark`}>
+            {s.navSettings}
           </Link>
           <Link href="/proto/shop" className={`${link} text-leaf ring-1 ring-leaf hover:bg-leaf-soft`}>
             {m.openPrototype}

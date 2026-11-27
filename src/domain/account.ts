@@ -179,7 +179,7 @@ export function returnPath(next: string | null | undefined, role: 'customer' | '
 }
 
 /** The shop pages the app has (CN-80): a shop `next` to one of them is followed, with its query. */
-export const SHOP_PAGES = ['/shop', '/shop/dishes', '/shop/rules'] as const
+export const SHOP_PAGES = ['/shop', '/shop/dishes', '/shop/rules', '/shop/days', '/shop/settings'] as const
 
 /** Whether `path` (no query) is a shop page the app has (CN-80, AC201). */
 export const isShopPage = (path: string): boolean => (SHOP_PAGES as readonly string[]).includes(path)

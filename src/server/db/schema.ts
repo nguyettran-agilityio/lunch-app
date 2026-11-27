@@ -2,7 +2,21 @@
 // Security on and no policy (B14): only the server's database connection reads and writes.
 // Migrations only add while PRs share the preview project (B21).
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, integer, pgEnum, pgTable, text, timestamp, unique, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core'
+import {
+  boolean,
+  check,
+  date,
+  index,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  unique,
+  uuid,
+  type AnyPgColumn,
+} from 'drizzle-orm/pg-core'
 
 // Value lists are Postgres enums, so a later value is added with ALTER TYPE ... ADD VALUE (B39).
 export const langEnum = pgEnum('lang', ['vi', 'en'])
@@ -123,8 +137,38 @@ export const dishes = pgTable(
   ],
 ).enableRLS()
 
+// A day of the shop's calendar (BR-3, BR-4, plan.md section 2, PR M2-2, B73): created by the first
+// Save of that day on the Days screen, or by a change of the default cutoff while that day is past
+// it. `cutoff` is the day's own cutoff (null = the default); `locked_cutoff` the default that applied
+// when the day passed its cutoff and the default then changed (CN-61). Minutes after midnight.
+export const serviceDays = pgTable('service_days', {
+  date: date('date', { mode: 'string' }).primaryKey(),
+  cutoff: integer('cutoff'),
+  lockedCutoff: integer('locked_cutoff'),
+  closed: boolean('closed').notNull().default(false),
+}).enableRLS()
+
+export const menuKindEnum = pgEnum('menu_kind', ['fixed', 'component'])
+
+// A day's menu (BR-2, CN-83): which dishes are on sale that day as a ready meal (`fixed`) or as a
+// build-your-own dish (`component`). A day has a menu when it has a row (BR-3); a row stays when its
+// dish changes on S-S1, and customers see the dish only in the kinds still true (CN-83).
+export const dayMenu = pgTable(
+  'day_menu',
+  {
+    date: date('date', { mode: 'string' })
+      .notNull()
+      .references(() => serviceDays.date),
+    dishId: uuid('dish_id')
+      .notNull()
+      .references(() => dishes.id),
+    kind: menuKindEnum('kind').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.date, t.dishId, t.kind] })],
+).enableRLS()
+
 // The one row of shop settings (plan.md section 2), created by the first Save of the
-// Build-your-own rules screen (B71). The columns of later PRs stay null until then.
+// Build-your-own rules screen (B71) or of the Settings screen (B73). The columns of later PRs stay null until then.
 export const shopSettings = pgTable(
   'shop_settings',
   {

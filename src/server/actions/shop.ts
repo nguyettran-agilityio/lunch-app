@@ -3,11 +3,13 @@
 // section 1.3, the M2-1 plan, B71): each checks the shop role first, then calls `server/shop.ts`
 // and refreshes the page.
 import { refresh } from 'next/cache'
+import type { DayInput, SettingsInput } from '@/domain/days'
 import type { DishInput, RulesInput } from '@/domain/dishes'
 import { getAuthProvider } from '@/server/auth/provider'
 import { now } from '@/server/clock'
 import { getDb } from '@/server/db/client'
 import { getLang } from '@/server/session'
+import * as days from '@/server/days'
 import * as shop from '@/server/shop'
 import { getStorage } from '@/server/storage/provider'
 
@@ -75,5 +77,52 @@ export async function saveRulesAction(input: RulesInput): Promise<shop.RulesAnsw
   if (!deps || !isRulesInput(input)) return { ok: false, fields: {} }
   const r = await shop.saveRules(deps, input)
   if (r.ok || r.fields.form) refresh()
+  return r
+}
+
+const DATE = /^\d{4}-\d{2}-\d{2}$/
+const isIdList = (v: unknown): v is string[] => Array.isArray(v) && v.length <= 500 && v.every((x) => typeof x === 'string' && UUID.test(x))
+
+function isDayInput(v: unknown): v is DayInput {
+  const d = v as Record<string, unknown> | null
+  return (
+    !!d &&
+    typeof d === 'object' &&
+    typeof d.date === 'string' &&
+    DATE.test(d.date) &&
+    isIdList(d.fixed) &&
+    isIdList(d.components) &&
+    typeof d.cutoff === 'string' &&
+    typeof d.confirmed === 'boolean'
+  )
+}
+
+function isSettingsInput(v: unknown): v is SettingsInput {
+  const s = v as Record<string, unknown> | null
+  return (
+    !!s &&
+    typeof s === 'object' &&
+    ['defaultCutoff', 'bankBin', 'account', 'holder'].every((k) => typeof s[k] === 'string') &&
+    typeof s.confirmed === 'boolean'
+  )
+}
+
+/** One Save of a day on the Days screen, S-S3 (CN-83, B73). */
+export async function saveDayAction(input: DayInput): Promise<days.DayAnswer> {
+  const deps = await shopDeps()
+  if (!deps || !isDayInput(input)) return { ok: false, fields: {} }
+  const r = await days.saveDay({ db: deps.db, clock: deps.ctx.clock }, input)
+  // Also when the day has passed, so the screen shows the new 7 days (AC236), and when its cutoff
+  // passed meanwhile, so its card shows "Past the cutoff" (AC235).
+  if (r.ok || ('fields' in r && (r.fields.form === 'dayPassed' || r.fields.cutoff === 'pastCutoff'))) refresh()
+  return r
+}
+
+/** One Save of the Settings screen, S-S4 (CN-83, B73). */
+export async function saveSettingsAction(input: SettingsInput): Promise<days.SettingsAnswer> {
+  const deps = await shopDeps()
+  if (!deps || !isSettingsInput(input)) return { ok: false, fields: {} }
+  const r = await days.saveSettings({ db: deps.db, clock: deps.ctx.clock }, input)
+  if (r.ok) refresh()
   return r
 }

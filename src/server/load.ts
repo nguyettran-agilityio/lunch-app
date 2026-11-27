@@ -2,10 +2,11 @@
 // 1.3, step 3, B24). First built in PR M1-5, for buildings only; PR M2-1 adds the dish groups,
 // the dishes and the shop settings; each milestone adds its entities.
 import 'server-only'
-import { and, asc, eq, or } from 'drizzle-orm'
-import type { Building, Clock, Dish, DishGroup, Lang, State } from '@/domain/types'
+import { and, asc, eq, inArray, or } from 'drizzle-orm'
+import type { DayRow } from '@/domain/days'
+import type { Building, Clock, DateStr, Dish, DishGroup, Lang, State } from '@/domain/types'
 import type { AnyDb } from '@/server/db/client'
-import { buildings, dishGroups, dishes, shopSettings } from '@/server/db/schema'
+import { buildings, dayMenu, dishGroups, dishes, serviceDays, shopSettings } from '@/server/db/schema'
 
 export const toGroup = (r: typeof dishGroups.$inferSelect): DishGroup => ({
   id: r.id,
@@ -54,6 +55,42 @@ export async function loadShopState(db: AnyDb, ctx: { me: string; lang: Lang; cl
     groups: groups.map(toGroup),
     dishes: rows.map(toDish),
   }
+}
+
+/** The settings of S-S4 as saved (PR M2-2); every value null while not saved yet (B73). */
+export type SavedSettings = { defaultCutoff: number | null; bankBin: string | null; bankAccount: string | null; bankHolder: string | null }
+
+export async function loadSettings(db: AnyDb): Promise<SavedSettings> {
+  const [row] = await db
+    .select({
+      defaultCutoff: shopSettings.defaultCutoff,
+      bankBin: shopSettings.bankBin,
+      bankAccount: shopSettings.bankAccount,
+      bankHolder: shopSettings.bankHolder,
+    })
+    .from(shopSettings)
+  return row ?? { defaultCutoff: null, bankBin: null, bankAccount: null, bankHolder: null }
+}
+
+/** The stored rows of these days with their menus (S-S3, PR M2-2); a day with no row is not in the list. */
+export async function loadDays(db: AnyDb, dates: DateStr[]): Promise<DayRow[]> {
+  if (dates.length === 0) return []
+  const [days, menus] = await Promise.all([
+    db.select().from(serviceDays).where(inArray(serviceDays.date, dates)),
+    db.select().from(dayMenu).where(inArray(dayMenu.date, dates)),
+  ])
+  return days.map((d) => ({
+    date: d.date,
+    cutoff: d.cutoff,
+    lockedCutoff: d.lockedCutoff,
+    closed: d.closed,
+    menu: menus.filter((r) => r.date === d.date).map((r) => ({ dishId: r.dishId, kind: r.kind })),
+  }))
+}
+
+/** Every dish, for the Days screen and its rules (PR M2-2). */
+export async function loadDishes(db: AnyDb): Promise<Dish[]> {
+  return (await db.select().from(dishes)).map(toDish)
 }
 
 function emptyState(ctx: { me: string; lang: Lang; clock: Clock }): State {

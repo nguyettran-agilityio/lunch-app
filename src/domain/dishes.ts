@@ -23,6 +23,12 @@ export type SetupError =
   | 'photoUpload'
   // Another device saved at the same moment and the database refused this Save (CN-82, AC221).
   | 'screenChanged'
+  // The Days and Settings screens, S-S3 and S-S4 (CN-83, PR M2-2).
+  | 'badTime'
+  | 'accountDigits'
+  | 'holderTooLong'
+  | 'pastCutoff'
+  | 'dayPassed'
 
 /**
  * The keys of the drawing set of components/art.tsx (BR-6a, B71): a dish's drawing is one of
