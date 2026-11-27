@@ -248,6 +248,50 @@ function SentCard({ lang, sendAgain }: { lang: Lang; sendAgain: SendAgainState }
 
 const fieldsOf = (s: FormState) => (s.status === 'error' ? s.fields : {})
 
+// A number per answer object, so that a part of the form can start fresh on every answer.
+const answerIds = new WeakMap<object, number>()
+let lastAnswerId = 0
+const answerId = (answer: object) => {
+  let id = answerIds.get(answer)
+  if (id === undefined) answerIds.set(answer, (id = ++lastAnswerId))
+  return id
+}
+
+/**
+ * The messages under the fields of the answer `state`, without those of the fields edited since
+ * that answer: a message disappears as soon as its field is edited, and the next tap of the
+ * button checks again (CN-76). A field edited while the answer of a tap is on its way (`pending`)
+ * does not show the message of the value that was sent either. `edit(name)` wraps a field's
+ * setter so that it does both.
+ */
+function useFieldErrors<S>(state: S, fields: Partial<Record<string, FieldError>>, pending: boolean) {
+  // `names`: fields edited since the answer `of`; `next`: those edited while the tap after `of`
+  // was on its way, which also count for the answer that tap brings.
+  const [edited, setEdited] = useState<{ of: S | null; names: string[]; next: string[] }>({ of: null, names: [], next: [] })
+  let gone: string[] = []
+  if (edited.of === state) gone = edited.names
+  else if (edited.next.length) {
+    // The answer of that tap has come: its edited fields start with those of the wait.
+    gone = edited.next
+    setEdited({ of: state, names: edited.next, next: [] })
+  }
+  const shown: Partial<Record<string, FieldError>> = {}
+  for (const [name, error] of Object.entries(fields)) if (!gone.includes(name)) shown[name] = error
+  const add = (list: string[], name: string) => (list.includes(name) ? list : [...list, name])
+  const edit =
+    (name: string, set: (v: string) => void) =>
+    (v: string): void => {
+      set(v)
+      setEdited((e) => {
+        const base = e.of === state ? e : { of: state, names: [], next: [] }
+        return { of: state, names: add(base.names, name), next: pending ? add(base.next, name) : base.next }
+      })
+    }
+  // Whether a field was edited since the answer `state` (or while it was on its way).
+  const wasEdited = (name: string) => gone.includes(name)
+  return [shown, edit, wasEdited] as const
+}
+
 /** A Google sign-in that came back without signing in, as the page found it in its URL. */
 export type GoogleState = { code: GoogleRefusal; wait: number }
 
@@ -325,17 +369,18 @@ export function SignInForm({ lang, next, google }: { lang: Lang; next: string | 
   const [state, action, pending] = useActionState(signInAction, IDLE)
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const fields = fieldsOf(state)
+  const [fields, edit] = useFieldErrors(state, fieldsOf(state), pending)
   return (
     <Card lang={lang} tab="signIn" next={next} title={m.signInTitle}>
-      {state.status === 'error' && state.notice && <ActionNotice key={JSON.stringify(state.notice)} lang={lang} notice={state.notice} />}
+      {/* Every answer starts the notice's button fresh, with the server's wait (CN-76). */}
+      {state.status === 'error' && state.notice && <ActionNotice key={answerId(state)} lang={lang} notice={state.notice} />}
       <form action={action} noValidate className="flex flex-col gap-4">
         {next && <input type="hidden" name="next" value={next} />}
         <Field
           name="identifier"
           label={m.identifier}
           value={identifier}
-          onChange={setIdentifier}
+          onChange={edit('identifier', setIdentifier)}
           error={fields.identifier}
           lang={lang}
           autoComplete="username"
@@ -344,7 +389,7 @@ export function SignInForm({ lang, next, google }: { lang: Lang; next: string | 
           name="password"
           label={m.password}
           value={password}
-          onChange={setPassword}
+          onChange={edit('password', setPassword)}
           error={fields.password}
           lang={lang}
           type="password"
@@ -367,18 +412,19 @@ export function SignUpForm({ lang, next, google }: { lang: Lang; next: string | 
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fields, edit] = useFieldErrors(state, fieldsOf(state), pending)
   if (state.status === 'sent') return <SentCard lang={lang} sendAgain={state.sendAgain} />
-  const fields = fieldsOf(state)
-  const phoneSendAgain = state.status === 'error' ? state.sendAgain?.phone : undefined
+  // "Send again" belongs to the phone's message and goes with it when the phone is edited (CN-76).
+  const phoneSendAgain = state.status === 'error' && fields.phone ? state.sendAgain?.phone : undefined
   return (
     <Card lang={lang} tab="signUp" next={next} title={m.signUpTitle} intro={m.signUpIntro}>
-      {state.status === 'error' && state.notice && <ActionNotice lang={lang} notice={state.notice} />}
+      {state.status === 'error' && state.notice && <ActionNotice key={answerId(state)} lang={lang} notice={state.notice} />}
       <form action={action} noValidate className="flex flex-col gap-4">
         <Field
           name="phone"
           label={m.phone}
           value={phone}
-          onChange={setPhone}
+          onChange={edit('phone', setPhone)}
           error={fields.phone}
           lang={lang}
           type="tel"
@@ -386,7 +432,9 @@ export function SignUpForm({ lang, next, google }: { lang: Lang; next: string | 
           autoComplete="tel"
           extra={
             phoneSendAgain && (
-              <SendAgainButton key={JSON.stringify(phoneSendAgain)} lang={lang} start={phoneSendAgain} label={m.sendAgain} />
+              // Every tap of "Sign up" starts the button fresh, with the server's wait and no
+              // message of an earlier send under it (CN-76).
+              <SendAgainButton key={answerId(state)} lang={lang} start={phoneSendAgain} label={m.sendAgain} />
             )
           }
         />
@@ -394,7 +442,7 @@ export function SignUpForm({ lang, next, google }: { lang: Lang; next: string | 
           name="email"
           label={m.email}
           value={email}
-          onChange={setEmail}
+          onChange={edit('email', setEmail)}
           error={fields.email}
           lang={lang}
           type="email"
@@ -405,7 +453,7 @@ export function SignUpForm({ lang, next, google }: { lang: Lang; next: string | 
           name="password"
           label={m.password}
           value={password}
-          onChange={setPassword}
+          onChange={edit('password', setPassword)}
           error={fields.password}
           lang={lang}
           type="password"
@@ -428,23 +476,22 @@ export function ExpiredSignUpForm({ lang, signedIn, home = '/' }: { lang: Lang; 
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(sendNewLinkAction, IDLE)
   const [identifier, setIdentifier] = useState('')
-  // The wait belongs to the address it was answered for: typing another one ends it (CN-68).
-  const [editedAfter, setEditedAfter] = useState<FormState | null>(null)
+  const [fields, edit, wasEdited] = useFieldErrors(state, fieldsOf(state), pending)
   if (state.status === 'sent') return <SentCard lang={lang} sendAgain={state.sendAgain} />
-  const fields = fieldsOf(state)
-  const waiting = state.status === 'wait' && editedAfter !== state
+  // The wait belongs to the address it was answered for: typing another one ends it (CN-68),
+  // also while the answer was on its way (CN-76).
+  const waiting = state.status === 'wait' && !wasEdited('identifier')
   return (
     <Card lang={lang} title={m.expiredTitle} intro={m.expiredIntro}>
-      {state.status === 'error' && state.notice && <ActionNotice lang={lang} notice={state.notice} signInLink={!signedIn} />}
+      {state.status === 'error' && state.notice && (
+        <ActionNotice key={answerId(state)} lang={lang} notice={state.notice} signInLink={!signedIn} />
+      )}
       <form action={action} noValidate className="flex flex-col gap-4">
         <Field
           name="identifier"
           label={m.identifier}
           value={identifier}
-          onChange={(v) => {
-            setIdentifier(v)
-            setEditedAfter(state)
-          }}
+          onChange={edit('identifier', setIdentifier)}
           error={fields.identifier}
           lang={lang}
           autoComplete="username"
@@ -503,9 +550,8 @@ export function ForgotPasswordForm({
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(forgotPasswordAction, IDLE)
   const [identifier, setIdentifier] = useState('')
-  // The wait belongs to the address it was answered for: typing another one ends it (CN-68).
-  const [editedAfter, setEditedAfter] = useState<FormState | null>(null)
   const label = expired ? m.sendNewLink : m.sendResetLink
+  const [fields, edit, wasEdited] = useFieldErrors(state, fieldsOf(state), pending)
   if (state.status === 'sent') {
     const again = state.sendAgain
     return (
@@ -518,26 +564,24 @@ export function ForgotPasswordForm({
       </Card>
     )
   }
-  const fields = fieldsOf(state)
   return (
     <Card lang={lang} title={expired ? m.expiredTitle : m.forgotTitle} intro={expired ? m.expiredIntro : m.forgotIntro}>
       {state.status === 'error' && state.notice && (
-        <ActionNotice key={JSON.stringify(state.notice)} lang={lang} notice={state.notice} signInLink={!signedIn} />
+        <ActionNotice key={answerId(state)} lang={lang} notice={state.notice} signInLink={!signedIn} />
       )}
       <form action={action} noValidate className="flex flex-col gap-4">
         <Field
           name="identifier"
           label={m.identifier}
           value={identifier}
-          onChange={(v) => {
-            setIdentifier(v)
-            setEditedAfter(state)
-          }}
+          onChange={edit('identifier', setIdentifier)}
           error={fields.identifier}
           lang={lang}
           autoComplete="username"
         />
-        {state.status === 'wait' && editedAfter !== state ? (
+        {/* The wait belongs to the address it was answered for: typing another one ends it
+            (CN-68), also while the answer was on its way (CN-76). */}
+        {state.status === 'wait' && !wasEdited('identifier') ? (
           <WaitSubmit key={state.sendAgain.wait} lang={lang} wait={state.sendAgain.wait} pending={pending} label={label} />
         ) : (
           <Submit pending={pending}>{label}</Submit>
@@ -559,16 +603,16 @@ export function ResetPasswordForm({ lang }: { lang: Lang }) {
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(resetPasswordAction, RESET_IDLE)
   const [password, setPassword] = useState('')
-  const fields = state.status === 'error' ? state.fields : {}
+  const [fields, edit] = useFieldErrors(state, state.status === 'error' ? state.fields : {}, pending)
   return (
     <Card lang={lang} title={m.resetTitle} intro={m.resetIntro}>
-      {state.status === 'error' && state.notice && <ActionNotice lang={lang} notice={state.notice} />}
+      {state.status === 'error' && state.notice && <ActionNotice key={answerId(state)} lang={lang} notice={state.notice} />}
       <form action={action} noValidate className="flex flex-col gap-4">
         <Field
           name="password"
           label={m.newPassword}
           value={password}
-          onChange={setPassword}
+          onChange={edit('password', setPassword)}
           error={fields.password}
           lang={lang}
           type="password"

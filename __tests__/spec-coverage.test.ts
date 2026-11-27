@@ -58,6 +58,7 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC111: 'Waiting emails are not in the prototype (P1) (CN-66); built in milestone M1 of docs/plan.md',
   AC128:
     'The Google part is tested since PR M1-3 (scenario Z5); the profile still showing the waiting email comes in PR M1-5 of docs/plan.md',
+  AC166: 'A profile message that disappears when its field is edited (CN-76) needs the profile of PR M1-5 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
