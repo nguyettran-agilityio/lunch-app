@@ -52,6 +52,16 @@ CREATE TABLE test_mail_refuse (
   email text PRIMARY KEY
 );
 
+-- The files of the test version of StorageProvider (B71), standing in for the `dish-photos`
+-- bucket: uploaded and read through /test/files; the bytes as base64.
+CREATE TABLE test_files (
+  path text PRIMARY KEY,
+  content_type text NOT NULL,
+  data text NOT NULL,
+  size integer NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Failed sign-ins, for the low limit of the test mode (B60).
 CREATE TABLE test_sign_in_failures (
   id uuid PRIMARY KEY,

@@ -2,7 +2,7 @@
 // Security on and no policy (B14): only the server's database connection reads and writes.
 // Migrations only add while PRs share the preview project (B21).
 import { sql } from 'drizzle-orm'
-import { boolean, check, index, integer, pgEnum, pgTable, text, timestamp, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core'
+import { boolean, check, index, integer, pgEnum, pgTable, text, timestamp, unique, uuid, type AnyPgColumn } from 'drizzle-orm/pg-core'
 
 // Value lists are Postgres enums, so a later value is added with ALTER TYPE ... ADD VALUE (B39).
 export const langEnum = pgEnum('lang', ['vi', 'en'])
@@ -71,3 +71,73 @@ export const usedResetLinks = pgTable('used_reset_links', {
   digest: text('digest').primaryKey(),
   usedAt: timestamp('used_at', { withTimezone: true }).notNull(),
 }).enableRLS()
+
+// The groups of a build-your-own plate (BR-7, S-S2, PR M2-1). `name_key` is the name as compared
+// (NFC, trimmed, lower case), computed by domain/dishes.ts; its unique constraint is
+// DEFERRABLE INITIALLY DEFERRED in migration 0003, which Drizzle cannot express, so one Save can
+// swap two names and the check does not depend on the database's locale (B71).
+export const dishGroups = pgTable(
+  'dish_groups',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    nameKey: text('name_key').notNull(),
+    min: integer('min').notNull(),
+    max: integer('max').notNull(),
+    included: integer('included').notNull(),
+    extraFee: integer('extra_fee').notNull(),
+    position: integer('position').notNull(),
+  },
+  (t) => [
+    unique('dish_groups_name_key_unique').on(t.nameKey),
+    // The number rules of BR-7 (CN-60, CN-81), kept in the database too (B40).
+    check('dish_groups_counts', sql`0 <= ${t.min} AND ${t.min} <= ${t.included} AND ${t.included} <= ${t.max} AND ${t.max} >= 1`),
+    check('dish_groups_extra_fee', sql`${t.extraFee} >= 0`),
+  ],
+).enableRLS()
+
+// The shop's one dish list (BR-1, S-S1, PR M2-1). `price` null = not a ready meal; `group_id` null
+// = not a build-your-own dish; `photo_path` is the path in the `dish-photos` bucket (B15, B71);
+// `drawing` a key of the drawing set of components/art.tsx. `name_key` as in dish_groups.
+export const dishes = pgTable(
+  'dishes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    nameKey: text('name_key').notNull(),
+    description: text('description').notNull().default(''),
+    nameEn: text('name_en'),
+    descriptionEn: text('description_en'),
+    photoPath: text('photo_path'),
+    drawing: text('drawing'),
+    price: integer('price'),
+    groupId: uuid('group_id').references(() => dishGroups.id),
+    surcharge: integer('surcharge').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+  },
+  (t) => [
+    unique('dishes_name_key_unique').on(t.nameKey),
+    check('dishes_money', sql`(${t.price} IS NULL OR ${t.price} >= 0) AND ${t.surcharge} >= 0`),
+    // At least one kind (CN-80).
+    check('dishes_kind', sql`${t.price} IS NOT NULL OR ${t.groupId} IS NOT NULL`),
+  ],
+).enableRLS()
+
+// The one row of shop settings (plan.md section 2), created by the first Save of the
+// Build-your-own rules screen (B71). The columns of later PRs stay null until then.
+export const shopSettings = pgTable(
+  'shop_settings',
+  {
+    id: boolean('id').primaryKey().default(true),
+    basePrice: integer('base_price'),
+    defaultCutoff: integer('default_cutoff'),
+    bankBin: text('bank_bin'),
+    bankAccount: text('bank_account'),
+    bankHolder: text('bank_holder'),
+    reminderSeenAt: timestamp('reminder_seen_at', { withTimezone: true }),
+  },
+  (t) => [
+    check('shop_settings_one_row', sql`${t.id}`),
+    check('shop_settings_base_price', sql`${t.basePrice} IS NULL OR ${t.basePrice} >= 0`),
+  ],
+).enableRLS()

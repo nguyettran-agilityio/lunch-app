@@ -64,7 +64,11 @@ describe('first migration', () => {
     expect(rows).toEqual([
       { relname: 'auth_mail_log', relrowsecurity: true },
       { relname: 'buildings', relrowsecurity: true },
+      // PR M2-1 (B71).
+      { relname: 'dish_groups', relrowsecurity: true },
+      { relname: 'dishes', relrowsecurity: true },
       { relname: 'profiles', relrowsecurity: true },
+      { relname: 'shop_settings', relrowsecurity: true },
       // PR M1-4 (CN-74, B67).
       { relname: 'used_reset_links', relrowsecurity: true },
     ])

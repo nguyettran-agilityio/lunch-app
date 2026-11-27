@@ -1,7 +1,7 @@
 // Tables of the test sign-in mode only (B43). They are created by `e2e/test-tables.sql`,
 // which the e2e script runs after the migrations; this file is not in drizzle.config.ts,
 // so `drizzle/` and Supabase never get them. Keep both files the same.
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
 // The auth users of the test mode, standing in for Supabase's auth.users (B25), with their
 // identities ('email', 'google'). The email is not unique (a Google outcome "new").
@@ -49,6 +49,17 @@ export const testMailbox = pgTable('test_mailbox', {
 // set by /test/mail-refuse.
 export const testMailRefuse = pgTable('test_mail_refuse', {
   email: text('email').primaryKey(),
+})
+
+// The files of the test version of StorageProvider (B71): the stand-in for the `dish-photos`
+// bucket, uploaded and read through /test/files.
+export const testFiles = pgTable('test_files', {
+  path: text('path').primaryKey(),
+  contentType: text('content_type').notNull(),
+  // Base64 of the bytes: text keeps the test tables simple.
+  data: text('data').notNull(),
+  size: integer('size').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 })
 
 // Failed sign-ins, for the low limit of the test mode (B60).

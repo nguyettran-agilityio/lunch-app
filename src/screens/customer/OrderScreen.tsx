@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState } from 'react'
 import { MoneyState } from '@/components/money'
 import { DayLabel, LineText, LinesList, MissingNotice, OrderHistory, PaidRows, RefundState, RefundToView } from '@/components/parts'
+import { isHeic, shrinkToDataUrl, toDrawable } from '@/components/photo'
 import { Button, Card, ConfirmButton, LinkButton, Notice, OrderBadges, PageTitle, QtyStepper, TextInput, cx } from '@/components/ui'
 import {
   cashAllowed,
@@ -260,36 +261,7 @@ function EditOrder({ order }: { order: Order }) {
 /** Longest side of an uploaded QR photo, so it stays small in localStorage. */
 const QR_MAX = 480
 
-const isHeic = (file: File) => /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)
-
-/** iPhone photos are often HEIC, which most browsers cannot draw: convert them to JPG first (BR-29b, CN-61). */
-async function toDrawable(file: File): Promise<Blob> {
-  if (!isHeic(file)) return file
-  const { default: heic2any } = await import('heic2any')
-  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 })
-  return Array.isArray(out) ? out[0] : out
-}
-
-function shrinkImage(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      const scale = Math.min(1, QR_MAX / Math.max(img.width, img.height))
-      const canvas = document.createElement('canvas')
-      canvas.width = Math.round(img.width * scale)
-      canvas.height = Math.round(img.height * scale)
-      canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
-      URL.revokeObjectURL(url)
-      resolve(canvas.toDataURL('image/jpeg', 0.85))
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error('not an image'))
-    }
-    img.src = url
-  })
-}
+const shrinkImage = (file: Blob): Promise<string> => shrinkToDataUrl(file, QR_MAX)
 
 /** Where to send this order's refund: bank, account number and holder, or a QR photo, per order (CN-33). */
 function RefundToForm({ order }: { order: Order }) {

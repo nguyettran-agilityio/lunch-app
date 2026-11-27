@@ -17,11 +17,14 @@ export function RealShell({
   signedIn,
   home = '/',
   browserOnlyLang = false,
+  shop = false,
   children,
 }: {
   lang: Lang
   signedIn: boolean
   home?: string
+  /** A shop account: the header menu has the real shop screens (M2-1: Dishes and Build-your-own rules). */
+  shop?: boolean
   /** The VI/EN switch changes only the browser, not the account signed in (the reset page, CN-75). */
   browserOnlyLang?: boolean
   children: ReactNode
@@ -43,7 +46,7 @@ export function RealShell({
           </Link>
           <div className="flex items-center gap-2">
             <LangSwitch lang={lang} browserOnly={browserOnlyLang} />
-            {signedIn && <AccountMenu lang={lang} />}
+            {signedIn && <AccountMenu lang={lang} shop={shop} />}
           </div>
         </div>
       </header>
@@ -82,15 +85,27 @@ function LangSwitch({ lang, browserOnly }: { lang: Lang; browserOnly: boolean })
   )
 }
 
-/** The header menu (CN-64): a disclosure with "Sign out". */
-function AccountMenu({ lang }: { lang: Lang }) {
+/** The header menu (CN-64): a disclosure with the real shop screens for a shop account, then "Sign out". */
+function AccountMenu({ lang, shop }: { lang: Lang; shop: boolean }) {
   const m = messages[lang].real
+  const s = messages[lang].shopSetup
+  const item = 'flex min-h-11 w-full items-center rounded-lg px-3 text-left text-[15px] font-semibold hover:bg-tray'
   return (
     <details className="relative">
       <summary className="flex min-h-9 cursor-pointer list-none items-center rounded-full px-3 text-sm font-semibold text-white/90 ring-1 ring-white/35 hover:bg-white/10">
         {m.accountMenu}
       </summary>
-      <div className="absolute right-0 z-30 mt-2 min-w-40 rounded-xl bg-card p-1.5 text-ink shadow-lg ring-1 ring-steel">
+      <div className="absolute right-0 z-30 mt-2 min-w-52 rounded-xl bg-card p-1.5 text-ink shadow-lg ring-1 ring-steel">
+        {shop && (
+          <nav aria-label={messages[lang].common.shopNav} className="mb-1 border-b border-steel pb-1">
+            <Link href="/shop/dishes" className={item}>
+              {s.navDishes}
+            </Link>
+            <Link href="/shop/rules" className={item}>
+              {s.navRules}
+            </Link>
+          </nav>
+        )}
         <form action={signOutAction}>
           <button type="submit" className="min-h-11 w-full rounded-lg px-3 text-left text-[15px] font-semibold hover:bg-tray">
             {m.signOut}

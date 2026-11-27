@@ -527,7 +527,10 @@ const fallback: Drawing = {
   food: () => <RiceMound cx={60} cy={60} r={26} />,
 }
 
-/** Fixed dishes served with steamed rice on the side (their description says so, CN-30). */
+/**
+ * Fixed dishes served with steamed rice on the side (their description says so, CN-30), keyed by
+ * drawing (B71): the prototype's dishes have the drawing of their own id.
+ */
 const WITH_RICE = new Set(['d-suon', 'd-thitkho'])
 
 function LeafPiece() {
@@ -580,8 +583,29 @@ export function Food({ dishId }: { dishId: string }) {
   )
 }
 
-/** A dish on a piece of banana leaf. `meal` adds the rice that comes with some ready meals. */
-export function DishArt({ dishId, meal = false, className }: { dishId: string; meal?: boolean; className?: string }) {
+/**
+ * A dish on a piece of banana leaf (BR-6a): the photo the shop uploaded when there is one, else the
+ * drawing `dishId` (a key of the drawing set; any other key, or none, gives a plain rice bowl).
+ * `meal` adds the rice that comes with some ready meals.
+ */
+export function DishArt({
+  dishId,
+  photo,
+  meal = false,
+  className,
+}: {
+  dishId: string
+  /** The signed address of the dish's photo (B71). */
+  photo?: string | null
+  meal?: boolean
+  className?: string
+}) {
+  if (photo)
+    return (
+      // A signed address that expires (B71): a plain image, not Next's image optimizer.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={photo} alt="" className={`${className ?? ''} rounded-2xl object-cover`} data-photo />
+    )
   const d = DRAWINGS[dishId] ?? fallback
   const rice = meal && WITH_RICE.has(dishId)
   return (
@@ -704,5 +728,5 @@ export function EmptyArt({ kind, className }: { kind: EmptyKind; className?: str
   )
 }
 
-/** Every dish the drawing set knows, so a test can check that each seeded dish has its own drawing. */
+/** Every drawing of the set: the shop's drawing picker (S-S1), and a test that each seeded dish has its own drawing. */
 export const drawnDishes = Object.keys(DRAWINGS)

@@ -1,12 +1,16 @@
 import { orderCode } from '@/domain/code'
 import { addDays, stamp } from '@/domain/time'
-import type { DateStr, Line, Order, Status } from '@/domain/types'
+import type { DateStr, Dish, Line, Order, Status } from '@/domain/types'
 import type { ProtoState } from './types'
 
 // Fixed fake data for the prototype (decision P2). Dish, group and building names are
 // shop-entered content and stay as entered in both languages (CN-8).
 
 const DEFAULT_CUTOFF = 9 * 60 + 30
+
+/** Every prototype dish has its own drawing, keyed by its id, no photo, and is sold (BR-6a, M2-1). */
+const withPictures = (dishes: Omit<Dish, 'photoPath' | 'drawing' | 'active'>[]): Dish[] =>
+  dishes.map((d) => ({ ...d, photoPath: null, drawing: d.id, active: true }))
 
 export function seed(today: DateStr, minutes = 9 * 60): ProtoState {
   const d = (n: number) => addDays(today, n)
@@ -70,13 +74,13 @@ export function seed(today: DateStr, minutes = 9 * 60): ProtoState {
       basePrice: 35000,
     },
     groups: [
-      { id: 'g-main', name: 'Món mặn', min: 1, max: 2, included: 1, extraFee: 10000 },
-      { id: 'g-veg', name: 'Rau', min: 1, max: 1, included: 1, extraFee: 0 },
-      { id: 'g-soup', name: 'Canh', min: 0, max: 1, included: 1, extraFee: 0 },
+      { id: 'g-main', name: 'Món mặn', min: 1, max: 2, included: 1, extraFee: 10000, position: 0 },
+      { id: 'g-veg', name: 'Rau', min: 1, max: 1, included: 1, extraFee: 0, position: 1 },
+      { id: 'g-soup', name: 'Canh', min: 0, max: 1, included: 1, extraFee: 0, position: 2 },
     ],
     // A fixed dish is one complete meal for one person; its description says what comes with it (CN-30).
     // Some dishes have an English name (CN-31); the others show the Vietnamese name in English too.
-    dishes: [
+    dishes: withPictures([
       {
         id: 'd-suon',
         name: 'Sườn ram mặn ngọt',
@@ -166,7 +170,7 @@ export function seed(today: DateStr, minutes = 9 * 60): ProtoState {
         groupId: null,
         surcharge: 0,
       },
-    ],
+    ]),
     days: [
       {
         date: d(0),

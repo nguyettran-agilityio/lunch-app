@@ -25,6 +25,8 @@ export type DishGroup = {
   max: number
   included: number
   extraFee: number
+  /** Display order on the Build-your-own rules screen and the plate builder, 0 first (S-S2, CN-80). */
+  position: number
 }
 
 export type Dish = {
@@ -39,6 +41,12 @@ export type Dish = {
   /** Group as a build-your-own component; null when not a component. */
   groupId: string | null
   surcharge: number
+  /** The photo the shop uploaded, as its path in the `dish-photos` bucket; null when none (BR-6a). */
+  photoPath: string | null
+  /** The drawing the shop picked: a key of the drawing set of components/art.tsx; null = a plain rice bowl (BR-6a). */
+  drawing: string | null
+  /** False once the shop taps "Stop selling"; customers do not see it until "Sell again" (CN-80, CN-81). */
+  active: boolean
 }
 
 export type ServiceDay = {
