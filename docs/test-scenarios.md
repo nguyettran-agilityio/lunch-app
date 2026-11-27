@@ -179,9 +179,9 @@ Written in the Plan step before any code (X6). They run in milestone M1 of [plan
 | A8 | Account `0912 345 678` / lan@gmail.com: sign in with `+84912345678`, then with `lan@gmail.com` | Both work (AC52) | Playwright |
 | A9 | Another sign-up with `0912345678` | Refused: the number already has an account (AC52) | Playwright |
 | A10 | Password `abc12`, `abcdefgh`, `abcdef12` at sign-up and at reset | First two refused with "At least 8 characters, with both letters and digits"; third accepted (AC53) | Playwright |
-| A11 | Profile: change the phone number to a free one, then to one another account has | First saved; second refused (AC54) | Planned |
-| A12 | Profile of a phone + password account: change the email | Old email kept until the link sent to the new email is tapped; an email with an owner is refused with "This email already has an account" (AC54) | Planned |
-| A13 | Profile of a Google account | Email shown, not editable (AC54) | Planned |
+| A11 | Profile: change the phone number to a free one, then to one another account has | First saved; second refused (AC54) | Playwright and Test |
+| A12 | Profile of a phone + password account: change the email | Old email kept until the link sent to the new email is tapped; an email with an owner is refused with "This email already has an account" (AC54) | Playwright and Test |
+| A13 | Profile of a Google account | Email shown, not editable (AC54) | Playwright |
 | A14 | Customer places an order, changes the phone number; shop opens the order, the delivery list, searches the old number | New number shown on both; the old number finds nothing (AC55) | Planned |
 | A15 | "Forgot password" with an unknown phone number, then with a Google account's email | "No account with this phone number or email"; "This account signs in with Google" (AC56) | Playwright |
 | A16 | "Forgot password" for a confirmed phone + password account, open the link, set a new password | The reset email arrives at the account's email; the new password signs in (AC20) | Playwright |
@@ -216,13 +216,13 @@ Written in the Plan step before any code (X6); each runs in the milestone of [pl
 | P6 | Sign up again with the phone and the email of an unconfirmed account (M1) | "Check your email to confirm" with "Send again" to the first email; no new account (AC67) | Playwright |
 | P7 | Sign in with a wrong password, an unknown phone, a Google account's email (M1) | "Wrong password"; "No account with this phone number or email"; "This account signs in with Google" (AC68) | Playwright |
 | P8 | Unconfirmed account: sign in, then "Forgot password" (M1) | "You have not confirmed your email" with "Send the confirmation link again"; no reset link (AC69) | Playwright |
-| P9 | Customer changes the profile email to a shop email (M1) | "This email is for a shop account" (AC70) | Planned |
+| P9 | Customer changes the profile email to a shop email (M1) | "This email is for a shop account" (AC70) | Playwright and Test |
 | P10 | Browser on EN, account saved VI; sign in (M1) | Vietnamese, and the browser stays VI (AC71) | Playwright |
 | P11 | Profile, shop order detail and delivery list of a customer with 0912345678 (M5) | "0912 345 678" everywhere (AC72) | Planned |
 | P12 | Build-your-own rules: min 2 / max 1; included 3 / max 2; extra dish fee -5,000 (M2) | Each refused under the field; valid values saved (AC73) | Planned |
 | P13 | Upload an 8 MB dish photo; upload a PDF refund QR; a dish with no photo (M4) | Saved smaller, no message; "Only images (JPG, PNG)"; the drawing (AC74) | Planned |
 | P14 | Settings: pick a bank from the list, enter account and holder; place an order (M3) | The payment QR carries that bank and account (AC75) | Planned |
-| P15 | Sign up with phone + password (M1) | Only phone, email, password asked; profile asked after confirming (AC76) | Playwright (the form; the profile in M1-5) |
+| P15 | Sign up with phone + password (M1) | Only phone, email, password asked; profile asked after confirming (AC76) | Playwright |
 | P16 | (Prototype, this PR) Open Edit, switch to the shop, start preparing the order, switch back | "This order has just changed" with the reason; "OK" closes it and shows the order (BR-28a) | Test |
 
 ## 16. Second review of the build plan (CN-61)
@@ -271,7 +271,7 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| W1 | Waiting account with 0905 111 222; a confirmed customer changes the profile phone to it; a new Google customer enters it at profile completion | Both refused with "This phone number is waiting for its email to be confirmed", no "Send again" (AC92) | Planned |
+| W1 | Waiting account with 0905 111 222; a confirmed customer changes the profile phone to it; a new Google customer enters it at profile completion | Both refused with "This phone number is waiting for its email to be confirmed", no "Send again" (AC92) | Playwright (the confirmed customer); Test (the same rule of `saveProfile`, for any customer, a new Google one included) |
 | W2 | Two waiting accounts; sign up with the phone of one and the email of the other | Both deleted, old links fail, the new account gets a link (AC93) | Playwright |
 | W3 | Waiting account whose password was removed after a refused Google sign-in; "Send the confirmation link again", open the link | New password asked; saving confirms the email; sign-in with phone and the new password works; profile unchanged (AC94) | Playwright |
 
@@ -281,24 +281,24 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| X1 | Not signed in: open `/` and `/profile`; switch to English on the sign-in page; sign in; open `/proto` in another tab | Sent to sign-in, which switches to English; back on the page opened; `/proto` opens without signing in (AC95) | Playwright (`/`, `/shop` and `/proto`; `/profile` in M1-5) |
+| X1 | Not signed in: open `/` and `/profile`; switch to English on the sign-in page; sign in; open `/proto` in another tab | Sent to sign-in, which switches to English; back on the page opened; `/proto` opens without signing in (AC95) | Playwright |
 | X2 | Sign-up form: phone `028 1234 567`, `0912 345`; email `lan@`; empty password | "Phone number is not valid"; "Email is not valid"; "Required", each under its field (AC96) | Playwright |
-| X3 | Sign up, tap the confirmation link | Signed in, the profile opens (AC97) | Playwright (signed in, `/` opens until the profile of M1-5) |
+| X3 | Sign up, tap the confirmation link | Signed in, the profile opens (AC97) | Playwright |
 | X4 | Go past the limit of sign-in attempts (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Playwright |
 | X5 | Expired-link page of a sign-up confirmation link with the phone of a confirmed account, then the old email of a waiting account replaced by a sign-up with the same phone and another email | "Your email is already confirmed, please sign in"; "No account with this phone number or email" (AC99) | Playwright |
 | X6 | Signed in on two browser contexts; reset the password from one | That one signed in with the new password; the other signed out (AC100) | Playwright |
-| X7 | Profile email to a waiting account's email, then to a free one | Refused without "Send again"; then "Waiting for confirmation of …" with "Send again", no cancel (AC101) | Planned |
+| X7 | Profile email to a waiting account's email, then to a free one | Refused without "Send again"; then "Waiting for confirmation of …" with "Send again", no cancel (AC101) | Playwright and Test |
 | X8 | Close and reopen the browser context; "Sign out" in the header menu | Still signed in; then signed out (AC102) | Playwright |
-| X9 | Google profile completion: clear the name, type 81 characters; propose a building without an address | Name prefilled; both refused; building proposed (AC103) | Planned |
+| X9 | Google profile completion: clear the name, type 81 characters; propose a building without an address | Name prefilled; both refused; building proposed (AC103) | Playwright and Test |
 | X10 | The three account email templates in the repository | Vietnamese text first, then English (AC104) | Test |
 | X11 | Ask for confirmation emails past the email limit (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Playwright |
-| X12 | Signed in, tap an expired email-change link and ask for a new one; tap an expired reset link and ask for a new one | A new email-change link to the waiting address; a new reset link (AC105) | Playwright (the reset part; the email-change part: Planned for M1-5) |
-| X13 | A customer's profile waits for lan2@gmail.com; another sign-up and another profile change use it | Both refused with "This email is waiting for its confirmation"; the first customer can still confirm (AC106) | Planned |
-| X14 | Signed out: an incomplete customer opens `/` and signs in; a shop account opens `/profile` and signs in | Profile first, then `/`; the shop account goes to `/shop` (AC107) | Playwright (the shop part; the profile in M1-5) |
+| X12 | Signed in, tap an expired email-change link and ask for a new one; tap an expired reset link and ask for a new one | A new email-change link to the waiting address; a new reset link (AC105) | Playwright |
+| X13 | A customer's profile waits for lan2@gmail.com; another sign-up and another profile change use it | Both refused with "This email is waiting for its confirmation"; the first customer can still confirm (AC106) | Playwright and Test |
+| X14 | Signed out: an incomplete customer opens `/` and signs in; a shop account opens `/profile` and signs in | Profile first, then `/`; the shop account goes to `/shop` (AC107) | Playwright |
 | X15 | Sign-in field: `0281234567`, then `lan@` | "Phone number is not valid", then "Email is not valid" (AC108) | Playwright |
-| X16 | Not signed in, open an expired email-change link | Sign-in first, then back; "Send a new link", no phone/email field; tapping it sends a new link to the waiting address (AC109, CN-77) | Planned |
-| X17 | A customer waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com | No account created; "This email is waiting for its confirmation"; the customer can still confirm (AC110) | Playwright (the Google part; "can still confirm": Planned for M1-5) |
-| X18 | A customer waits for lan2@gmail.com, its link expired (test sign-in mode); another sign-up with lan2@gmail.com; the customer changes the new email to lan3@gmail.com; the sign-up with lan2@gmail.com again | Refused with "This email is waiting for its confirmation"; then "Check your email to confirm"; the profile shows "Waiting for confirmation of lan3@gmail.com" (AC111, CN-66) | Planned |
+| X16 | Not signed in, open an expired email-change link | Sign-in first, then back; "Send a new link", no phone/email field; tapping it sends a new link to the waiting address (AC109, CN-77) | Playwright |
+| X17 | A customer waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com | No account created; "This email is waiting for its confirmation"; the customer can still confirm (AC110) | Playwright |
+| X18 | A customer waits for lan2@gmail.com, its link expired (test sign-in mode); another sign-up with lan2@gmail.com; the customer changes the new email to lan3@gmail.com; the sign-up with lan2@gmail.com again | Refused with "This email is waiting for its confirmation"; then "Check your email to confirm"; the profile shows "Waiting for confirmation of lan3@gmail.com" (AC111, CN-66) | Playwright |
 
 ## 20. Test infrastructure (PR M1-1c, B42–B49)
 
@@ -342,7 +342,7 @@ Written when M1-3 started, before its code (X6). The shop cases of AC120 and AC1
 | Z2 | The shop account signed in opens `/auth/expired?type=signup` and taps "Go to the home page" | `/shop` opens (AC125) | Playwright |
 | Z3 | The Google account minh@gmail.com exists; on `/auth/expired?type=signup` enter minh@gmail.com and send | "This account signs in with Google" (AC126) | Playwright |
 | Z4 | The Google account Minh has 0938 111 222 on his profile; sign in with 0938111222 and a password | Not signed in; "This account signs in with Google" (AC127) | Playwright |
-| Z5 | Lan's account waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com by Huy, then by Lan | No account created; the sign-in page with only "This email is waiting for its confirmation" under the Google button, each time; Lan's profile still shows "Waiting for confirmation of lan2@gmail.com" with "Send again" (AC128) | Playwright (the Google part; the profile part: Planned for M1-5) |
+| Z5 | Lan's account waits for lan2@gmail.com; a first Google sign-in as lan2@gmail.com by Huy, then by Lan | No account created; the sign-in page with only "This email is waiting for its confirmation" under the Google button, each time; Lan's profile still shows "Waiting for confirmation of lan2@gmail.com" with "Send again" (AC128) | Playwright |
 | Z6 | The shop account signed in opens `/`, then `/profile` | `/shop` each time (AC129) | Playwright |
 | Z7 | Not signed in, on `/sign-in?next=/proto`, tap "Continue with Google"; the test sign-in mode answers the callback with Google's cancel error | Back on `/sign-in?next=/proto`, not signed in, "Could not sign in with Google, please try again" under the Google button (AC130) | Playwright |
 | Z8 | No account with minh@gmail.com; a first Google sign-in as minh@gmail.com with the Google name "Minh Trần" | `/` greets "Minh Trần" (AC131) | Playwright |
@@ -400,7 +400,7 @@ Written before the code (X6), from the Lead's decision on the preview. C5 waits 
 | C7 | Waiting account 0905 111 222 / huy@gmail.com (sign-up = email 1); "Forgot password" with 0905111222; move the test clock 61 s before each tap of "Send the confirmation link again" until "Too many attempts…" shows under it; tap "Send the reset link" | "You have not confirmed your email" with the button at the top, and no "Too many attempts" under the button (AC168) | Playwright |
 | C8 | Sign up with "0912 345" and no email or password, the answer held back by the test; type "678" in the phone field while it waits; let the answer come; tap again | No phone message when the answer comes, "Required" under the email and the password; the second tap shows no phone message, since 0912345678 is valid (AC169) | Playwright |
 | C9 | A confirmed account made by the test; "Forgot password" for its phone (a reset link sent); within 60 s send its phone again, the answer held back by the test, and edit the field to another valid number while it waits; let the answer come | "Send the reset link", enabled, with no countdown (AC170) | Playwright |
-| C5 | The profile: clear the name, tap Save, type "Lan" | "Required" under the name, gone as soon as the name is edited (AC166) | Planned |
+| C5 | The profile: clear the name, tap Save, type "Lan" | "Required" under the name, gone as soon as the name is edited (AC166) | Playwright |
 
 ## 25. Open points of M1-5 (CN-77)
 
@@ -408,19 +408,19 @@ Written when M1-5 started, before its plan and code (X6). Every link here is iss
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| K1 | Signed in as Lan, with lan2@gmail.com waiting; move the clock past 1 hour; tap the link, reload the page, then tap "Send a new link" | "The link has expired" with "Send a new link" and no input field; no new mail after the reload; the tap puts a new link to lan2@gmail.com in the mailbox and the button reads "Send again in N s" (AC171) | Planned |
-| K2 | Lan's expired email-change link; open it signed in as Huy (no new email waiting); in another case Lan confirms a newer link first, then opens the expired one | "No new email is waiting for confirmation on this account"; the mailbox gets nothing (AC172) | Planned |
-| K3 | Lan's link to lan2@gmail.com expired; she changes her new email to lan3@gmail.com (61 s later); opens the lan2 link and taps "Send a new link" once the 60 s are over | A new link to lan3@gmail.com; "A new link was sent to lan3@gmail.com" (AC173) | Planned |
-| K4 | Lan changes her new email to lan2@gmail.com, then (61 s later) to lan3@gmail.com; Huy signs up with lan2@gmail.com; Lan taps the lan2 link | "The link has expired"; the profile shows "Waiting for confirmation of lan3@gmail.com"; Huy's account still waits for its own link (AC174) | Planned |
-| K5 | Lan (lan@gmail.com, nothing waiting) types lan@gmail.com and saves; then with lan2@gmail.com waiting she types lan@gmail.com and saves; Huy signs up with lan2@gmail.com; Lan taps her old lan2 link | First: nothing in the mailbox, no message, no waiting line; second: the waiting line disappears; Huy gets "Check your email to confirm"; the old link opens "The link has expired" (AC175) | Planned |
-| K6 | lan2@gmail.com waiting, link sent 20 s ago; Lan types lan2@gmail.com again and saves | No new mail; the waiting line stays, its "Send again" still counting down (AC176) | Planned |
-| K7 | Lan's complete profile: change the new email to lan3@gmail.com and save | Still on `/profile`, the saved notice and "Waiting for confirmation of lan3@gmail.com" (AC177) | Planned |
-| K8 | Waiting account 0905 111 222; Lan changes name to "Lan Trần", phone to 0905111222, email to lan2@gmail.com, saves; in another case valid fields with lan2@gmail.com listed by `/test/mail-refuse` | The phone message under the phone; `/test/profile` still shows the name "Lan" and no `pending_email`; no mail; in the other case "Could not send the email, please try again later" at the top and nothing saved (AC178) | Planned |
-| K9 | Lan's email-change link, within its hour, opened in a browser context with nobody signed in; in another case in a context where Huy is signed in | Signed in as Lan on `/profile`, with lan2@gmail.com and "Your email was changed to lan2@gmail.com"; Huy's session in that context is gone; Lan signs in with lan2@gmail.com, and lan@gmail.com gets "No account with this phone number or email" (AC179) | Planned |
-| K10 | Seeded Google account with 0938 111 222; on `/auth/expired?type=signup` enter 0938111222 and send | "This account signs in with Google"; no mail (AC180) | Planned |
-| K11 | Lan waits for lan2@gmail.com; "Forgot password" with lan2@gmail.com | "No account with this phone number or email"; no mail (AC181) | Planned |
-| K12 | Lan in Vietnamese on `/profile`; pick English in the language field; open `/`; sign in as Lan in a new browser context | English at once, `/` in English; the new context is English after signing in (AC182) | Planned |
-| K13 | A new customer on profile completion, no building approved; propose "Tòa ABC" with no address; leave without Save; open `/profile` again | "Tòa ABC" selected at once; next visit: "Complete your profile", and the list offers "Tòa ABC (waiting for the shop)"; the `buildings` row is pending, proposed by that customer (AC183) | Planned |
+| K1 | Signed in as Lan, with lan2@gmail.com waiting; move the clock past 1 hour; tap the link, reload the page, then tap "Send a new link" | "The link has expired" with "Send a new link" and no input field; no new mail after the reload; the tap puts a new link to lan2@gmail.com in the mailbox and the button reads "Send again in N s" (AC171) | Playwright |
+| K2 | Lan's expired email-change link; open it signed in as Huy (no new email waiting); in another case Lan confirms a newer link first, then opens the expired one | "No new email is waiting for confirmation on this account"; the mailbox gets nothing (AC172) | Playwright |
+| K3 | Lan's link to lan2@gmail.com expired; she changes her new email to lan3@gmail.com (61 s later); opens the lan2 link and taps "Send a new link" once the 60 s are over | A new link to lan3@gmail.com; "A new link was sent to lan3@gmail.com" (AC173) | Playwright and Test |
+| K4 | Lan changes her new email to lan2@gmail.com, then (61 s later) to lan3@gmail.com; Huy signs up with lan2@gmail.com; Lan taps the lan2 link | "The link has expired"; the profile shows "Waiting for confirmation of lan3@gmail.com"; Huy's account still waits for its own link (AC174) | Playwright |
+| K5 | Lan (lan@gmail.com, nothing waiting) types lan@gmail.com and saves; then with lan2@gmail.com waiting she types lan@gmail.com and saves; Huy signs up with lan2@gmail.com; Lan taps her old lan2 link | First: nothing in the mailbox, no message, no waiting line; second: the waiting line disappears; Huy gets "Check your email to confirm"; the old link opens "The link has expired" (AC175) | Playwright and Test |
+| K6 | lan2@gmail.com waiting, link sent 20 s ago; Lan types lan2@gmail.com again and saves | No new mail; the waiting line stays, its "Send again" still counting down (AC176) | Playwright and Test |
+| K7 | Lan's complete profile: change the new email to lan3@gmail.com and save | Still on `/profile`, the saved notice and "Waiting for confirmation of lan3@gmail.com" (AC177) | Playwright and Test |
+| K8 | Waiting account 0905 111 222; Lan changes name to "Lan Trần", phone to 0905111222, email to lan2@gmail.com, saves; in another case valid fields with lan2@gmail.com listed by `/test/mail-refuse` | The phone message under the phone; `/test/profile` still shows the name "Lan" and no `pending_email`; no mail; in the other case "Could not send the email, please try again later" at the top and nothing saved (AC178) | Playwright and Test |
+| K9 | Lan's email-change link, within its hour, opened in a browser context with nobody signed in; in another case in a context where Huy is signed in | Signed in as Lan on `/profile`, with lan2@gmail.com and "Your email was changed to lan2@gmail.com"; Huy's session in that context is gone; Lan signs in with lan2@gmail.com, and lan@gmail.com gets "No account with this phone number or email" (AC179) | Playwright and Test |
+| K10 | Seeded Google account with 0938 111 222; on `/auth/expired?type=signup` enter 0938111222 and send | "This account signs in with Google"; no mail (AC180) | Playwright |
+| K11 | Lan waits for lan2@gmail.com; "Forgot password" with lan2@gmail.com | "No account with this phone number or email"; no mail (AC181) | Playwright |
+| K12 | Lan in Vietnamese on `/profile`; pick English in the language field; open `/`; sign in as Lan in a new browser context | English at once, `/` in English; the new context is English after signing in (AC182) | Playwright |
+| K13 | A new customer on profile completion, no building approved; propose "Tòa ABC" with no address; leave without Save; open `/profile` again | "Tòa ABC" selected at once; next visit: "Complete your profile", and the list offers "Tòa ABC (waiting for the shop)"; the `buildings` row is pending, proposed by that customer (AC183) | Playwright and Test |
 
 ## 26. Review of the M1-5 plan (CN-78)
 
@@ -428,12 +428,21 @@ Written before the code (X6), from the points `spec-reviewer` found on the M1-5 
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| K14 | Lan's complete profile with lan2@gmail.com waiting: type lan@gmail.com, save; then change nothing and save | The saved notice each time; no message under Email, no mail; the waiting line gone after the first (AC184) | Planned |
-| K15 | Change the new email to lan2@gmail.com, 20 s later (test clock) to lan3@gmail.com, 20 s later back to lan2@gmail.com, save; in another case the test mode at its low limit (B60) | "Send again in 20 s" under Email, `/test/profile` still waits for lan3@gmail.com; in the other case "Too many attempts…" under Email, nothing saved (AC185) | Planned |
-| K16 | lan2@gmail.com waiting with link L1; 61 s later "Send again" (L2); open L1, then L2 | L1: "The link has expired" with "Send a new link"; L2 confirms (AC186) | Planned |
-| K17 | Lan's expired email-change link opened by the signed-in shop account; then by Lan with lan2@gmail.com waiting | Shop: heading, "No new email is waiting…", no button, the account menu, "Go to the home page" → `/shop`; Lan: "Send a new link", "Go to the home page" → `/` (AC187) | Planned |
-| K18 | Seeded: Lan's default building Tòa ABC declined; open `/profile`, tap Save | The declined notice; no Tòa ABC in the list; "Required" under the building; nothing saved (AC188) | Planned |
-| K19 | Propose "Tòa ABC", leave; come back, propose " tòa abc ", then "Tòa XYZ" | One Tòa ABC row only, selected again; a new Tòa XYZ row; both listed (AC189) | Planned |
-| K20 | Seeded incomplete Lan (declined building); sign in from `/sign-in?next=/proto`; propose a building, change the email to lan2@gmail.com, save; open `/profile` | A link to lan2@gmail.com in the mailbox; `/proto` opens; the profile shows "Waiting for confirmation of lan2@gmail.com" (AC190) | Planned |
-| K21 | Lan (lan@gmail.com) with lan2@gmail.com waiting: open `/profile`, change only the name to "Lan Trần", save | The Email field holds lan2@gmail.com, lan@gmail.com shown as current; name saved, saved notice, no mail, `/test/profile` still waits for lan2@gmail.com (AC191) | Planned |
-| K22 | Seeded: Lan's default building Tòa ABC declined; on `/profile` propose "Tòa ABC", save | A second `buildings` row Tòa ABC, pending, proposed by Lan, selected; the declined row unchanged and not listed; the profile complete (AC192) | Planned |
+| K14 | Lan's complete profile with lan2@gmail.com waiting: type lan@gmail.com, save; then change nothing and save | The saved notice each time; no message under Email, no mail; the waiting line gone after the first (AC184) | Playwright and Test |
+| K15 | Change the new email to lan2@gmail.com, 20 s later (test clock) to lan3@gmail.com, 20 s later back to lan2@gmail.com, save; in another case the test mode at its low limit (B60) | "Send again in 20 s" under Email, `/test/profile` still waits for lan3@gmail.com; in the other case "Too many attempts…" under Email, nothing saved (AC185) | Playwright (the wait); Test (the wait and the limit) |
+| K16 | lan2@gmail.com waiting with link L1; 61 s later "Send again" (L2); open L1, then L2 | L1: "The link has expired" with "Send a new link"; L2 confirms (AC186) | Playwright and Test |
+| K17 | Lan's expired email-change link opened by the signed-in shop account; then by Lan with lan2@gmail.com waiting | Shop: heading, "No new email is waiting…", no button, the account menu, "Go to the home page" → `/shop`; Lan: "Send a new link", "Go to the home page" → `/` (AC187) | Playwright |
+| K18 | Seeded: Lan's default building Tòa ABC declined; open `/profile`, tap Save | The declined notice; no Tòa ABC in the list; "Required" under the building; nothing saved (AC188) | Playwright and Test |
+| K19 | Propose "Tòa ABC", leave; come back, propose " tòa abc ", then "Tòa XYZ" | One Tòa ABC row only, selected again; a new Tòa XYZ row; both listed (AC189) | Playwright and Test |
+| K20 | Seeded incomplete Lan (declined building); sign in from `/sign-in?next=/proto`; propose a building, change the email to lan2@gmail.com, save; open `/profile` | A link to lan2@gmail.com in the mailbox; `/proto` opens; the profile shows "Waiting for confirmation of lan2@gmail.com" (AC190) | Playwright and Test |
+| K21 | Lan (lan@gmail.com) with lan2@gmail.com waiting: open `/profile`, change only the name to "Lan Trần", save | The Email field holds lan2@gmail.com, lan@gmail.com shown as current; name saved, saved notice, no mail, `/test/profile` still waits for lan2@gmail.com (AC191) | Playwright and Test |
+| K22 | Seeded: Lan's default building Tòa ABC declined; on `/profile` propose "Tòa ABC", save | A second `buildings` row Tòa ABC, pending, proposed by Lan, selected; the declined row unchanged and not listed; the profile complete (AC192) | Playwright and Test |
+
+## 27. Review of the M1-5 code (CN-79)
+
+Written with the Lead's answers to the points `spec-reviewer` found on the M1-5 code (X6).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| K23 | Propose "Tòa ABC" with "12 Lê Lợi", leave; come back, propose " tòa abc " with "34 Hai Bà Trưng", then " Tòa ABC " with no address | One pending Tòa ABC, address "34 Hai Bà Trưng" (AC193) | Playwright and Test |
+| K24 | Tap an email-change link, then reload the profile | The notice the first time; after the reload the new email without the notice, and no `emailChanged` in the address (AC194) | Playwright |

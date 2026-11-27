@@ -80,9 +80,11 @@ describe('Y10 Y11 where the app goes after signing in (BR-29a)', () => {
     expect(returnPath('/auth/expired?type=signup', 'customer')).toBe('/auth/expired?type=signup')
     expect(returnPath('/forgot-password', 'customer')).toBe('/forgot-password')
   })
-  it('sends a shop account to /shop, and an incomplete customer to / until the profile of M1-5', () => {
+  it('AC107 sends a shop account to /shop, and an incomplete customer to the profile, carrying the page to return to', () => {
     expect(afterSignIn({ role: 'shop', complete: false, next: '/proto' })).toBe('/shop')
-    expect(afterSignIn({ role: 'customer', complete: false, next: '/proto' })).toBe('/')
+    expect(afterSignIn({ role: 'customer', complete: false, next: '/proto' })).toBe('/profile?next=%2Fproto')
+    for (const next of [null, '/', '/profile', '/sign-up', '/shop'])
+      expect(afterSignIn({ role: 'customer', complete: false, next })).toBe('/profile')
   })
   it('counts a profile complete with a name, a phone and a building not declined (BR-15)', () => {
     expect(isProfileComplete({ name: 'Lan', phone: '0912345678', buildingState: 'pending' })).toBe(true)

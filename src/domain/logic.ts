@@ -244,7 +244,23 @@ export function setCartQty(s: State, date: DateStr, lineId: string, qty: number)
   return ok({ ...s, carts: { ...s.carts, [date]: next } })
 }
 
+/** A building name compared as CN-78 says: spaces at the start and end removed, case ignored. */
+const sameName = (a: string, b: string) => a.normalize('NFC').trim().toLowerCase() === b.normalize('NFC').trim().toLowerCase()
+
+/**
+ * A customer proposes a building (BR-16, CN-64): pending, shown only to them. Proposing again the
+ * name of a pending building they proposed selects it and creates no other, and a new address
+ * replaces its old one (an empty one keeps it); a declined one of that name is not reused, so a
+ * new pending building is made (CN-78, CN-79, AC189, AC192, AC193).
+ */
 export function proposeBuilding(s: State, name: string, address: string, newId: NewId): Result {
+  if (!name.trim()) return fail('buildingMissing')
+  const mine = s.buildings.find((b) => b.state === 'pending' && b.proposedBy === s.me && sameName(b.name, name))
+  if (mine) {
+    const newAddress = address.trim()
+    if (!newAddress || newAddress === mine.address) return ok(s, mine.id)
+    return ok({ ...s, buildings: s.buildings.map((b) => (b.id === mine.id ? { ...b, address: newAddress } : b)) }, mine.id)
+  }
   const id = newId('b-new-')
   const b: Building = { id, name: name.trim(), address: address.trim(), deliveryTime: null, state: 'pending', proposedBy: s.me, past: [] }
   return ok({ ...s, buildings: [...s.buildings, b] }, id)

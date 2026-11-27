@@ -71,13 +71,29 @@ export interface AuthProvider {
     email: string,
     password: string,
   ): Promise<Result<{ userId: string }, 'invalidCredentials' | 'notConfirmed' | 'rateLimited'>>
-  /** Uses a link once: confirms the email (for `signup`) and signs this browser in. */
-  verifyLink(tokenHash: string, type: LinkType): Promise<Result<{ userId: string }, 'invalidLink'>>
+  /**
+   * Uses a link once: confirms the email (for `signup`), or makes the new email the account's
+   * (for `email_change`), and signs this browser in as the link's account, replacing whoever was
+   * signed in on it (CN-77, AC179). `email` is the account's email after the link.
+   */
+  verifyLink(tokenHash: string, type: LinkType): Promise<Result<{ userId: string; email: string }, 'invalidLink'>>
+  /**
+   * Sends the link that confirms a new email to that address only ("Secure email change" off,
+   * plan.md section 3), for the account signed in (`userId`). A new change, also to the same
+   * address ("Send again"), replaces the one waiting: its older links stop working (CN-77,
+   * CN-78, AC174, AC186). `emailTaken`: the service already has an account with that email.
+   */
+  changeEmail(userId: string, email: string, at: Date): Promise<Result<object, 'rateLimited' | 'sendFailed' | 'emailTaken'>>
+  /**
+   * Takes back the email change waiting on the auth user, so its link stops working (CN-77,
+   * AC175); through `DATABASE_URL` in the Supabase version, which has no call for it (B70).
+   */
+  cancelEmailChange(userId: string): Promise<void>
   /**
    * The link of Supabase's default template (CN-71): Supabase checks it and comes back to
    * /auth/confirm with `?code=`; the code, used once, signs this browser in.
    */
-  exchangeCode(code: string): Promise<Result<{ userId: string }, 'invalidLink'>>
+  exchangeCode(code: string): Promise<Result<{ userId: string; email: string }, 'invalidLink'>>
   /** Whether the email of this auth user is confirmed. */
   isConfirmed(userId: string): Promise<boolean>
   /** Deletes an auth user (a replaced waiting account, CN-62); its links stop working. */

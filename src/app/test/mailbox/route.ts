@@ -17,9 +17,11 @@ export async function GET(request: NextRequest) {
   return Response.json(
     rows.map((r) => {
       const reset = `/auth/reset/link/${r.sentAt.getTime()}?token_hash=${r.tokenHash}&type=recovery`
+      // An email-change link is only ever sent with the repository's template (M1-5).
+      const change = `/auth/confirm?token_hash=${r.tokenHash}&type=email_change`
       return {
         kind: r.kind,
-        link: r.kind === 'recovery' ? reset : `/auth/confirm?code=${r.tokenHash}`,
+        link: r.kind === 'recovery' ? reset : r.kind === 'email_change' ? change : `/auth/confirm?code=${r.tokenHash}`,
         tokenHashLink: r.kind === 'recovery' ? reset : `/auth/confirm?token_hash=${r.tokenHash}&type=${r.kind}`,
         sentAt: r.sentAt.toISOString(),
       }

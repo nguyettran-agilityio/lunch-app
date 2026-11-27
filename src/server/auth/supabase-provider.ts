@@ -256,10 +256,12 @@ export function createSupabaseProvider({
     },
 
     async verifyLink(tokenHash, type: LinkType) {
+      // The app's own session client: the link's session replaces whoever was signed in on this
+      // browser, also for an email-change link (CN-77, AC179).
       const { data, error } = await (await session()).auth.verifyOtp({ token_hash: tokenHash, type })
       // An expired or used link, or one of a deleted account: all open the expired-link page.
       if (error || !data.user) return { ok: false, error: 'invalidLink' }
-      return { ok: true, userId: data.user.id }
+      return { ok: true, userId: data.user.id, email: data.user.email ?? '' }
     },
 
     async exchangeCode(code) {
@@ -267,7 +269,31 @@ export function createSupabaseProvider({
       // (PKCE): opened in another browser, the exchange fails and the expired-link page opens.
       const { data, error } = await (await session()).auth.exchangeCodeForSession(code)
       if (error || !data.user) return { ok: false, error: 'invalidLink' }
-      return { ok: true, userId: data.user.id }
+      return { ok: true, userId: data.user.id, email: data.user.email ?? '' }
+    },
+
+    async changeEmail(_userId, email) {
+      // "Secure email change" is off (plan.md section 3): only the new address gets a link, and
+      // the repository's template builds it from `{{ .RedirectTo }}` (B64). A new call replaces
+      // the change waiting and its token, so its older links stop working (AC174, AC186).
+      const { error } = await (await session()).auth.updateUser({ email }, { emailRedirectTo: confirmUrl() })
+      if (!error) return { ok: true }
+      if (isRateLimited(error)) return { ok: false, error: 'rateLimited' }
+      if (error.code === 'email_exists' || error.code === 'user_already_exists') return { ok: false, error: 'emailTaken' }
+      if (isSendFailure(error)) return { ok: false, error: 'sendFailed' }
+      throw new Error(`Supabase email change failed: ${error.code ?? error.status}`)
+    },
+
+    async cancelEmailChange(userId) {
+      // B70: Supabase has no call to take back a waiting email change, so the app clears it on
+      // auth.users through DATABASE_URL, as B62 does for an identity, and deletes its one-time
+      // tokens, by which Supabase finds the link.
+      await runSql(
+        sql`UPDATE auth.users SET email_change = '', email_change_token_new = '', email_change_token_current = '', email_change_confirm_status = 0, email_change_sent_at = NULL WHERE id = ${userId}`,
+      )
+      await runSql(
+        sql`DELETE FROM auth.one_time_tokens WHERE user_id = ${userId} AND token_type IN ('email_change_token_new', 'email_change_token_current')`,
+      )
     },
 
     async isConfirmed(userId) {

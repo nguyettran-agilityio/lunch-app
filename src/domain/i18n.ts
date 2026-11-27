@@ -416,6 +416,11 @@ const vi = {
       emailWaiting: 'Email này đang chờ xác nhận',
       // Drafted in PR M1-4 (CN-73), approved by the Lead in PR #78.
       samePassword: 'Mật khẩu mới phải khác mật khẩu cũ',
+      // The profile (UI18): the approved texts.
+      nameTooLong: 'Tối đa 80 ký tự',
+      emailTaken: 'Email này đã có tài khoản',
+      emailShop: 'Email này dành cho tài khoản của shop',
+      tooMany: 'Thử quá nhiều lần, vui lòng thử lại sau vài phút',
     },
     notice: {
       wrongPassword: 'Sai mật khẩu',
@@ -426,6 +431,8 @@ const vi = {
       // Drafted in PR M1-4 (CN-74), approved by the Lead in PR #78.
       sendFailed: 'Chưa gửi được email, vui lòng thử lại sau',
       alreadyConfirmed: 'Email của bạn đã được xác nhận, vui lòng đăng nhập',
+      // Drafted in PR M1-5 (CN-77), for the Lead to review.
+      noPendingEmail: 'Tài khoản này không có email mới nào đang chờ xác nhận',
       // Under the Google button (BR-29a, CN-62, CN-65, CN-72); the last one is the Lead's text.
       googleTakenPhone: 'Email này đã có tài khoản đăng nhập bằng số điện thoại; hãy đăng nhập bằng số điện thoại và mật khẩu',
       googleNotConfirmed: 'Email này có tài khoản đăng nhập bằng số điện thoại và chưa được xác nhận',
@@ -455,6 +462,30 @@ const vi = {
     resetIntro: 'Sau khi lưu, bạn được đăng nhập trên máy này và đăng xuất trên mọi máy khác.',
     newPassword: 'Mật khẩu mới',
     saveNewPassword: 'Lưu mật khẩu mới',
+  },
+  // The profile, S-C2 (UI18 where it has the text; the others drafted in PR M1-5, CN-77, CN-78,
+  // for the Lead to review).
+  profile: {
+    title: 'Hồ sơ',
+    completeTitle: 'Hoàn tất hồ sơ',
+    completeIntro: 'Cho shop biết tên bạn và tòa nhà giao cơm trước khi đặt món.',
+    name: 'Tên',
+    building: 'Tòa nhà mặc định',
+    pickBuilding: 'Chọn tòa nhà',
+    language: 'Ngôn ngữ',
+    save: 'Lưu',
+    googleEmailNote: 'Email của tài khoản Google không đổi được.',
+    newEmailNote: 'Email mới chỉ có hiệu lực sau khi bạn bấm link gửi tới email đó.',
+    waiting: (email: string) => `Đang chờ xác nhận ${email}`,
+    declined: (building: string) => `Shop không giao tới ${building}; hãy chọn tòa khác`,
+    // Drafted in PR M1-5.
+    currentEmail: (email: string) => `Email hiện tại: ${email}`,
+    saved: 'Đã lưu hồ sơ',
+    emailChanged: (email: string) => `Đã đổi email thành ${email}`,
+    newLinkSent: (email: string) => `Đã gửi link mới tới ${email}`,
+    // Each language by its own name, the same in both languages.
+    langVi: 'Tiếng Việt',
+    langEn: 'English',
   },
   // The real shell and the two homes of M1 (B61): new in PR M1-2, drafted by Claude in both
   // languages and listed in the PR for the Lead to review (CN-64).
@@ -869,6 +900,10 @@ const en: Messages = {
       emailTakenPhone: 'This email already has an account (signs in with a phone number)',
       emailWaiting: 'This email is waiting for its confirmation',
       samePassword: 'The new password must differ from the old one',
+      nameTooLong: 'At most 80 characters',
+      emailTaken: 'This email already has an account',
+      emailShop: 'This email is for a shop account',
+      tooMany: 'Too many attempts, please try again in a few minutes',
     },
     notice: {
       wrongPassword: 'Wrong password',
@@ -878,6 +913,7 @@ const en: Messages = {
       tooMany: 'Too many attempts, please try again in a few minutes',
       sendFailed: 'Could not send the email, please try again later',
       alreadyConfirmed: 'Your email is already confirmed, please sign in',
+      noPendingEmail: 'No new email is waiting for confirmation on this account',
       googleTakenPhone: 'This email already has an account that signs in with a phone number; sign in with phone + password',
       googleNotConfirmed: 'This email has an account that signs in with a phone number and is not confirmed yet',
       googleWaiting: 'This email is waiting for its confirmation',
@@ -904,6 +940,26 @@ const en: Messages = {
     resetIntro: 'Once it is saved, you are signed in on this device and signed out on every other device.',
     newPassword: 'New password',
     saveNewPassword: 'Save the new password',
+  },
+  profile: {
+    title: 'Profile',
+    completeTitle: 'Complete your profile',
+    completeIntro: 'Tell the shop your name and the building to deliver to before you order.',
+    name: 'Name',
+    building: 'Default building',
+    pickBuilding: 'Pick a building',
+    language: 'Language',
+    save: 'Save',
+    googleEmailNote: 'The email of a Google account cannot be changed.',
+    newEmailNote: 'The new email takes effect only after you tap the link sent to it.',
+    waiting: (email) => `Waiting for confirmation of ${email}`,
+    declined: (building) => `The shop does not deliver to ${building}; pick another building`,
+    currentEmail: (email) => `Current email: ${email}`,
+    saved: 'Profile saved',
+    emailChanged: (email) => `Your email was changed to ${email}`,
+    newLinkSent: (email) => `A new link was sent to ${email}`,
+    langVi: 'Tiếng Việt',
+    langEn: 'English',
   },
   real: {
     accountMenu: 'Account',

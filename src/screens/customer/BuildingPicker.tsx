@@ -5,8 +5,29 @@ import { Button, Select, TextInput } from '@/components/ui'
 import { hhmm } from '@/domain/time'
 import { useActions, useApp } from '@/screens/app'
 
-/** Pick an approved building, or propose one that is not listed (BR-12, BR-16, CN-11). */
-export function BuildingPicker({ value, onChange, id }: { value: string; onChange: (id: string) => void; id: string }) {
+/**
+ * Pick an approved building, or propose one that is not listed (BR-12, BR-16, CN-11). On the
+ * profile (`placeholder`) the field can be empty, for a new customer or a declined default
+ * building, which is never offered (CN-78, AC188); `error` is its message under the field.
+ */
+export function BuildingPicker({
+  value,
+  onChange,
+  id,
+  label,
+  placeholder,
+  error,
+  name: fieldName,
+}: {
+  value: string
+  onChange: (id: string) => void
+  id: string
+  label?: string
+  placeholder?: string
+  error?: string
+  /** The form field that carries the choice (the profile's Save). */
+  name?: string
+}) {
   const { s, m } = useApp()
   const { proposeBuilding, pending } = useActions()
   const [proposing, setProposing] = useState(false)
@@ -17,7 +38,20 @@ export function BuildingPicker({ value, onChange, id }: { value: string; onChang
 
   return (
     <div className="flex flex-col gap-2">
-      <Select label={m.cart.building} id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+      <Select
+        label={label ?? m.cart.building}
+        id={id}
+        name={fieldName}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+      >
+        {placeholder !== undefined && (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        )}
         {options.map((b) => (
           <option key={b.id} value={b.id}>
             {b.name}
@@ -25,6 +59,11 @@ export function BuildingPicker({ value, onChange, id }: { value: string; onChang
           </option>
         ))}
       </Select>
+      {error && (
+        <p id={`${id}-error`} className="text-[13px] font-medium text-chili">
+          {error}
+        </p>
+      )}
       {current?.state === 'pending' && <p className="text-sm text-turmeric-ink">{m.cart.proposeNote}</p>}
       {proposing ? (
         <div className="flex flex-col gap-2 rounded-lg bg-tray p-3">
