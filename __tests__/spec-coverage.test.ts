@@ -59,6 +59,28 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC128:
     'The Google part is tested since PR M1-3 (scenario Z5); the profile still showing the waiting email comes in PR M1-5 of docs/plan.md',
   AC166: 'A profile message that disappears when its field is edited (CN-76) needs the profile of PR M1-5 of docs/plan.md',
+  AC171: 'The expired email-change link (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC172: 'The expired email-change link (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC173: 'The expired email-change link (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC174: 'A replaced email-change link (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC175: 'Typing the current email again (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC176: 'Typing the waiting email again (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC177: 'Saving a complete profile (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC178: 'A profile save with a refused field (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC179: 'The email-change link signing in (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC180: 'The phone number of a Google account (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC181: 'A waiting new email on Forgot password (CN-77) needs the email change of PR M1-5 of docs/plan.md',
+  AC182: 'The language field of the profile (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC183: 'Proposing a building (CN-77) needs the profile of PR M1-5 of docs/plan.md',
+  AC184: 'The saved notice (CN-78) needs the profile of PR M1-5 of docs/plan.md',
+  AC185: 'The wait on a new email (CN-78) needs the email change of PR M1-5 of docs/plan.md',
+  AC186: 'A link replaced by "Send again" (CN-78) needs the email change of PR M1-5 of docs/plan.md',
+  AC187: 'The expired email-change link page (CN-78) needs the email change of PR M1-5 of docs/plan.md',
+  AC188: 'A declined building on the profile (CN-78) needs the profile of PR M1-5 of docs/plan.md',
+  AC189: 'Proposing a building again (CN-78) needs the profile of PR M1-5 of docs/plan.md',
+  AC190: 'Changing the email while completing (CN-78) needs the profile of PR M1-5 of docs/plan.md',
+  AC191: 'The Email field while a new email waits (CN-78) needs the profile of PR M1-5 of docs/plan.md',
+  AC192: 'Proposing a declined building again (CN-78) needs the profile of PR M1-5 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
