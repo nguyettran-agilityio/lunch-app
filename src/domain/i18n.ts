@@ -414,6 +414,8 @@ const vi = {
       emailTakenGoogle: 'Email này đã có tài khoản (đăng nhập bằng Google)',
       emailTakenPhone: 'Email này đã có tài khoản (đăng nhập bằng số điện thoại)',
       emailWaiting: 'Email này đang chờ xác nhận',
+      // Drafted in PR M1-4 (CN-73), approved by the Lead in PR #78.
+      samePassword: 'Mật khẩu mới phải khác mật khẩu cũ',
     },
     notice: {
       wrongPassword: 'Sai mật khẩu',
@@ -421,6 +423,8 @@ const vi = {
       googleAccount: 'Tài khoản này đăng nhập bằng Google',
       notConfirmed: 'Bạn chưa xác nhận email',
       tooMany: 'Thử quá nhiều lần, vui lòng thử lại sau vài phút',
+      // Drafted in PR M1-4 (CN-74), approved by the Lead in PR #78.
+      sendFailed: 'Chưa gửi được email, vui lòng thử lại sau',
       alreadyConfirmed: 'Email của bạn đã được xác nhận, vui lòng đăng nhập',
       // Under the Google button (BR-29a, CN-62, CN-65, CN-72); the last one is the Lead's text.
       googleTakenPhone: 'Email này đã có tài khoản đăng nhập bằng số điện thoại; hãy đăng nhập bằng số điện thoại và mật khẩu',
@@ -440,6 +444,17 @@ const vi = {
     sendNewLink: 'Gửi link mới',
     // Drafted in PR M1-2 (CN-70): the link of the expired-link page for someone signed in.
     toHome: 'Về trang chủ',
+    // S-C1a and the reset page (UI18, approved in PR #60).
+    forgotPasswordLink: 'Quên mật khẩu?',
+    forgotTitle: 'Quên mật khẩu',
+    forgotIntro: 'Nhập số điện thoại hoặc email của tài khoản. Link đặt lại mật khẩu được gửi tới email của tài khoản.',
+    sendResetLink: 'Gửi link đặt lại mật khẩu',
+    resetSentTitle: 'Đã gửi link đặt lại mật khẩu',
+    resetSentBody: 'Mở email của tài khoản và bấm vào link. Link dùng được một lần, trong 1 giờ.',
+    resetTitle: 'Đặt mật khẩu mới',
+    resetIntro: 'Sau khi lưu, bạn được đăng nhập trên máy này và đăng xuất trên mọi máy khác.',
+    newPassword: 'Mật khẩu mới',
+    saveNewPassword: 'Lưu mật khẩu mới',
   },
   // The real shell and the two homes of M1 (B61): new in PR M1-2, drafted by Claude in both
   // languages and listed in the PR for the Lead to review (CN-64).
@@ -853,6 +868,7 @@ const en: Messages = {
       emailTakenGoogle: 'This email already has an account (signs in with Google)',
       emailTakenPhone: 'This email already has an account (signs in with a phone number)',
       emailWaiting: 'This email is waiting for its confirmation',
+      samePassword: 'The new password must differ from the old one',
     },
     notice: {
       wrongPassword: 'Wrong password',
@@ -860,6 +876,7 @@ const en: Messages = {
       googleAccount: 'This account signs in with Google',
       notConfirmed: 'You have not confirmed your email',
       tooMany: 'Too many attempts, please try again in a few minutes',
+      sendFailed: 'Could not send the email, please try again later',
       alreadyConfirmed: 'Your email is already confirmed, please sign in',
       googleTakenPhone: 'This email already has an account that signs in with a phone number; sign in with phone + password',
       googleNotConfirmed: 'This email has an account that signs in with a phone number and is not confirmed yet',
@@ -877,6 +894,16 @@ const en: Messages = {
     expiredIntro: 'Enter the phone number or email of your account to get a new link.',
     sendNewLink: 'Send a new link',
     toHome: 'Go to the home page',
+    forgotPasswordLink: 'Forgot password?',
+    forgotTitle: 'Forgot password',
+    forgotIntro: 'Enter the phone number or email of your account. The reset link goes to the email of the account.',
+    sendResetLink: 'Send the reset link',
+    resetSentTitle: 'The reset link is sent',
+    resetSentBody: 'Open the email of your account and tap the link. The link works once, for 1 hour.',
+    resetTitle: 'Set a new password',
+    resetIntro: 'Once it is saved, you are signed in on this device and signed out on every other device.',
+    newPassword: 'New password',
+    saveNewPassword: 'Save the new password',
   },
   real: {
     accountMenu: 'Account',

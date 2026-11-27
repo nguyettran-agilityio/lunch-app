@@ -45,6 +45,12 @@ export const testMailbox = pgTable('test_mailbox', {
   usedAt: timestamp('used_at', { withTimezone: true }),
 })
 
+// The addresses the test mode refuses to send to, as Resend with no domain does (CN-74, B65),
+// set by /test/mail-refuse.
+export const testMailRefuse = pgTable('test_mail_refuse', {
+  email: text('email').primaryKey(),
+})
+
 // Failed sign-ins, for the low limit of the test mode (B60).
 export const testSignInFailures = pgTable('test_sign_in_failures', {
   id: uuid('id').primaryKey(),

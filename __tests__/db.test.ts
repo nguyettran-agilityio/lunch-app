@@ -65,6 +65,8 @@ describe('first migration', () => {
       { relname: 'auth_mail_log', relrowsecurity: true },
       { relname: 'buildings', relrowsecurity: true },
       { relname: 'profiles', relrowsecurity: true },
+      // PR M1-4 (CN-74, B67).
+      { relname: 'used_reset_links', relrowsecurity: true },
     ])
     const policies = await t.pg.query(`select 1 from pg_policies where schemaname = 'public'`)
     expect(policies.rows).toHaveLength(0)

@@ -25,11 +25,12 @@ describe('AC104 X10 the account emails (BR-29c)', () => {
     ['confirm.html', 'signup', 'Xác nhận tài khoản', 'Confirm your Cơm Lá account'],
     ['reset.html', 'recovery', 'Đặt lại mật khẩu', 'Reset your Cơm Lá password'],
     ['email-change.html', 'email_change', 'Xác nhận email mới', 'Confirm your new email'],
-  ])('AC104 X10 %s has the Vietnamese text first, then the English, and links /auth/confirm', (file, type, vi, en) => {
+  ])('AC104 X10 %s has the Vietnamese text first, then the English, and links the address the app sent', (file, type, vi, en) => {
     const html = readFileSync(path.join(TEMPLATES, file), 'utf8')
     expect(html.indexOf(vi)).toBeGreaterThan(-1)
     expect(html.indexOf(en)).toBeGreaterThan(html.indexOf(vi))
-    // B64: the link starts with the /auth/confirm address the app sent, so each branch's preview gets its own.
+    // B64: the link starts with the address the app sent (/auth/confirm, or /auth/reset/link/<sent>
+    // for a reset, B67), so each branch's preview gets its own.
     expect(html).toContain(`{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=${type}`)
     expect(html).not.toContain('{{ .SiteURL }}')
   })
@@ -81,15 +82,19 @@ describe('B60 the low limits apply only in the test sign-in mode', () => {
 // A fake Supabase client: only the calls the provider makes, answering what each test gives
 // and keeping the arguments of each call.
 const calls: Record<string, unknown[]> = {}
-function fakeClients(answers: Record<string, unknown>) {
+function fakeClients(answers: Record<string, unknown>, reset: Record<string, unknown> = {}) {
   const call =
-    (name: string) =>
+    (name: string, from = answers, prefix = '') =>
     async (...args: unknown[]) => {
-      calls[name] = args
-      return answers[name]
+      calls[`${prefix}${name}`] = args
+      order.push(`${prefix}${name}`)
+      const a = from[name]
+      return typeof a === 'function' ? a(...args) : a
     }
   const auth = {
     getUser: call('getUser'),
+    getSession: call('getSession'),
+    setSession: call('setSession'),
     signOut: call('signOut'),
     signUp: call('signUp'),
     resend: call('resend'),
@@ -100,18 +105,32 @@ function fakeClients(answers: Record<string, unknown>) {
     resetPasswordForEmail: call('resetPasswordForEmail'),
     admin: { getUserById: call('getUserById'), deleteUser: call('deleteUser') },
   }
+  const resetAuth = Object.fromEntries(
+    ['getSession', 'getUser', 'verifyOtp', 'updateUser', 'signOut'].map((n) => [n, call(n, reset, 'reset.')]),
+  )
   const client = { auth } as never
   sqlRun.length = 0
+  order.length = 0
+  dropped.n = 0
   return createSupabaseProvider({
     session: async () => client,
     admin: () => client,
+    reset: async () => ({ auth: resetAuth }) as never,
+    dropReset: async () => {
+      dropped.n++
+      order.push('dropReset')
+    },
     runSql: async (q) => {
       const { sql, params } = new PgDialect().sqlToQuery(q)
       sqlRun.push({ sql, params })
+      return sqlAnswer.rows
     },
   })
 }
 const sqlRun: { sql: string; params: unknown[] }[] = []
+const sqlAnswer: { rows: unknown } = { rows: [] }
+const order: string[] = []
+const dropped = { n: 0 }
 
 describe('Google with the Supabase provider and a fake client (plan.md section 1.5)', () => {
   beforeEach(() => {
@@ -157,12 +176,107 @@ describe('Google with the Supabase provider and a fake client (plan.md section 1
     expect(metadataName({})).toBeNull()
   })
 
-  it('AC136 sends the recovery link back to /auth/confirm of this site, and maps the limit to "Too many attempts"', async () => {
+  it('AC136 AC20 sends the reset link to /auth/reset/link/<sent> of this site, and maps the limit to "Too many attempts"', async () => {
+    const at = new Date('2026-11-26T03:00:00Z')
     const p = fakeClients({ resetPasswordForEmail: { data: {}, error: null } })
-    expect(await p.sendRecovery('lan@gmail.com')).toEqual({ ok: true })
-    expect(calls.resetPasswordForEmail).toEqual(['lan@gmail.com', { redirectTo: 'https://lunch.example/auth/confirm' }])
+    expect(await p.sendRecovery('lan@gmail.com', at)).toEqual({ ok: true })
+    expect(calls.resetPasswordForEmail).toEqual(['lan@gmail.com', { redirectTo: `https://lunch.example/auth/reset/link/${at.getTime()}` }])
     const limited = fakeClients({ resetPasswordForEmail: { data: {}, error: { status: 429 } } })
-    expect(await limited.sendRecovery('lan@gmail.com')).toEqual({ ok: false, error: 'rateLimited' })
+    expect(await limited.sendRecovery('lan@gmail.com', at)).toEqual({ ok: false, error: 'rateLimited' })
+  })
+
+  it('AC100 AC157 N8 saving uses the link on the held client, signs out the other devices, then this browser takes the session', async () => {
+    let held = 0
+    const session = { access_token: 'a1', refresh_token: 'r1' }
+    const p = fakeClients(
+      { getSession: { data: { session: { access_token: 'shop' } } }, signOut: { error: null }, setSession: { error: null } },
+      {
+        // No session held yet, then the one the link created.
+        getSession: () => ({ data: { session: held++ === 0 ? null : session } }),
+        verifyOtp: { data: { session, user: { id: 'u1' } }, error: null },
+        updateUser: { data: { user: { id: 'u1' } }, error: null },
+        signOut: { error: null },
+      },
+    )
+    expect(await p.resetPassword({ tokenHash: 'tok', sent: 1 }, 'abcdef34')).toEqual({ ok: true, userId: 'u1' })
+    expect(calls['reset.verifyOtp']).toEqual([{ token_hash: 'tok', type: 'recovery' }])
+    expect(calls['reset.updateUser']).toEqual([{ password: 'abcdef34' }])
+    expect(calls['reset.signOut']).toEqual([{ scope: 'others' }])
+    // Another account signed in on this browser is signed out for good, before the new session.
+    expect(calls.signOut).toEqual([{ scope: 'local' }])
+    expect(calls.setSession).toEqual([session])
+    expect(order.indexOf('reset.updateUser')).toBeLessThan(order.indexOf('reset.signOut'))
+    expect(order.indexOf('signOut')).toBeLessThan(order.indexOf('setSession'))
+    expect(dropped.n).toBe(1)
+  })
+
+  it('AC150 N8 a password equal to the old one keeps the held session; a session error is the expired page', async () => {
+    const same = fakeClients(
+      {},
+      {
+        getSession: { data: { session: { access_token: 'a1' } } },
+        updateUser: { data: { user: null }, error: { code: 'same_password', status: 422 } },
+      },
+    )
+    expect(await same.resetPassword({ tokenHash: 'tok', sent: 1 }, 'lan12345')).toEqual({ ok: false, error: 'samePassword' })
+    expect(order).not.toContain('reset.verifyOtp')
+    expect(dropped.n).toBe(0)
+    const gone = fakeClients(
+      {},
+      {
+        getSession: { data: { session: { access_token: 'a1' } } },
+        updateUser: { data: { user: null }, error: { code: 'session_not_found', status: 403 } },
+      },
+    )
+    expect(await gone.resetPassword({ tokenHash: 'tok', sent: 1 }, 'abcdef34')).toEqual({ ok: false, error: 'invalidLink' })
+    expect(dropped.n).toBe(1)
+    const used = fakeClients(
+      {},
+      { getSession: { data: { session: null } }, verifyOtp: { data: { session: null }, error: { code: 'otp_expired', status: 403 } } },
+    )
+    expect(await used.resetPassword({ tokenHash: 'tok', sent: 1 }, 'abcdef34')).toEqual({ ok: false, error: 'invalidLink' })
+    expect(order).not.toContain('reset.updateUser')
+  })
+
+  it('AC153 B68 dropping the held session signs it out at Supabase first, then deletes its cookies', async () => {
+    const p = fakeClients({}, { getSession: { data: { session: { access_token: 'a1' } } }, signOut: { error: null } })
+    await p.dropHeldReset()
+    expect(calls['reset.signOut']).toEqual([{ scope: 'local' }])
+    expect(order.indexOf('reset.signOut')).toBeGreaterThan(-1)
+    expect(order.indexOf('reset.signOut')).toBeLessThan(order.indexOf('dropReset'))
+    expect(dropped.n).toBe(1)
+    const none = fakeClients({}, { getSession: { data: { session: null } } })
+    await none.dropHeldReset()
+    expect(order).not.toContain('reset.signOut')
+    expect(dropped.n).toBe(1)
+  })
+
+  it('AC154 N12 hasPassword reads auth.users; NULL and an empty string both mean no password', async () => {
+    const p = fakeClients({})
+    sqlAnswer.rows = [{ has: true }]
+    expect(await p.hasPassword('u1')).toBe(true)
+    expect(sqlRun[0]).toEqual({
+      sql: `SELECT (encrypted_password IS NOT NULL AND encrypted_password <> '') AS has FROM auth.users WHERE id = $1`,
+      params: ['u1'],
+    })
+    sqlAnswer.rows = { rows: [{ has: false }] }
+    expect(await p.hasPassword('u1')).toBe(false)
+    sqlAnswer.rows = []
+    expect(await p.hasPassword('u1')).toBe(false)
+  })
+
+  it('AC156 a 5xx answer to a send is "Could not send the email"; other errors still throw', async () => {
+    const at = new Date('2026-11-26T03:00:00Z')
+    const p = fakeClients({
+      resetPasswordForEmail: { data: {}, error: { code: 'unexpected_failure', status: 500 } },
+      resend: { error: { status: 500 } },
+      signUp: { data: {}, error: { status: 500 } },
+    })
+    expect(await p.sendRecovery('huy@gmail.com', at)).toEqual({ ok: false, error: 'sendFailed' })
+    expect(await p.resendConfirmation('huy@gmail.com')).toEqual({ ok: false, error: 'sendFailed' })
+    expect(await p.signUp('huy@gmail.com', 'abcdef12')).toEqual({ ok: false, error: 'sendFailed' })
+    const odd = fakeClients({ resetPasswordForEmail: { data: {}, error: { code: 'validation_failed', status: 400 } } })
+    await expect(odd.sendRecovery('huy@gmail.com', at)).rejects.toThrow()
   })
 
   it('AC133 a code that does not sign in (another browser, used twice) fails', async () => {

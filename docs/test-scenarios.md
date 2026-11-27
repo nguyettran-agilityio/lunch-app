@@ -175,16 +175,16 @@ Written in the Plan step before any code (X6). They run in milestone M1 of [plan
 | A4 | Sign up with `0905111222` when `0905 111 222` has an account | "This phone number already has an account. If it is yours, call the shop" (AC50) | Playwright |
 | A5 | Sign up, then sign in before confirming the email | Refused until the confirmation link is tapped; after tapping, sign-in works (AC51) | Playwright |
 | A6 | "Send again" right after sign-up, then after 60 seconds | Disabled for 60 seconds, then sends (AC51) | Playwright |
-| A7 | Tap a confirmation or reset link older than 1 hour, or a second time | "The link has expired" with a button to send a new one (AC51) | Playwright (confirmation links; reset links in M1-4) |
+| A7 | Tap a confirmation or reset link older than 1 hour, or a second time | "The link has expired" with a button to send a new one (AC51) | Playwright |
 | A8 | Account `0912 345 678` / lan@gmail.com: sign in with `+84912345678`, then with `lan@gmail.com` | Both work (AC52) | Playwright |
 | A9 | Another sign-up with `0912345678` | Refused: the number already has an account (AC52) | Playwright |
-| A10 | Password `abc12`, `abcdefgh`, `abcdef12` at sign-up and at reset | First two refused with "At least 8 characters, with both letters and digits"; third accepted (AC53) | Playwright (sign-up part; the reset part in M1-4) |
+| A10 | Password `abc12`, `abcdefgh`, `abcdef12` at sign-up and at reset | First two refused with "At least 8 characters, with both letters and digits"; third accepted (AC53) | Playwright |
 | A11 | Profile: change the phone number to a free one, then to one another account has | First saved; second refused (AC54) | Planned |
 | A12 | Profile of a phone + password account: change the email | Old email kept until the link sent to the new email is tapped; an email with an owner is refused with "This email already has an account" (AC54) | Planned |
 | A13 | Profile of a Google account | Email shown, not editable (AC54) | Planned |
 | A14 | Customer places an order, changes the phone number; shop opens the order, the delivery list, searches the old number | New number shown on both; the old number finds nothing (AC55) | Planned |
-| A15 | "Forgot password" with an unknown phone number, then with a Google account's email | "No account with this phone number or email"; "This account signs in with Google" (AC56) | Planned |
-| A16 | "Forgot password" for a confirmed phone + password account, open the link, set a new password | The reset email arrives at the account's email; the new password signs in (AC20) | Planned |
+| A15 | "Forgot password" with an unknown phone number, then with a Google account's email | "No account with this phone number or email"; "This account signs in with Google" (AC56) | Playwright |
+| A16 | "Forgot password" for a confirmed phone + password account, open the link, set a new password | The reset email arrives at the account's email; the new password signs in (AC20) | Playwright |
 | A17 | Sign in with an account whose email is in the shop list, by Google and by phone + password | Straight to the shop screens, no profile asked, no way to order (AC57) | Playwright (the Google shop sign-in; "no way to order": Planned for M3) |
 | A18 | First Google sign-in of a customer | Sent to profile completion before ordering; a phone number another account has is refused (AC16) | Planned |
 
@@ -215,7 +215,7 @@ Written in the Plan step before any code (X6); each runs in the milestone of [pl
 | P5 | Same order edited on two devices; device 1 saves, then device 2 (M4) | Device 2: "This order has just changed", shows device 1's version (AC66) | Planned |
 | P6 | Sign up again with the phone and the email of an unconfirmed account (M1) | "Check your email to confirm" with "Send again" to the first email; no new account (AC67) | Playwright |
 | P7 | Sign in with a wrong password, an unknown phone, a Google account's email (M1) | "Wrong password"; "No account with this phone number or email"; "This account signs in with Google" (AC68) | Playwright |
-| P8 | Unconfirmed account: sign in, then "Forgot password" (M1) | "You have not confirmed your email" with "Send the confirmation link again"; no reset link (AC69) | Playwright (sign-in part; "Forgot password" in M1-4) |
+| P8 | Unconfirmed account: sign in, then "Forgot password" (M1) | "You have not confirmed your email" with "Send the confirmation link again"; no reset link (AC69) | Playwright |
 | P9 | Customer changes the profile email to a shop email (M1) | "This email is for a shop account" (AC70) | Planned |
 | P10 | Browser on EN, account saved VI; sign in (M1) | Vietnamese, and the browser stays VI (AC71) | Playwright |
 | P11 | Profile, shop order detail and delivery list of a customer with 0912345678 (M5) | "0912 345 678" everywhere (AC72) | Planned |
@@ -238,7 +238,7 @@ Written in the Plan step before any code (X6); each runs in the milestone of [pl
 | Q5 | Buildings: add "Tòa XYZ" at 11:45 (prototype: this PR; real: M2) | Approved at once; a customer can pick it (AC81) | Test |
 | Q6 | Shop declines a customer's pending default building; the customer goes to order; in another case the customer signs in again to `/` (M4) | Profile first with "The shop does not deliver to …"; after saving, `/` (AC82, CN-67) | Planned |
 | Q7 | Sign up with a phone waiting for confirmation and a Google account's email (M1) | Both messages, one under each field (AC83) | Playwright |
-| Q8 | Tap an expired link, enter the phone number, send (M1) | New link to the account's email; 60-second wait (AC84) | Playwright (confirmation links; reset links in M1-4) |
+| Q8 | Tap an expired link, enter the phone number, send (M1) | New link to the account's email; 60-second wait (AC84) | Playwright |
 | Q9 | Upload a HEIC dish photo and a HEIC refund QR (M4; the refund QR part also tested in the prototype) | Converted and saved as smaller JPG; one that cannot be converted refused (AC85) | Planned |
 | Q10 | Two orders for one day: the second has its own total, QR and payment state (M3) | As AC4 | Planned |
 | Q11 | Paid 50,000 order edited to 40,000 (M4) | Needs refund 10,000, reason "edit lowered the total" (AC7) | Planned |
@@ -273,7 +273,7 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 |---|---|---|---|
 | W1 | Waiting account with 0905 111 222; a confirmed customer changes the profile phone to it; a new Google customer enters it at profile completion | Both refused with "This phone number is waiting for its email to be confirmed", no "Send again" (AC92) | Planned |
 | W2 | Two waiting accounts; sign up with the phone of one and the email of the other | Both deleted, old links fail, the new account gets a link (AC93) | Playwright |
-| W3 | Waiting account whose password was removed after a refused Google sign-in; "Send the confirmation link again", open the link | New password asked; saving confirms the email; sign-in with phone and the new password works; profile unchanged (AC94) | Planned |
+| W3 | Waiting account whose password was removed after a refused Google sign-in; "Send the confirmation link again", open the link | New password asked; saving confirms the email; sign-in with phone and the new password works; profile unchanged (AC94) | Playwright |
 
 ## 19. Zero-questions test of M1 (CN-64)
 
@@ -286,13 +286,13 @@ Written in the Plan step before any code (X6); each runs in milestone M1 of [pla
 | X3 | Sign up, tap the confirmation link | Signed in, the profile opens (AC97) | Playwright (signed in, `/` opens until the profile of M1-5) |
 | X4 | Go past the limit of sign-in attempts (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Playwright |
 | X5 | Expired-link page of a sign-up confirmation link with the phone of a confirmed account, then the old email of a waiting account replaced by a sign-up with the same phone and another email | "Your email is already confirmed, please sign in"; "No account with this phone number or email" (AC99) | Playwright |
-| X6 | Signed in on two browser contexts; reset the password from one | That one signed in with the new password; the other signed out (AC100) | Planned |
+| X6 | Signed in on two browser contexts; reset the password from one | That one signed in with the new password; the other signed out (AC100) | Playwright |
 | X7 | Profile email to a waiting account's email, then to a free one | Refused without "Send again"; then "Waiting for confirmation of …" with "Send again", no cancel (AC101) | Planned |
 | X8 | Close and reopen the browser context; "Sign out" in the header menu | Still signed in; then signed out (AC102) | Playwright |
 | X9 | Google profile completion: clear the name, type 81 characters; propose a building without an address | Name prefilled; both refused; building proposed (AC103) | Planned |
 | X10 | The three account email templates in the repository | Vietnamese text first, then English (AC104) | Test |
 | X11 | Ask for confirmation emails past the email limit (test sign-in mode set to a low limit) | "Too many attempts, please try again in a few minutes" (AC98) | Playwright |
-| X12 | Signed in, tap an expired email-change link and ask for a new one; tap an expired reset link and ask for a new one | A new email-change link to the waiting address; a new reset link (AC105) | Planned |
+| X12 | Signed in, tap an expired email-change link and ask for a new one; tap an expired reset link and ask for a new one | A new email-change link to the waiting address; a new reset link (AC105) | Playwright (the reset part; the email-change part: Planned for M1-5) |
 | X13 | A customer's profile waits for lan2@gmail.com; another sign-up and another profile change use it | Both refused with "This email is waiting for its confirmation"; the first customer can still confirm (AC106) | Planned |
 | X14 | Signed out: an incomplete customer opens `/` and signs in; a shop account opens `/profile` and signs in | Profile first, then `/`; the shop account goes to `/shop` (AC107) | Playwright (the shop part; the profile in M1-5) |
 | X15 | Sign-in field: `0281234567`, then `lan@` | "Phone number is not valid", then "Email is not valid" (AC108) | Playwright |
@@ -310,7 +310,7 @@ Written before the code of PR M1-1c (X6, B45). They check the test sign-in mode 
 | E2 | Test server: `/test/sign-in?account=nobody` | Refused, no session (B42) | Playwright |
 | E3 | `/test/sign-in` and `/test/session` with `E2E_TEST_AUTH` unset; with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set; with `E2E_TEST_AUTH=1` and each Supabase variable set | 404 every time (B25, B46) | Test |
 | E4 | Server start with `E2E_TEST_AUTH=1` and `VERCEL_ENV` set, or with any Supabase variable set; start with `E2E_TEST_AUTH` unset, with `E2E_TEST_AUTH=0` next to Supabase and Vercel variables, and with the test mode alone | Refused, naming the variable; the other three start, and only the last one has the test mode on (B25, B46, B48) | Test |
-| E5 | Every `/proto` screen in Vietnamese and in English, at 375 px and 1280 px, on fresh fake data | No horizontal scroll: `scrollWidth <= clientWidth` (AC19, BR-31, B11, B28, B49) | Playwright |
+| E5 | Every `/proto` screen, and the real screens of each milestone (since M1-4 `/sign-in`, `/sign-up`, `/forgot-password`, `/auth/expired` of both kinds, `/auth/reset`, `/` and `/shop`), in Vietnamese and in English, at 375 px and 1280 px, on fresh fake data | No horizontal scroll: `scrollWidth <= clientWidth` (AC19, BR-31, B11, B28, B49) | Playwright |
 
 ## 21. Open points of M1-2 (CN-67)
 
@@ -319,7 +319,7 @@ Written when PR M1-2 started, before its code (X6), with the points of CN-68. Th
 | # | Steps | Expected | How run |
 |---|---|---|---|
 | Y1 | Switch the sign-up page to English, sign up with 0912 345 678, tap the confirmation link | The account is saved as EN; the app stays in English after signing in (AC112) | Playwright |
-| Y2 | A confirmation link sent to lan@gmail.com and tapped at once; 20 seconds later "Forgot password" for lan@gmail.com (M1-4) | Nothing sent; the button disabled until 60 seconds after the first email (AC113) | Planned |
+| Y2 | A confirmation link sent to lan@gmail.com and tapped at once; 20 seconds later "Forgot password" for lan@gmail.com (M1-4) | Nothing sent; the button disabled until 60 seconds after the first email (AC113) | Playwright |
 | Y3 | Confirmed account 0912 345 678 / lan@gmail.com; sign up with 0912345678 and lan@gmail.com | The phone message under the phone, "This email already has an account (signs in with a phone number)" under the email; nothing created (AC114) | Playwright |
 | Y4 | Confirmed account with 0912 345 678, waiting account with huy@gmail.com; sign up with 0912345678 and huy@gmail.com | Only the phone message; nothing under the email; the waiting account and its link still work (AC115) | Playwright |
 | Y6 | Waiting account with lan@gmial.com, link sent 20 seconds ago; sign up with another phone and lan@gmial.com | The waiting account replaced; the new link sent at once; "Check your email to confirm" (AC116) | Playwright |
@@ -360,24 +360,28 @@ Written when M1-3 started, before its code (X6). The shop cases of AC120 and AC1
 
 ## 23. Open points of M1-4 (CN-73)
 
-Written when M1-4 started, before its plan and code (X6), with the points of CN-74 (N11–N17). A15, A16, A7 and A10 (reset parts), P8 ("Forgot password" part), Q8 (reset links), W3, X6, X12 (reset part) and Y2 also run in M1-4. Every link here is issued by the test sign-in mode into its test mailbox.
+Written when M1-4 started, before its plan and code (X6), with the points of CN-74 (N11–N17) and of CN-75, found on the code (N18–N21). A15, A16, A7 and A10 (reset parts), P8 ("Forgot password" part), Q8 (reset links), W3, X6, X12 (reset part) and Y2 also run in M1-4. Every link here is issued by the test sign-in mode into its test mailbox.
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| N1 | The Google account Minh has 0938 111 222 on his profile (seeded); "Forgot password" with 0938111222 | "This account signs in with Google"; the test mailbox gets nothing (AC143) | Planned |
-| N2 | Confirmed account 0905 111 222 / huy@gmail.com; the shop account signed in opens `/forgot-password` and sends for 0905111222; 61 seconds later a customer signed in does the same | The form each time; a reset link to huy@gmail.com each time; the shop and the customer still signed in (`/test/session`) (AC144) | Planned |
-| N3 | Waiting account 0912 345 678 / lan@gmail.com that needs a password (CN-63, seeded); "Forgot password" with 0912345678, then "Send the confirmation link again" | "You have not confirmed your email" with the button; nothing in the mailbox after the first tap; the CN-63 link after the button (AC145) | Planned |
-| N4 | The account of N3 with its CN-63 link; open the link, close the page; sign in with 0912345678 and abc12345; open the link again and save abcdef12; sign out and sign in with 0912345678 and abcdef12 | Not signed in after closing; "You have not confirmed your email" with the button; after saving signed in and confirmed; the last sign-in works; the profile unchanged (AC146) | Planned |
-| N5 | A customer signed in as usual opens `/auth/reset`; a visitor not signed in opens it | "The link has expired" page of a reset link with the phone-or-email field, each time; the password unchanged (AC147) | Planned |
-| N6 | Waiting account 0905 111 222 / huy@gmail.com; on `/auth/expired?type=recovery` enter 0905111222 and send | "You have not confirmed your email" with "Send the confirmation link again"; no reset link in the mailbox (AC148) | Planned |
-| N7 | Confirmed account 0912 345 678 / lan12345; a reset link; open it and close the page; open `/`; sign in with lan12345, sign out; open the link again and save abcdef12 | `/` goes to the sign-in page; lan12345 signs in; the link opens the form again and saving signs in with abcdef12 (AC149) | Planned |
-| N8 | Signed in on two browser contexts with lan12345; on the second open a reset link and save lan12345, close the page, open the same link again and save abcdef12 | "The new password must differ from the old one" under the field and the first context still signed in; the reopened link shows the form again; then the second context signed in and the first signed out (AC150) | Planned |
-| N9 | The shop account and a customer with a complete profile each open a reset link and save a new password | `/shop` for the shop, `/` for the customer (AC151) | Planned |
-| N10 | Signed out on `/sign-in?next=/proto`: tap "Forgot password?", "Sign in", "Forgot password?" again, send, open the link, save | `/forgot-password` and `/sign-in` without `next`; after saving `/` (AC152) | Planned |
-| N11 | A reset link sent 61 minutes ago (test clock); a link whose password was saved; a link replaced by a newer one; tap each, and save on the last; in another case, save the old password on link L1 (refused), ask for a new link L2, reopen L1 and save | The first two open "The link has expired" at once; the third shows the form and saving opens "The link has expired"; the reopened L1 saves nothing and opens "The link has expired"; L2 still works (AC153) | Planned |
-| N12 | W3 done (the CN-63 account saved abcdef12); a Google callback as lan@gmail.com with only the Google identity (test sign-in mode); then sign in with 0912345678 and abcdef12 | The AC49 sentence under the Google button; the account has no Google identity; the sign-in works (AC154) | Planned |
-| N13 | Signed in as a customer, then as the shop: open `/forgot-password` and `/auth/expired?type=recovery`, tap the link under the card; signed out, read it | "Go to the home page" to `/`, then `/shop`; "Sign in" when signed out (AC155) | Planned |
-| N14 | The test sign-in mode set to refuse sending to huy@gmail.com; sign up with 0905 111 222 / huy@gmail.com; in another case, with a seeded confirmed 0905 111 222 / huy@gmail.com, "Forgot password" for huy@gmail.com | "Could not send the email, please try again later" as a Notice at the top of the card each time; no profile created; no `auth_mail_log` row (AC156) | Planned |
-| N15 | The shop account signed in on two browser contexts; on the first open Huy's reset link and save a new password; then "Forgot password" for huy@gmail.com after 60 seconds | The first context's shop session ended (the shop's old token no longer works) and Huy signed in there; the second context still the shop; under the sent card "Go to the home page" (AC157) | Planned |
-| N16 | The test sign-in mode refuses to send to lan@gmail.com: "Send again" on the sent card of "Forgot password" (sent before the refusal was set); a waiting lan@gmail.com refused at Google (AC91), then "Send the confirmation link again" under the Google button | "Could not send the email, please try again later" right under the "Send again" button; under the Google button in place of the AC91 sentence, the button kept; no new `auth_mail_log` row (AC156) | Planned |
-| N17 | A reset link opened on one browser context, the old password saved (refused); the same link opened on a second context and saved; then saved on the first | Second context: the form, then "The link has expired"; first context: saved (AC158) | Planned |
+| N1 | The Google account Minh has 0938 111 222 on his profile (seeded); "Forgot password" with 0938111222 | "This account signs in with Google"; the test mailbox gets nothing (AC143) | Playwright |
+| N2 | Confirmed account 0905 111 222 / huy@gmail.com; the shop account signed in opens `/forgot-password` and sends for 0905111222; 61 seconds later a customer signed in does the same | The form each time; a reset link to huy@gmail.com each time; the shop and the customer still signed in (`/test/session`) (AC144) | Playwright |
+| N3 | Waiting account 0912 345 678 / lan@gmail.com that needs a password (CN-63, seeded); "Forgot password" with 0912345678, then "Send the confirmation link again" | "You have not confirmed your email" with the button; nothing in the mailbox after the first tap; the CN-63 link after the button (AC145) | Playwright |
+| N4 | The account of N3 with its CN-63 link; open the link, close the page; sign in with 0912345678 and abc12345; open the link again and save abcdef12; sign out and sign in with 0912345678 and abcdef12 | Not signed in after closing; "You have not confirmed your email" with the button; after saving signed in and confirmed; the last sign-in works; the profile unchanged (AC146) | Playwright |
+| N5 | A customer signed in as usual opens `/auth/reset`; a visitor not signed in opens it | "The link has expired" page of a reset link with the phone-or-email field, each time; the password unchanged (AC147) | Playwright |
+| N6 | Waiting account 0905 111 222 / huy@gmail.com; on `/auth/expired?type=recovery` enter 0905111222 and send | "You have not confirmed your email" with "Send the confirmation link again"; no reset link in the mailbox (AC148) | Playwright |
+| N7 | Confirmed account 0912 345 678 / lan12345; a reset link; open it and close the page; open `/`; sign in with lan12345, sign out; open the link again and save abcdef12 | `/` goes to the sign-in page; lan12345 signs in; the link opens the form again and saving signs in with abcdef12 (AC149) | Playwright |
+| N8 | Signed in on two browser contexts with lan12345; on the second open a reset link and save lan12345, close the page, open the same link again and save abcdef12 | "The new password must differ from the old one" under the field and the first context still signed in; the reopened link shows the form again; then the second context signed in and the first signed out (AC150) | Playwright |
+| N9 | The shop account and a customer with a complete profile each open a reset link and save a new password | `/shop` for the shop, `/` for the customer (AC151) | Playwright |
+| N10 | Signed out on `/sign-in?next=/proto`: tap "Forgot password?", "Sign in", "Forgot password?" again, send, open the link, save | `/forgot-password` and `/sign-in` without `next`; after saving `/` (AC152) | Playwright |
+| N11 | A reset link sent 61 minutes ago (test clock); a link whose password was saved; a link replaced by a newer one; tap each, and save on the last; in another case, save the old password on link L1 (refused), ask for a new link L2, reopen L1 and save | The first two open "The link has expired" at once; the third shows the form and saving opens "The link has expired"; the reopened L1 saves nothing and opens "The link has expired"; L2 still works (AC153) | Playwright |
+| N12 | W3 done (the CN-63 account saved abcdef12); a Google callback as lan@gmail.com with only the Google identity (test sign-in mode); then sign in with 0912345678 and abcdef12 | The AC49 sentence under the Google button; the account has no Google identity; the sign-in works (AC154) | Playwright (the identities: Test) |
+| N13 | Signed in as a customer, then as the shop: open `/forgot-password` and `/auth/expired?type=recovery`, tap the link under the card; signed out, read it | "Go to the home page" to `/`, then `/shop`; "Sign in" when signed out (AC155) | Playwright |
+| N14 | The test sign-in mode set to refuse sending to huy@gmail.com; sign up with 0905 111 222 / huy@gmail.com; in another case, with a confirmed account made by the test, its address refused, "Forgot password" for it | "Could not send the email, please try again later" as a Notice at the top of the card each time; no profile created; no `auth_mail_log` row (AC156) | Playwright (the `auth_mail_log` check: Test) |
+| N15 | The shop account signed in on two browser contexts; on the first open Huy's reset link and save a new password; then "Forgot password" for huy@gmail.com after 60 seconds | The first context's shop session ended (the shop's old token no longer works) and Huy signed in there; the second context still the shop; under the sent card "Go to the home page" (AC157) | Playwright |
+| N16 | Accounts made by the test, whose addresses the test sign-in mode then refuses: "Send again" on the sent card of "Forgot password" of a confirmed one (sent before the refusal was set); a waiting one refused at Google (AC91), then "Send the confirmation link again" under the Google button | "Could not send the email, please try again later" right under the "Send again" button; under the Google button in place of the AC91 sentence, the button kept; no new `auth_mail_log` row (AC156) | Playwright (the `auth_mail_log` check: Test) |
+| N17 | A reset link opened on one browser context, the old password saved (refused); the same link opened on a second context and saved; then saved on the first | Second context: the form, then "The link has expired"; first context: saved (AC158) | Playwright |
+| N18 | A reset link opened on one browser context and saved on another; reload `/auth/reset` on the first; in another case open a link, move the test clock past its hour, type "abc" and save | "The link has expired" at once each time, no password message (AC159) | Playwright |
+| N19 | The shop signed in opens a customer's reset link | "Set a new password" with no account menu (AC160) | Playwright |
+| N20 | A reset link L3 replaced by L4; open L3, type "abc", save | "The link has expired" at once, no password message (AC161) | Playwright |
+| N21 | The seeded shop (Vietnamese) signed in opens a customer's reset link, switches to EN, saves | The page in English; the shop's stored language still Vietnamese (`/test/profile`); after saving the customer's language (AC162) | Playwright |

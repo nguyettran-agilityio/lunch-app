@@ -68,6 +68,27 @@ export const TEST_ACCOUNTS = {
     lang: 'vi',
     pendingEmail: 'lan2@example.test',
   },
+  // A complete customer whose password only the reset test of AC151 changes.
+  resetCustomer: {
+    id: '00000000-0000-4000-8000-000000000007',
+    email: 'reset-customer@example.test',
+    method: 'password',
+    phone: '0966000222',
+    name: 'Đỗ Văn Reset',
+    buildingId: TEST_BUILDING.id,
+    lang: 'vi',
+  },
+  // A second email + password shop account whose password the reset tests change (AC151,
+  // AC157), so the tests that sign the shop in with TEST_PASSWORD are not touched.
+  resetShop: {
+    id: '00000000-0000-4000-8000-000000000006',
+    email: 'shop-reset@example.test',
+    method: 'password',
+    phone: null,
+    name: null,
+    buildingId: null,
+    lang: 'vi',
+  },
 } as const
 
 /** A shop email with no seeded account, put in SHOP_EMAILS by the e2e script: a shop account

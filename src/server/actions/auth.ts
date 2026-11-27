@@ -9,6 +9,7 @@ import type { Lang } from '@/domain/types'
 import * as accounts from '@/server/auth/accounts'
 import { getGoogleRefused, setGoogleStart } from '@/server/auth/google-cookies'
 import { getAuthProvider } from '@/server/auth/provider'
+import { clearResetLink, getResetLink } from '@/server/auth/reset-cookies'
 import { roleOf } from '@/server/auth/role'
 import { now } from '@/server/clock'
 import { getDb } from '@/server/db/client'
@@ -37,6 +38,41 @@ export async function sendConfirmationAction(identifier: string): Promise<accoun
 /** The form of /auth/expired?type=signup: the phone number or email typed there. */
 export async function sendNewLinkAction(_prev: accounts.FormState, fd: FormData): Promise<accounts.FormState> {
   return accounts.sendConfirmation(await deps(), text(fd, 'identifier'))
+}
+
+/** The form of /forgot-password and of /auth/expired?type=recovery (CN-61, CN-73). */
+export async function forgotPasswordAction(_prev: accounts.FormState, fd: FormData): Promise<accounts.FormState> {
+  return accounts.forgotPassword(await deps(), text(fd, 'identifier'))
+}
+
+/** "Send again" on the "The reset link is sent" card. */
+export async function sendResetAgainAction(identifier: string): Promise<accounts.FormState> {
+  return accounts.forgotPassword(await deps(), identifier)
+}
+
+export type ResetFormState = Exclude<accounts.ResetResult, { status: 'saved' | 'invalidLink' }> | { status: 'idle' }
+
+/**
+ * "Save the new password" on /auth/reset (CN-64, CN-73, CN-74): an expired, used or replaced
+ * link opens the expired page; once saved, the account's language goes to the browser as at
+ * sign-in (CN-60) and the person goes where signing in leads, with no `next` (AC151, AC152).
+ */
+export async function resetPasswordAction(_prev: ResetFormState, fd: FormData): Promise<ResetFormState> {
+  const d = await deps()
+  const result = await accounts.resetPassword(d, await getResetLink(), text(fd, 'password'))
+  if (result.status === 'error') return result
+  await clearResetLink()
+  if (result.status === 'invalidLink') {
+    await d.auth.dropHeldReset()
+    redirect('/auth/expired?type=recovery')
+  }
+  const p = result.profile
+  // Signed in already; with no profile (none is expected) the home page sorts it out.
+  if (!p) redirect('/')
+  await setLangCookie(p.lang)
+  const [b] = p.buildingId ? await getDb().select({ state: buildings.state }).from(buildings).where(eq(buildings.id, p.buildingId)) : []
+  const complete = isProfileComplete({ name: p.name, phone: p.phone, buildingState: b?.state ?? null })
+  redirect(afterSignIn({ role: roleOf(p.email), complete }))
 }
 
 export async function signInAction(_prev: accounts.FormState, fd: FormData): Promise<accounts.FormState> {
@@ -73,11 +109,15 @@ export async function signOutAction(): Promise<void> {
   redirect('/sign-in')
 }
 
-/** The VI/EN switch: the browser always, and the account too when someone is signed in (BR-30). */
-export async function setLangAction(lang: Lang): Promise<void> {
+/**
+ * The VI/EN switch: the browser always, and the account too when someone is signed in (BR-30);
+ * on a page with the top bar of someone signed out (`browserOnly`, the reset page, CN-75,
+ * AC162), only the browser.
+ */
+export async function setLangAction(lang: Lang, browserOnly = false): Promise<void> {
   if (lang !== 'vi' && lang !== 'en') return
   await setLangCookie(lang)
-  const account = await currentAccount()
+  const account = browserOnly ? null : await currentAccount()
   if (account) await getDb().update(profiles).set({ lang }).where(eq(profiles.id, account.user.id))
   refresh()
 }
