@@ -480,3 +480,27 @@ Written with the Lead's answers to the open points of PR M2-1, the Dishes and Bu
 | H25 | Rules open on a computer; a phone deletes the empty "Canh"; the computer changes the base price and saves (M2) | "Canh" back, the new base price (AC219) | Playwright and Test |
 | H26 | Edit "Bún bò Huế", change the price, tap "Stop selling" (M2) | Not sold; the price typed not saved (AC220) | Playwright |
 | H27 | Rules: a Save the database refuses because another device saved into a deleted group at the same moment (M2; only reachable in a test, the two saves must meet) | "This screen has just changed; check it, then tap Save", the latest groups and base price, nothing saved (AC221) | Test |
+
+## 29. Open points of M2-2 (CN-83)
+
+Written with the Lead's answers to the open points of PR M2-2, the Days and Settings screens (X6).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| J1 | Thursday's menu has Cơm sườn ram (ready meal and build-your-own, on the menu as a ready meal), Trứng chiên (build-your-own, "Món mặn") and Bún bò Huế (ready meal); on Dishes untick "Ready meal" on Cơm sườn ram, move Trứng chiên to "Rau"; another case "Stop selling" on Bún bò, then "Sell again" (M2) | Days: Cơm sườn ram with "No longer a ready meal"; Bún bò with "Not sold"; after "Sell again" Bún bò back on Thursday as a ready meal (AC222) | Planned (shop part M2-2; customers' part M2-4) |
+| J2 | Friday 27/11: open the Days screen (M2) | Friday 27/11 to Thursday 3/12 only (AC223) | Planned |
+| J3 | New app, Monday has a menu: open Settings, then Monday on Days (M2) | Default cutoff 09:30; Monday's cutoff 09:30 (AC224) | Planned |
+| J4 | Settings: empty account number; Vietcombank, "0071 000 123456", "Quán Cơm Lá", then "Quán Cơm Lá & Co"; "12345", "00710001234567890123", "0071abc"; holder of 51 characters (M2) | "Required"; "0071000123456" and "QUAN COM LA" saved ("Quán Cơm Lá & Co" as "QUAN COM LA & CO"); "Only 6–19 digits" three times; "At most 50 characters" (AC225) | Planned |
+| J5 | Days, Monday: tick Cơm sườn ram both ways, Bún bò as ready meal, Rau muống xào as build-your-own, Save; then untick all, Save (M2) | A–Z list without the dish not sold, only the ticks each dish allows; saved; then "no menu yet" (AC226) | Planned |
+| J6 | Days, Monday: only Rau muống xào as build-your-own while "Món mặn" has minimum 1, Save (M2) | Saved, no message (AC227) | Planned |
+| J7 | 10:00:20, today has a menu and is open until 11:00: today's own cutoff 09:00 and 2 more ticks, Save; "Cancel"; again "Save anyway"; the same with 10:00, and with the default on Settings (M2) | "Today will stop taking orders right now"; Cancel saves nothing and keeps the time and ticks typed; Save anyway saves, today past its cutoff (AC228) | Planned |
+| J8 | Tuesday open on two browsers: the first adds Cá kho tộ, saves; the second, still showing it unticked, ticks Canh chua, saves; Settings saved with Vietcombank, then from the other browser with Techcombank (M2) | Tuesday as the second saved, without Cá kho tộ; Techcombank (AC229) | Planned |
+| J9 | Settings: open the bank list, type "kien" (M2) | Every VietQR bank A–Z with full names; Kienlongbank left (AC230) | Planned |
+| J10 | Cutoff "9:30", "0930", "25:00", "abc", "9h30", "9.30", "930" on Settings and on a day (M2) | On each screen: "09:30" twice; "Not a valid time, for example 09:30" five times, nothing saved (AC231) | Planned |
+| J11 | 13:00, today past 09:30, no order of today: untick Bún bò on today, Save (M2) | Saved without Bún bò; cutoff field locked with "Past the cutoff, cannot be changed" (AC232) | Planned |
+| J12 | Tuesday's own cutoff 10:30: empty the field, Save; then default 10:00 (M2) | Empty with "Default 09:30", Tuesday 09:30; then 10:00 (AC233) | Planned |
+| J13 | Monday's menu has Trứng chiên as build-your-own; on Dishes untick "Build-your-own dish" (it stays a ready meal) (M2) | Days: Trứng chiên with its build-your-own tick and "No longer a build-your-own dish" (AC234) | Planned (shop part M2-2; customers' part M2-4) |
+| J14 | 09:20, cutoff 09:30: open today, untick Bún bò, type 10:00, Save at 09:40; Save again (M2) | Nothing saved, field locked, empty with "Default 09:30", and "Past the cutoff, cannot be changed", Bún bò still unticked; then the menu saved (AC235) | Planned |
+| J15 | 23:58 on 26/11: open 26/11, tick a dish, Save at 00:01 on 27/11 (M2) | "This day has passed", nothing saved, 27/11 to 3/12 shown (AC236) | Planned |
+| J16 | Thursday's menu has Bún bò Huế not sold; Cá kho tộ and Ấp chả sold: open Thursday (M2) | Ấp chả, Bún bò Huế "Not sold", Cá kho tộ (AC237) | Planned |
+| J17 | Today's menu has only Bún bò Huế, "Stop selling" on it; at 10:00 today's own cutoff 09:00, Save; a customer opens the week (M2) | No question, cutoff saved; today's card 1 dish, Bún bò "Not sold"; the customer sees "no menu yet" (AC238) | Planned (shop part M2-2; customers' part M2-4) |
