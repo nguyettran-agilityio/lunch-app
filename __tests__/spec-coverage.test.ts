@@ -40,6 +40,26 @@ const NO_AUTOMATED_TEST: Record<string, string> = {
   AC89: 'Day menu changes (CN-62) need the days screen, not in the prototype (P2); built in milestone M5 of docs/plan.md',
   AC196:
     'The shop part is tested since PR M2-1 (H2); "customers do not see it" needs the customer screens on real data, PR M2-4 of docs/plan.md',
+  AC222:
+    'A dish changed while on a day menu (CN-83): the Days screen is built in PR M2-2; what customers see needs the customer screens on real data, PR M2-4 of docs/plan.md',
+  AC223: 'The Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC224: 'The default cutoff of 09:30 (CN-83) needs the Settings and Days screens, built in PR M2-2 of docs/plan.md',
+  AC225: 'The checks of the Settings screen (CN-83) are built in PR M2-2 of docs/plan.md',
+  AC226: 'Setting a day menu on the Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC227: 'Setting a day menu on the Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC228: 'Asking before a cutoff closes today (CN-83) needs the Days and Settings screens, built in PR M2-2 of docs/plan.md',
+  AC229: 'Two devices saving a day or the settings (CN-83) need the Days and Settings screens, built in PR M2-2 of docs/plan.md',
+  AC230: 'The bank list of the Settings screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC231: 'Typing a cutoff (CN-83) needs the Days and Settings screens, built in PR M2-2 of docs/plan.md',
+  AC232: 'Today past its cutoff on the Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC233: 'Emptying a day cutoff on the Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC234:
+    'A dish no longer a build-your-own dish on a day menu (CN-83): the Days screen is built in PR M2-2; what customers see needs the customer screens on real data, PR M2-4 of docs/plan.md',
+  AC235: 'A day form saved after the cutoff (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC236: 'A day form saved after midnight (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC237: 'The order of the dishes of a day on the Days screen (CN-83) is built in PR M2-2 of docs/plan.md',
+  AC238:
+    'A day menu with only hidden dishes (CN-83): the Days screen and the question are built in PR M2-2; what customers see needs the customer screens on real data, PR M2-4 of docs/plan.md',
 }
 
 type Criterion = { id: string; cited: string[] }
