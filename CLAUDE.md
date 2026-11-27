@@ -6,11 +6,13 @@ Office lunch ordering app (Next.js 16, React 19, Tailwind 4, Vitest). Product in
 
 ## How to work here
 
+- In chat, call the user "bạn" and call yourself "mình" or "em"; never call the user "chị" (see `docs/decisions.md` X11).
 - Reply to the user in Vietnamese in chat. Every file committed and pushed to git (code, commit messages, PR titles and descriptions, `CLAUDE.md`, everything in `docs/` including `decisions.md`) must be entirely in English.
 - If a requirement is unclear or not covered by `docs/`, ask the user before acting. Do not guess.
 - Do not add React Compiler, call paid AI APIs, use REA, or turn on Dependabot (see `docs/decisions.md`).
 - When the user makes a new decision, add it to `docs/decisions.md` (technical/process) or tell them it belongs in `docs/intent.md` (product).
 - Fix a known defect right away; do not only write it down in the PR (for example under "Not checked"). If you cannot fix it, ask the user (see `docs/decisions.md` G15).
+- From M2 on, write each "Trying the preview" block of `docs/plan.md` as numbered steps, one action and one result to see per step. When the Lead tries the preview, give one step at a time and wait for their result before the next (see `docs/decisions.md` G24).
 
 ## Check (same as CI)
 
@@ -45,3 +47,4 @@ When Claude makes the same mistake a second time, add it here as one line: the m
 - Working around a hook that blocked, even by mistake: rewriting the command or the text so it passes, or switching to another tool. Stop, tell the user the reason and wait (see **Git**).
 - Changing repo files with a script or a shell command (`sed -i`, `python3` here-documents, `cat >`, `node -e`) instead of the Edit tool (G19, broken in M1-1a, M1-1b and M1-D). Use Edit to change a file and Write to create one; the guard blocks the rest (G10).
 - Putting several jobs in one PR (PR #17 in Design; PR #21 held a spec round, the plan and prototype code). One PR does one job; when an answer from `ask-lead` leads to changes in another part (for example prototype code during the Plan step), open a separate PR for them.
+- Adding technical choices the approved plan does not give while coding, without asking (#68, #78, and deleting `auth.one_time_tokens` rows in #83). Before coding a choice the plan does not give (for example writing Supabase's own tables, a new table or column, a new way of connecting or of running transactions, a lock), stop and ask the Lead with 2–3 options; do not add it "within" an approved choice (G23).
