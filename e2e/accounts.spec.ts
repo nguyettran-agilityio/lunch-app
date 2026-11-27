@@ -7,6 +7,7 @@ import {
   PASSWORD,
   SUBMIT,
   confirmedAccount,
+  confirmedOnProfile,
   fieldError,
   fresh,
   mailbox,
@@ -109,7 +110,8 @@ test('Y14 the link of the default Supabase template: ?code= works once; an error
     await expect(page).toHaveURL(/\/auth\/expired\?type=signup$/)
   }
   await page.goto(mail.link)
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+  // Signed in, on the profile since M1-5 (AC97).
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/profile$/)
   // Used once: a second tap, in another browser, has expired.
   const other = await browser.newContext()
   const tab = await other.newPage()
@@ -123,21 +125,24 @@ test('Y14 the link of the repository templates (token_hash) still signs in', asy
   await signUp(page, a)
   const [mail] = await mailbox(page, a.email)
   await page.goto(mail.tokenHashLink)
-  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/profile$/)
 })
 
 test('AC52 A8 A9 X3 the link signs in; sign in with +84 and with the email; the number cannot sign up again', async ({ page }) => {
   const a = fresh('ac52')
-  await confirmedAccount(page, a)
+  // Before the profile has a name, / greets by the phone number (B61).
+  await confirmedOnProfile(page, a)
+  await page.goto('/')
   await expect(
     page.getByRole('heading', { name: `Xin chào, ${a.phone.slice(0, 4)} ${a.phone.slice(4, 7)} ${a.phone.slice(7)}` }),
   ).toBeVisible()
   await signOut(page)
+  // The profile is not completed here, so signing in opens it first (CN-65).
   await signIn(page, `+84${a.phone.slice(1)}`)
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/profile$/)
   await signOut(page)
   await signIn(page, a.email.toUpperCase())
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/profile$/)
   await signOut(page)
   await signUp(page, { phone: a.phone, email: fresh('ac52b').email })
   await expect(fieldError(page, 'phone')).toHaveText('Số điện thoại này đã có tài khoản. Nếu là của bạn, hãy gọi cho shop')
@@ -179,7 +184,7 @@ test('AC118 Y8 a repeated sign-up in English writes EN on the waiting account', 
   await setLang(context, 'vi')
   const [mail] = await mailbox(page, a.email)
   await page.goto(mail.link)
-  await expect(page.getByRole('heading', { name: /^Hello,/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Complete your profile' })).toBeVisible()
 })
 
 test('AC71 P10 the account language wins over the browser at sign-in', async ({ page, context }) => {
@@ -214,7 +219,7 @@ test('AC115 Y4 a refused phone keeps the waiting account of the email', async ({
   const mails = await mailbox(page, huy.email)
   expect(mails).toHaveLength(1)
   await page.goto(mails[0].link)
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/profile$/)
 })
 
 test('AC83 Q7 a waiting phone and a Google email each get their message', async ({ page, context }) => {
@@ -241,7 +246,7 @@ test('AC90 V5 a sign-up that matches a waiting account on one field replaces it'
   await expect(page).toHaveURL(/\/auth\/expired/)
   const [fresh1] = await mailbox(page, other)
   await page.goto(fresh1.link)
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/profile$/)
   await signOut(page)
 
   // The same email with another phone.
@@ -278,7 +283,7 @@ test('AC93 W2 a sign-up with the phone of one waiting account and the email of a
   }
   const [newest] = await mailbox(page, b.email)
   await page.goto(newest.link)
-  await expect(page).toHaveURL(/\/$/)
+  await expect(page).toHaveURL(/\/profile$/)
 })
 
 test('AC68 P7 sign-in says which case it is', async ({ page }) => {

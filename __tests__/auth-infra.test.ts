@@ -103,6 +103,7 @@ function fakeClients(answers: Record<string, unknown>, reset: Record<string, unk
     exchangeCodeForSession: call('exchangeCodeForSession'),
     signInWithOAuth: call('signInWithOAuth'),
     resetPasswordForEmail: call('resetPasswordForEmail'),
+    updateUser: call('updateUser'),
     admin: { getUserById: call('getUserById'), deleteUser: call('deleteUser') },
   }
   const resetAuth = Object.fromEntries(
@@ -380,16 +381,53 @@ describe('Y14 the link of the default Supabase template (until M1-4)', () => {
   })
 
   it('exchanges the code once; an expired or unknown code is an invalid link', async () => {
-    expect(await fakeClients({ exchangeCodeForSession: { data: { user: { id: 'u1' } }, error: null } }).exchangeCode('c1')).toEqual({
-      ok: true,
-      userId: 'u1',
-    })
+    expect(
+      await fakeClients({ exchangeCodeForSession: { data: { user: { id: 'u1', email: 'lan@gmail.com' } }, error: null } }).exchangeCode(
+        'c1',
+      ),
+    ).toEqual({ ok: true, userId: 'u1', email: 'lan@gmail.com' })
     expect(calls.exchangeCodeForSession[0]).toBe('c1')
     expect(
       await fakeClients({
         exchangeCodeForSession: { data: { user: null }, error: { code: 'flow_state_not_found', status: 404 } },
       }).exchangeCode('c1'),
     ).toEqual({ ok: false, error: 'invalidLink' })
+  })
+})
+
+describe('the email change with the Supabase provider and a fake client (B70)', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://lunch.example/')
+  })
+
+  it('AC177 K7 sends the link of a new email back to /auth/confirm of this site', async () => {
+    const p = fakeClients({ updateUser: { data: { user: { id: 'u1' } }, error: null } })
+    expect(await p.changeEmail('u1', 'lan2@gmail.com', new Date())).toEqual({ ok: true })
+    expect(calls.updateUser).toEqual([{ email: 'lan2@gmail.com' }, { emailRedirectTo: 'https://lunch.example/auth/confirm' }])
+  })
+
+  it('AC178 AC185 maps the limit, an address that cannot be sent to and a taken email', async () => {
+    const answer = (error: unknown) =>
+      fakeClients({ updateUser: { data: { user: null }, error } }).changeEmail('u1', 'x@gmail.com', new Date())
+    expect(await answer({ status: 429 })).toEqual({ ok: false, error: 'rateLimited' })
+    expect(await answer({ status: 500, code: 'unexpected_failure' })).toEqual({ ok: false, error: 'sendFailed' })
+    expect(await answer({ status: 422, code: 'email_exists' })).toEqual({ ok: false, error: 'emailTaken' })
+    await expect(answer({ status: 400, code: 'validation_failed' })).rejects.toThrow()
+  })
+
+  it('AC175 K5 takes back the waiting change on auth.users and its one-time tokens, through the database', async () => {
+    await fakeClients({}).cancelEmailChange('u1')
+    expect(sqlRun.map((r) => r.params)).toEqual([['u1'], ['u1']])
+    expect(sqlRun[0].sql).toContain("UPDATE auth.users SET email_change = ''")
+    expect(sqlRun[0].sql).toContain("email_change_token_new = ''")
+    expect(sqlRun[0].sql).toContain('email_change_sent_at = NULL')
+    expect(sqlRun[1].sql).toContain('DELETE FROM auth.one_time_tokens')
+  })
+
+  it('AC179 K9 a used email-change link gives the new email of the account', async () => {
+    const p = fakeClients({ verifyOtp: { data: { user: { id: 'u1', email: 'lan2@gmail.com' } }, error: null } })
+    expect(await p.verifyLink('tok', 'email_change')).toEqual({ ok: true, userId: 'u1', email: 'lan2@gmail.com' })
+    expect(calls.verifyOtp).toEqual([{ token_hash: 'tok', type: 'email_change' }])
   })
 })
 

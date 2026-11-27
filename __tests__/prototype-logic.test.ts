@@ -34,6 +34,7 @@ import {
   platePrice,
   plateValid,
   prepSheet,
+  proposeBuilding,
   refundState,
   rejectOrder,
   reportedTotal,
@@ -930,5 +931,51 @@ describe('the shop adds a building', () => {
     const b = r.state.buildings.find((x) => x.id === r.id)!
     expect(b).toMatchObject({ name: 'Tòa XYZ', state: 'approved', deliveryTime: 705, proposedBy: null })
     expect(addBuilding(s, '  ', 'x', 700, newId)).toEqual({ ok: false, error: 'buildingMissing' })
+  })
+})
+
+describe('proposing a building (BR-16)', () => {
+  let n = 0
+  const ids: NewId = (prefix) => `${prefix}${++n}`
+
+  it('AC193 K23 the same name with a new address updates the pending building; an empty one keeps it', () => {
+    const first = proposeBuilding(seed(TODAY), 'Tòa ABC', '12 Lê Lợi', ids)
+    if (!first.ok) throw new Error(first.error)
+    const moved = proposeBuilding(first.state, ' tòa abc ', ' 34 Hai Bà Trưng ', ids)
+    if (!moved.ok) throw new Error(moved.error)
+    expect(moved.id).toBe(first.id)
+    const kept = proposeBuilding(moved.state, ' Tòa ABC ', '', ids)
+    if (!kept.ok) throw new Error(kept.error)
+    expect(kept.state.buildings.filter((b) => b.name === 'Tòa ABC')).toEqual([
+      expect.objectContaining({ id: first.id, address: '34 Hai Bà Trưng' }),
+    ])
+  })
+
+  it('AC183 a pending building of the customer, created at once, with no address required', () => {
+    const s = seed(TODAY)
+    const r = proposeBuilding(s, ' Tòa ABC ', '', ids)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.state.buildings.find((b) => b.id === r.id)).toMatchObject({ name: 'Tòa ABC', address: '', state: 'pending', proposedBy: s.me })
+    expect(proposeBuilding(s, '  ', 'x', ids)).toEqual({ ok: false, error: 'buildingMissing' })
+  })
+
+  it("AC189 AC192 K19 K22 the same name again selects the customer's pending one; a declined one is not reused", () => {
+    const s = seed(TODAY)
+    const first = proposeBuilding(s, 'Tòa ABC', '', ids)
+    if (!first.ok) throw new Error(first.error)
+    const again = proposeBuilding(first.state, ' tòa abc ', '', ids)
+    expect(again).toMatchObject({ ok: true, id: first.id })
+    if (!again.ok) throw new Error(again.error)
+    expect(again.state.buildings).toHaveLength(first.state.buildings.length)
+    const other = proposeBuilding(first.state, 'Tòa XYZ', '', ids)
+    expect(other.ok && other.id).not.toBe(first.id)
+    const declined: State = {
+      ...first.state,
+      buildings: first.state.buildings.map((b) => (b.id === first.id ? { ...b, state: 'declined' as const } : b)),
+    }
+    const fresh = proposeBuilding(declined, 'Tòa ABC', '', ids)
+    if (!fresh.ok) throw new Error(fresh.error)
+    expect(fresh.id).not.toBe(first.id)
+    expect(fresh.state.buildings.filter((b) => b.name === 'Tòa ABC').map((b) => b.state)).toEqual(['declined', 'pending'])
   })
 })

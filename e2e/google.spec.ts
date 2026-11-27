@@ -21,6 +21,8 @@ async function session(page: Page): Promise<{ email?: string; role?: string }> {
 }
 
 const home = /127\.0\.0\.1:\d+\/$/
+// A new or confirmed customer whose profile is not complete lands on the profile (AC16, AC97, M1-5).
+const profilePage = /127\.0\.0\.1:\d+\/profile$/
 
 test('AC49 A1 AC132 Z9 Google with the email of a confirmed phone account: refused on the tab where it was tapped', async ({
   page,
@@ -69,7 +71,7 @@ test('AC91 V6 Google with the email of a waiting phone account: refused, "Send t
   await expect(notice(page)).toContainText('Bạn chưa xác nhận email')
   const [latest] = await mailbox(page, a.email)
   await page.goto(latest.link)
-  await expect(page).toHaveURL(home)
+  await expect(page).toHaveURL(profilePage)
 })
 
 test('AC134 Z11 the AC91 button more than 1 hour later: nothing sent, the message and the button replaced', async ({ page, context }) => {
@@ -148,7 +150,7 @@ test('AC139 Z16 the AC91 button after the email became a Google account: "This a
   await googleAs(other, { email: a.email, name: 'Lan' })
   await tab.goto('/sign-in')
   await tapGoogle(tab)
-  await expect(tab).toHaveURL(home)
+  await expect(tab).toHaveURL(profilePage)
   await other.close()
   await googleNotice(page).getByRole('button', { name: 'Gửi lại link xác nhận' }).click()
   await expect(googleNotice(page)).toHaveText('Tài khoản này đăng nhập bằng Google')
@@ -221,11 +223,11 @@ test('AC138 Z15 the AC91 button after a new sign-up replaced the waiting account
   expect(await mailbox(page, a.email)).toHaveLength(before + 1)
   const [latest] = await mailbox(page, a.email)
   await page.goto(latest.link)
-  await expect(page).toHaveURL(home)
+  await expect(page).toHaveURL(profilePage)
   // The account signed in is the new one.
   await signOut(page)
   await signIn(page, b.phone)
-  await expect(page).toHaveURL(home)
+  await expect(page).toHaveURL(profilePage)
 })
 
 test('X17 Z5 a first Google sign-in with an email waiting as a new email: no account, only the message (Google part)', async ({
@@ -251,7 +253,9 @@ test('AC131 Z8 a first Google sign-in: signed in, `/` greets the Google name', a
   await googleAs(context, { email, name: 'Minh Trần' })
   await page.goto('/sign-in')
   await tapGoogle(page)
-  await expect(page).toHaveURL(home)
+  // The profile first (AC16); `/` greets by the Google name meanwhile.
+  await expect(page).toHaveURL(profilePage)
+  await page.goto('/')
   await expect(page.getByRole('heading', { name: 'Xin chào, Minh Trần' })).toBeVisible()
   expect(await session(page)).toEqual({ email, role: 'customer' })
 })
@@ -270,6 +274,8 @@ test('AC135 Z12 an empty or blank Google name greets by the email; a long one is
     await googleAs(context, { email, name })
     await page.goto('/sign-in')
     await tapGoogle(page)
+    await expect(page).toHaveURL(profilePage)
+    await page.goto('/')
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(`Xin chào, ${greeting(email)}`)
     await context.close()
   }

@@ -81,12 +81,45 @@ export async function signIn(page: Page, identifier: string, password = PASSWORD
   await send(page)
 }
 
-/** Signs up and confirms through the latest link: a confirmed account, signed in. */
-export async function confirmedAccount(page: Page, a: { phone: string; email: string }) {
+/** Signs up and confirms through the latest link: signed in, on the profile (AC97, M1-5). */
+export async function confirmedOnProfile(page: Page, a: { phone: string; email: string }) {
   await signUp(page, a)
   await expect(page.getByRole('heading', { name: /Kiểm tra email|Check your email/ })).toBeVisible()
   const [mail] = await mailbox(page, a.email)
   await page.goto(mail.link)
+  await expect(page).toHaveURL(/\/profile$/)
+}
+
+/** On the profile: a building proposed (it is created at once and selected, AC183). */
+export async function proposeBuilding(page: Page, name: string, address = '') {
+  await page.getByRole('button', { name: /Tòa của tôi chưa có trong danh sách|My building is not listed/ }).click()
+  await page.getByLabel(/^(Tên tòa nhà|Building name)$/).fill(name)
+  if (address) await page.getByLabel(/^(Địa chỉ|Address)$/).fill(address)
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === 'POST'),
+    page.getByRole('button', { name: /Đề xuất tòa này|Propose this building/ }).click(),
+  ])
+  await expect(page.locator('#field-buildingId:visible')).not.toHaveValue('')
+}
+
+/** Saves the profile and waits for the Server Action's answer. */
+export async function saveProfile(page: Page) {
+  await send(page)
+}
+
+/** Completes the profile with a name and a proposed building: `/` opens (CN-65). */
+export async function completeProfile(page: Page, name = 'Khách Thử', building = 'Tòa Thử') {
+  await expect(page).toHaveURL(/\/profile/)
+  await page.locator('#field-name:visible').fill(name)
+  await proposeBuilding(page, building)
+  await send(page)
+  await expect(page).not.toHaveURL(/\/profile/)
+}
+
+/** Signs up, confirms through the latest link and completes the profile: signed in, on `/`. */
+export async function confirmedAccount(page: Page, a: { phone: string; email: string }) {
+  await confirmedOnProfile(page, a)
+  await completeProfile(page)
   await expect(page).toHaveURL(/\/$/)
 }
 

@@ -24,6 +24,7 @@ import {
   startGoogleAction,
   type ResetFormState,
 } from '@/server/actions/auth'
+import { sendEmailChangeAction } from '@/server/actions/profile'
 import type { FormState, Notice as NoticeState, SendAgain as SendAgainState } from '@/server/auth/accounts'
 
 const IDLE: FormState = { status: 'idle' }
@@ -36,7 +37,7 @@ const control = (error: boolean) =>
 
 const withNext = (path: string, next: string | null) => (next ? `${path}?next=${encodeURIComponent(next)}` : path)
 
-function Card({
+export function Card({
   lang,
   tab,
   next,
@@ -91,21 +92,43 @@ type FieldProps = {
   value: string
   onChange: (v: string) => void
   error?: FieldError
+  /** A message under the field that is not a FieldError code (the profile's email wait, CN-78). */
+  errorText?: string
   lang: Lang
   type?: string
   inputMode?: 'tel' | 'email' | 'text'
   autoComplete?: string
   hint?: string
   extra?: ReactNode
+  readOnly?: boolean
+  /** A line between the label and the input (the profile's current email, CN-78). */
+  sub?: ReactNode
 }
 
-function Field({ name, label, value, onChange, error, lang, type = 'text', inputMode, autoComplete, hint, extra }: FieldProps) {
+export function Field({
+  name,
+  label,
+  value,
+  onChange,
+  error,
+  errorText,
+  lang,
+  type = 'text',
+  inputMode,
+  autoComplete,
+  hint,
+  extra,
+  readOnly,
+  sub,
+}: FieldProps) {
   const id = `field-${name}`
+  const message = error ? messages[lang].auth.field[error] : errorText
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={id} className="text-sm font-medium text-muted">
         {label}
       </label>
+      {sub}
       <input
         id={id}
         name={name}
@@ -113,23 +136,24 @@ function Field({ name, label, value, onChange, error, lang, type = 'text', input
         inputMode={inputMode}
         autoComplete={autoComplete}
         value={value}
+        readOnly={readOnly}
         onChange={(e) => onChange(e.target.value)}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : undefined}
-        className={control(!!error)}
+        aria-invalid={message ? true : undefined}
+        aria-describedby={message ? `${id}-error` : undefined}
+        className={cx(control(!!message), readOnly && 'bg-tray text-muted')}
       />
-      {error && (
+      {message && (
         <p id={`${id}-error`} className="text-[13px] font-medium text-chili">
-          {messages[lang].auth.field[error]}
+          {message}
         </p>
       )}
-      {hint && !error && <p className="text-[13px] text-muted">{hint}</p>}
+      {hint && !message && <p className="text-[13px] text-muted">{hint}</p>}
       {extra}
     </div>
   )
 }
 
-function Submit({ children, pending }: { children: ReactNode; pending: boolean }) {
+export function Submit({ children, pending }: { children: ReactNode; pending: boolean }) {
   return (
     <button
       type="submit"
@@ -142,7 +166,7 @@ function Submit({ children, pending }: { children: ReactNode; pending: boolean }
 }
 
 /** A Notice about the whole action (role="alert"), with its follow-up when it has one. */
-function ActionNotice({ lang, notice, signInLink = true }: { lang: Lang; notice: NoticeState; signInLink?: boolean }) {
+export function ActionNotice({ lang, notice, signInLink = true }: { lang: Lang; notice: NoticeState; signInLink?: boolean }) {
   const m = messages[lang].auth
   const leaf = notice.code === 'alreadyConfirmed'
   return (
@@ -168,7 +192,7 @@ function ActionNotice({ lang, notice, signInLink = true }: { lang: Lang; notice:
 }
 
 /** Seconds left, counting down once a second. */
-function useCountdown(start: number): [number, (n: number) => void] {
+export function useCountdown(start: number): [number, (n: number) => void] {
   const [left, setLeft] = useState(start)
   useEffect(() => {
     if (left <= 0) return
@@ -198,7 +222,7 @@ export function SendAgainButton({
   /** Takes a refusal instead of showing it under the button, when it returns true. */
   onNotice?: (n: NoticeState) => boolean
   /** Told when the button has sent, or the wait still runs. */
-  onSent?: () => void
+  onSent?: (status: 'sent' | 'wait', identifier: string) => void
 }) {
   const m = messages[lang].auth
   const [left, setLeft] = useCountdown(start.wait)
@@ -210,7 +234,7 @@ export function SendAgainButton({
       if (r.status === 'sent' || r.status === 'wait') {
         setNotice(null)
         setLeft(r.sendAgain.wait)
-        onSent?.()
+        onSent?.(r.status, r.sendAgain.identifier)
       } else if (r.status === 'error' && r.notice) {
         if (!onNotice?.(r.notice)) setNotice(r.notice)
       }
@@ -251,7 +275,7 @@ const fieldsOf = (s: FormState) => (s.status === 'error' ? s.fields : {})
 // A number per answer object, so that a part of the form can start fresh on every answer.
 const answerIds = new WeakMap<object, number>()
 let lastAnswerId = 0
-const answerId = (answer: object) => {
+export const answerId = (answer: object) => {
   let id = answerIds.get(answer)
   if (id === undefined) answerIds.set(answer, (id = ++lastAnswerId))
   return id
@@ -264,7 +288,7 @@ const answerId = (answer: object) => {
  * does not show the message of the value that was sent either. `edit(name)` wraps a field's
  * setter so that it does both.
  */
-function useFieldErrors<S>(state: S, fields: Partial<Record<string, FieldError>>, pending: boolean) {
+export function useFieldErrors<S>(state: S, fields: Partial<Record<string, FieldError>>, pending: boolean) {
   // `names`: fields edited since the answer `of`; `next`: those edited while the tap after `of`
   // was on its way, which also count for the answer that tap brings.
   const [edited, setEdited] = useState<{ of: S | null; names: string[]; next: string[] }>({ of: null, names: [], next: [] })
@@ -625,13 +649,43 @@ export function ResetPasswordForm({ lang }: { lang: Lang }) {
   )
 }
 
-/** /auth/expired for a link kind that the app does not send yet (email change, M1-5). */
-export function ExpiredOther({ lang }: { lang: Lang }) {
+/**
+ * /auth/expired?type=email_change, for someone signed in (CN-65, CN-77, CN-78): "The link has
+ * expired" with "Send a new link" and no field while a new email waits; only the tap sends, to
+ * the address waiting now, and the page says where (AC171, AC173); the button counts down the
+ * 60 seconds from the first render (CN-68). With no new email waiting, the sentence under the
+ * heading and no button (AC172, AC175). "Go to the home page" under the card (AC187).
+ */
+export function ExpiredEmailChange({ lang, pending, wait, home }: { lang: Lang; pending: string | null; wait: number; home: string }) {
   const m = messages[lang].auth
+  const [sentTo, setSentTo] = useState<string | null>(null)
   return (
     <Card lang={lang} title={m.expiredTitle}>
-      <Link href="/sign-in" className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
-        {m.signIn}
+      {pending ? (
+        <>
+          {sentTo && (
+            <p role="status" className="text-[15px]">
+              {messages[lang].profile.newLinkSent(sentTo)}
+            </p>
+          )}
+          <SendAgainButton
+            lang={lang}
+            start={{ identifier: pending, wait }}
+            label={m.sendNewLink}
+            action={sendEmailChangeAction}
+            // The address the server sent to, waiting at the time of the tap (AC173).
+            onSent={(status, to) => {
+              if (status === 'sent') setSentTo(to)
+            }}
+          />
+        </>
+      ) : (
+        <div role="alert">
+          <Notice tone="turmeric">{m.notice.noPendingEmail}</Notice>
+        </div>
+      )}
+      <Link href={home} className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
+        {m.toHome}
       </Link>
     </Card>
   )

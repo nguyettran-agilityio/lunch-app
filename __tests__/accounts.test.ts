@@ -4,13 +4,24 @@
 // address, and the sign-in messages. The same flows run through the screens in e2e/.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { authMailLog, profiles } from '@/server/db/schema'
+import { authMailLog, buildings, profiles } from '@/server/db/schema'
 import type { AuthProvider, GoogleUser } from '@/server/auth/provider'
 import { createTestDb, type TestDb } from './helpers/db'
 
 vi.mock('server-only', () => ({}))
-const { forgotPassword, googleSignIn, resetLinkRefusal, resetPassword, sendConfirmation, sendGoogleConfirmation, signIn, signUp } =
-  await import('@/server/auth/accounts')
+const {
+  confirmEmailChange,
+  forgotPassword,
+  googleSignIn,
+  resetLinkRefusal,
+  resetPassword,
+  saveProfile,
+  sendConfirmation,
+  sendEmailChange,
+  sendGoogleConfirmation,
+  signIn,
+  signUp,
+} = await import('@/server/auth/accounts')
 
 type FakeUser = { id: string; email: string; password: string; confirmed: boolean }
 
@@ -31,6 +42,10 @@ function fakeAuth() {
   const recoveredAt: Date[] = []
   let held: string | null = null
   const passwordless = new Set<string>()
+  const changes: { userId: string; email: string }[] = []
+  const cancels: string[] = []
+  // Runs right after an email-change link is sent: a test makes another write happen there.
+  const hooks: { afterChange?: (email: string) => Promise<void> } = {}
   const auth: AuthProvider = {
     getUser: async () => null,
     signOut: async () => void signOuts++,
@@ -97,9 +112,21 @@ function fakeAuth() {
     exchangeCode: async () => ({ ok: false, error: 'invalidLink' }),
     isConfirmed: async (id) => users.get(id)?.confirmed ?? false,
     deleteUser: async (id) => void users.delete(id),
+    async changeEmail(userId, email) {
+      if (limited) return { ok: false, error: 'rateLimited' }
+      if (refused.has(email)) return { ok: false, error: 'sendFailed' }
+      changes.push({ userId, email })
+      await hooks.afterChange?.(email)
+      return { ok: true }
+    },
+    cancelEmailChange: async (userId) => void cancels.push(userId),
   }
   return {
     auth,
+    /** Email-change links sent, and changes taken back (CN-77). */
+    changes,
+    cancels,
+    hooks,
     users,
     sent,
     removed,
@@ -664,5 +691,229 @@ describe('saving a new password on /auth/reset (PR M1-4)', () => {
     expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleTakenPhone' })
     expect(f.removed).toEqual([{ userId: p.id, unconfirm: false }])
     expect((await profileOf('lan@gmail.com')).needsPassword).toBe(false)
+  })
+})
+
+// Test names give AC and scenario ids, not CN-77 or CN-78, which many criteria cite (X7).
+describe('the profile, S-C2 (BR-29a)', () => {
+  const B1 = '00000000-0000-4000-8000-0000000000b1'
+  const B2 = '00000000-0000-4000-8000-0000000000b2'
+
+  // Lan, confirmed, with a complete profile on an approved building; `pending` waits as her new email.
+  async function lan(pending?: string) {
+    await t.db.insert(buildings).values({ id: B1, name: 'Tòa A', state: 'approved' })
+    await confirmed('0912345678', 'lan@gmail.com')
+    const p = await profileOf('lan@gmail.com')
+    await t.db
+      .update(profiles)
+      .set({ name: 'Lan', buildingId: B1, pendingEmail: pending ?? null })
+      .where(eq(profiles.id, p.id))
+    return p.id
+  }
+  const input = (over: Partial<{ name: string; phone: string; email: string; buildingId: string }> = {}) => ({
+    name: 'Lan',
+    phone: '0912 345 678',
+    email: 'lan@gmail.com',
+    buildingId: B1,
+    ...over,
+  })
+
+  it('AC177 K7 a new email: saved, the link sent to it only, logged for the 60-second wait', async () => {
+    const id = await lan()
+    expect(await saveProfile(deps(), id, input({ email: 'Lan2@Gmail.com' }))).toEqual({ status: 'saved', wasComplete: true })
+    expect(f.changes).toEqual([{ userId: id, email: 'lan2@gmail.com' }])
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ pendingEmail: 'lan2@gmail.com' })
+    const log = await t.db.select().from(authMailLog).where(eq(authMailLog.email, 'lan2@gmail.com'))
+    expect(log.map((r) => r.kind)).toEqual(['change'])
+  })
+
+  it('AC178 K8 one refused field saves nothing and sends nothing; an email that cannot be sent too', async () => {
+    const id = await lan()
+    await signUp(deps(), { phone: '0905111222', email: 'huy@gmail.com', password: PW }, 'vi')
+    const r = await saveProfile(deps(), id, input({ name: 'Lan Trần', phone: '0905111222', email: 'lan2@gmail.com' }))
+    expect(r).toEqual({ status: 'error', fields: { phone: 'phoneWaiting' } })
+    expect(f.changes).toEqual([])
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ name: 'Lan', pendingEmail: null })
+    f.refuse('lan2@gmail.com')
+    expect(await saveProfile(deps(), id, input({ name: 'Lan Trần', email: 'lan2@gmail.com' }))).toEqual({
+      status: 'error',
+      fields: {},
+      notice: { code: 'sendFailed' },
+    })
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ name: 'Lan', pendingEmail: null })
+  })
+
+  it('AC175 AC184 K5 K14 the own email typed again: no change; with a new email waiting, it is cancelled', async () => {
+    const id = await lan()
+    expect(await saveProfile(deps(), id, input())).toEqual({ status: 'saved', wasComplete: true })
+    expect(f.changes).toEqual([])
+    expect(f.cancels).toEqual([])
+    await t.db.update(profiles).set({ pendingEmail: 'lan2@gmail.com' }).where(eq(profiles.id, id))
+    expect(await saveProfile(deps(), id, input())).toEqual({ status: 'saved', wasComplete: true })
+    expect(f.cancels).toEqual([id])
+    expect((await profileOf('lan@gmail.com')).pendingEmail).toBeNull()
+  })
+
+  it('AC176 AC191 K6 K21 the waiting email typed again (the field as it was prefilled) sends nothing; the name is saved', async () => {
+    const id = await lan('lan2@gmail.com')
+    expect(await saveProfile(deps(), id, input({ name: 'Lan Trần', email: 'lan2@gmail.com' }))).toEqual({
+      status: 'saved',
+      wasComplete: true,
+    })
+    expect(f.changes).toEqual([])
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ name: 'Lan Trần', pendingEmail: 'lan2@gmail.com' })
+  })
+
+  it('AC185 K15 a new email within its 60-second wait, or past the limit, saves nothing', async () => {
+    const id = await lan()
+    await saveProfile(deps(0), id, input({ email: 'lan2@gmail.com' }))
+    await saveProfile(deps(20), id, input({ email: 'lan3@gmail.com' }))
+    expect(await saveProfile(deps(40), id, input({ name: 'Lan Trần', email: 'lan2@gmail.com' }))).toEqual({
+      status: 'error',
+      fields: {},
+      emailWait: 20,
+    })
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ name: 'Lan', pendingEmail: 'lan3@gmail.com' })
+    f.limit()
+    expect(await saveProfile(deps(200), id, input({ email: 'lan4@gmail.com' }))).toEqual({ status: 'error', fields: { email: 'tooMany' } })
+    expect((await profileOf('lan@gmail.com')).pendingEmail).toBe('lan3@gmail.com')
+  })
+
+  it('AC54 AC70 AC101 AC106 the emails refused on the profile', async () => {
+    const id = await lan()
+    await confirmed('0977000111', 'minh@gmail.com')
+    await signUp(deps(), { phone: '0905111222', email: 'huy@gmail.com', password: PW }, 'vi')
+    vi.stubEnv('SHOP_EMAILS', 'shop@comla.vn')
+    try {
+      expect(await saveProfile(deps(), id, input({ email: 'minh@gmail.com' }))).toMatchObject({ fields: { email: 'emailTaken' } })
+      expect(await saveProfile(deps(), id, input({ email: 'huy@gmail.com' }))).toMatchObject({ fields: { email: 'emailWaiting' } })
+      expect(await saveProfile(deps(), id, input({ email: 'shop@comla.vn' }))).toMatchObject({ fields: { email: 'emailShop' } })
+      expect(await saveProfile(deps(), id, input({ email: 'lan@' }))).toMatchObject({ fields: { email: 'emailInvalid' } })
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    // A new email waiting for Lan is taken for everyone else (CN-65).
+    await saveProfile(deps(), id, input({ email: 'lan2@gmail.com' }))
+    const minh = (await profileOf('minh@gmail.com')).id
+    await t.db.update(profiles).set({ name: 'Minh', buildingId: B1 }).where(eq(profiles.id, minh))
+    expect(await saveProfile(deps(), minh, input({ name: 'Minh', phone: '0977000111', email: 'lan2@gmail.com' }))).toMatchObject({
+      fields: { email: 'emailWaiting' },
+    })
+    expect(f.changes).toEqual([{ userId: id, email: 'lan2@gmail.com' }])
+  })
+
+  it('AC54 AC92 the phone: a free one saved, one of a confirmed account or of a waiting one refused', async () => {
+    const id = await lan()
+    await confirmed('0977000111', 'minh@gmail.com')
+    await signUp(deps(), { phone: '0905111222', email: 'huy@gmail.com', password: PW }, 'vi')
+    expect(await saveProfile(deps(), id, input({ phone: '0977000111' }))).toMatchObject({ fields: { phone: 'phoneTaken' } })
+    expect(await saveProfile(deps(), id, input({ phone: '0905 111 222' }))).toMatchObject({ fields: { phone: 'phoneWaiting' } })
+    expect(await saveProfile(deps(), id, input({ phone: '+84 938 000 999' }))).toMatchObject({ status: 'saved' })
+    expect((await profileOf('lan@gmail.com')).phone).toBe('0938000999')
+  })
+
+  it('AC103 the name: required, at most 80 characters; a Google account keeps its email', async () => {
+    const id = await lan()
+    expect(await saveProfile(deps(), id, input({ name: '  ' }))).toMatchObject({ fields: { name: 'required' } })
+    expect(await saveProfile(deps(), id, input({ name: 'a'.repeat(81) }))).toMatchObject({ fields: { name: 'nameTooLong' } })
+    expect(await saveProfile(deps(), id, input({ name: ` ${'a'.repeat(80)} ` }))).toMatchObject({ status: 'saved' })
+    await google('0938111222', 'g@gmail.com')
+    const g = (await profileOf('g@gmail.com')).id
+    expect(await saveProfile(deps(), g, input({ name: 'G', phone: '0938111222', email: 'other@gmail.com' }))).toEqual({
+      status: 'saved',
+      wasComplete: false,
+    })
+    expect(await profileOf('g@gmail.com')).toMatchObject({ name: 'G', pendingEmail: null })
+    expect(f.changes).toEqual([])
+  })
+
+  it('AC188 AC190 K18 K20 a declined building cannot be saved; another one completes the profile, with a new email', async () => {
+    const id = await lan()
+    await t.db.insert(buildings).values({ id: B2, name: 'Tòa ABC', state: 'declined', proposedBy: id })
+    await t.db.update(profiles).set({ buildingId: B2 }).where(eq(profiles.id, id))
+    expect(await saveProfile(deps(), id, input({ buildingId: B2 }))).toMatchObject({ fields: { buildingId: 'required' } })
+    expect(await saveProfile(deps(), id, input({ buildingId: '' }))).toMatchObject({ fields: { buildingId: 'required' } })
+    expect(await saveProfile(deps(), id, input({ email: 'lan2@gmail.com' }))).toEqual({ status: 'saved', wasComplete: false })
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ buildingId: B1, pendingEmail: 'lan2@gmail.com' })
+  })
+
+  it('AC173 AC186 K3 K16 "Send again" and "Send a new link": to the address waiting now, after its wait', async () => {
+    const id = await lan()
+    expect(await sendEmailChange(deps(), id)).toEqual({ status: 'error', fields: {}, notice: { code: 'noPendingEmail' } })
+    await saveProfile(deps(0), id, input({ email: 'lan2@gmail.com' }))
+    expect(await sendEmailChange(deps(10), id)).toEqual({ status: 'wait', sendAgain: { identifier: 'lan2@gmail.com', wait: 50 } })
+    await saveProfile(deps(70), id, input({ email: 'lan3@gmail.com' }))
+    expect(await sendEmailChange(deps(140), id)).toEqual({ status: 'sent', sendAgain: { identifier: 'lan3@gmail.com', wait: 60 } })
+    expect(f.changes.map((c) => c.email)).toEqual(['lan2@gmail.com', 'lan3@gmail.com', 'lan3@gmail.com'])
+  })
+
+  it('K8 the write failing after the link was sent: the change is taken back and nothing is saved', async () => {
+    const id = await lan()
+    // Another account takes the address between the checks and the write. PGlite has one
+    // connection, so here the transaction runs on it directly and that write can happen meanwhile.
+    f.hooks.afterChange = async (email) => {
+      await t.db
+        .insert(profiles)
+        .values({ id: '00000000-0000-4000-8000-00000000bbbb', email: 'minh@gmail.com', pendingEmail: email, method: 'password' })
+    }
+    const direct: typeof t.db = Object.assign(Object.create(t.db), { transaction: (run: (tx: typeof t.db) => unknown) => run(direct) })
+    expect(await saveProfile({ ...deps(), db: direct }, id, input({ name: 'Lan Trần', email: 'lan2@gmail.com' }))).toEqual({
+      status: 'error',
+      fields: { email: 'emailWaiting' },
+    })
+    expect(f.cancels).toEqual([id])
+    expect(await profileOf('lan@gmail.com')).toMatchObject({ name: 'Lan', pendingEmail: null })
+    // The email did go out, so its 60-second wait is kept (CN-67).
+    const log = await t.db.select().from(authMailLog).where(eq(authMailLog.email, 'lan2@gmail.com'))
+    expect(log.map((r) => r.kind)).toEqual(['change'])
+  })
+
+  it('AC101 AC106 the address taken in between: "waiting" for a waiting account, "already has an account" for a confirmed one', async () => {
+    const id = await lan()
+    const direct: typeof t.db = Object.assign(Object.create(t.db), { transaction: (run: (tx: typeof t.db) => unknown) => run(direct) })
+    for (const [n, confirmedNow, field] of [
+      [1, false, 'emailWaiting'],
+      [2, true, 'emailTaken'],
+    ] as const) {
+      const other = `00000000-0000-4000-8000-00000000cc0${n}`
+      const email = `taken${n}@gmail.com`
+      f.hooks.afterChange = async () => {
+        await t.db.insert(profiles).values({ id: other, email, method: 'password' })
+        f.users.set(other, { id: other, email, password: PW, confirmed: confirmedNow })
+      }
+      expect(await saveProfile({ ...deps(n * 100), db: direct }, id, input({ email }))).toEqual({
+        status: 'error',
+        fields: { email: field },
+      })
+    }
+  })
+
+  it('AC175 K5 a cancel whose write is refused leaves the waiting email and its link as they were', async () => {
+    const id = await lan('lan2@gmail.com')
+    await confirmed('0977000111', 'minh@gmail.com')
+    // The phone is free at the check, then taken before the write.
+    f.hooks.afterChange = undefined
+    const direct: typeof t.db = Object.assign(Object.create(t.db), {
+      transaction: async (run: (tx: typeof t.db) => unknown) => {
+        if (!(direct as { checked?: boolean }).checked) {
+          ;(direct as { checked?: boolean }).checked = true
+          return run(direct)
+        }
+        await t.db.update(profiles).set({ phone: '0938000999' }).where(eq(profiles.email, 'minh@gmail.com'))
+        return run(direct)
+      },
+    })
+    expect(await saveProfile({ ...deps(), db: direct }, id, input({ phone: '0938000999' }))).toEqual({
+      status: 'error',
+      fields: { phone: 'phoneTaken' },
+    })
+    expect(f.cancels).toEqual([])
+    expect((await profileOf('lan@gmail.com')).pendingEmail).toBe('lan2@gmail.com')
+  })
+
+  it("AC179 K9 the link used: the new email is the account's and nothing waits", async () => {
+    const id = await lan('lan2@gmail.com')
+    await confirmEmailChange(t.db, id, 'Lan2@gmail.com')
+    expect(await profileOf('lan2@gmail.com')).toMatchObject({ id, pendingEmail: null })
   })
 })

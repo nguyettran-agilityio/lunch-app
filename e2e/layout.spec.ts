@@ -40,6 +40,9 @@ const REAL: { url: string; account?: 'customer' | 'shop' }[] = [
   { url: '/auth/expired?type=recovery' },
   { url: '/', account: 'customer' },
   { url: '/shop', account: 'shop' },
+  // M1-5: the profile, and the expired page of an email-change link (for someone signed in).
+  { url: '/profile', account: 'customer' },
+  { url: '/auth/expired?type=email_change', account: 'customer' },
 ]
 
 // Every page.tsx under src/app/proto, as a route.

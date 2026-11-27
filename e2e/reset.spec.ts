@@ -182,12 +182,13 @@ test('AC94 AC146 AC154 W3 N4 N12 the account that needed a password: confirmed b
   const before = await profile(page, a.email)
   await page.goto(link)
   await save(page, NEW_PASSWORD)
-  await expect(page).toHaveURL(home)
+  // Signing in leads a profile never completed to the profile (AC152, M1-5).
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/profile$/)
   // The profile is unchanged, except that it no longer needs a password (AC94).
   expect(await profile(page, a.email)).toEqual({ ...before, needsPassword: false })
   await signOut(page)
   await signIn(page, a.phone, NEW_PASSWORD)
-  await expect(page).toHaveURL(home)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/profile$/)
   await signOut(page)
   // B66: Google with that email now gets the AC49 sentence, and the account still signs in.
   await googleAs(context, { email: a.email })
@@ -198,7 +199,7 @@ test('AC94 AC146 AC154 W3 N4 N12 the account that needed a password: confirmed b
   )
   expect(await session(page)).not.toHaveProperty('email')
   await signIn(page, a.phone, NEW_PASSWORD)
-  await expect(page).toHaveURL(home)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/profile$/)
 })
 
 test('AC147 N5 /auth/reset without a link opens the expired page, signed in or not', async ({ page, browser }) => {
@@ -388,7 +389,8 @@ test('AC161 AC162 N20 N21 a replaced link opens the expired page before the rule
   await shop2Context.close()
 })
 
-test('X12 signed in, an expired reset link and "Send a new link" send a new reset link', async ({ page, context }) => {
+// The email-change part of AC105 is in e2e/profile.spec.ts (M1-5).
+test('AC105 X12 signed in, an expired reset link and "Send a new link" send a new reset link', async ({ page, context }) => {
   const a = fresh('x12')
   await confirmedAccount(page, a)
   await setClock(context, 61)

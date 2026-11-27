@@ -6,6 +6,9 @@ import 'server-only'
 import { and, desc, eq, gt, lt } from 'drizzle-orm'
 import { isValidPassword } from '@/domain/password'
 import {
+  checkEmail,
+  checkName,
+  checkPhone,
   checkSignIn,
   checkSignUp,
   googleName,
@@ -16,10 +19,11 @@ import {
   type NoticeCode,
 } from '@/domain/account'
 import type { Lang } from '@/domain/types'
-import type { AnyDb } from '@/server/db/client'
-import { authMailLog, profiles, usedResetLinks } from '@/server/db/schema'
+import { inTransaction, type AnyDb } from '@/server/db/client'
+import { authMailLog, buildings, profiles, usedResetLinks } from '@/server/db/schema'
 import type { AuthProvider, ResetLink } from './provider'
 import { RESET_LINK_MS, resetDigest } from './reset-cookies'
+import { roleOf } from './role'
 
 /** The 60-second wait between account emails to one address, whatever their kind (CN-67). */
 export const SEND_AGAIN_SECONDS = 60
@@ -61,7 +65,7 @@ export async function mailWait(db: AnyDb, email: string, at: Date): Promise<numb
   return left > 0 ? Math.ceil(left) : 0
 }
 
-async function logMail(db: AnyDb, email: string, at: Date, kind: 'confirm' | 'reset' = 'confirm'): Promise<void> {
+async function logMail(db: AnyDb, email: string, at: Date, kind: 'confirm' | 'reset' | 'change' = 'confirm'): Promise<void> {
   await db.insert(authMailLog).values({ email, kind, sentAt: at })
 }
 
@@ -394,6 +398,152 @@ export async function googleSignIn(deps: Deps, code: string | null, lang: Lang):
     await auth.deleteUser(u.id)
     return refused('googleFailed')
   }
+}
+
+export type ProfileInput = { name: string; phone: string; email: string; buildingId: string }
+
+export type ProfileState =
+  | { status: 'idle' }
+  /** `emailWait`: the new email is still within the 60-second wait of its address (CN-78, AC185). */
+  | { status: 'error'; fields: Partial<Record<keyof ProfileInput, FieldError>>; notice?: Notice; emailWait?: number }
+  /** `wasComplete`: whether the profile was complete before this Save (CN-65, CN-77). */
+  | { status: 'saved'; wasComplete: boolean }
+
+/** Whether a customer may pick this building: approved, or pending and proposed by them (BR-16, CN-78). */
+async function usableBuilding(db: AnyDb, id: string, userId: string): Promise<{ state: string } | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null
+  const [b] = await db.select({ state: buildings.state, proposedBy: buildings.proposedBy }).from(buildings).where(eq(buildings.id, id))
+  if (!b) return null
+  return b.state === 'approved' || (b.state === 'pending' && b.proposedBy === userId) ? b : null
+}
+
+/**
+ * Save on the profile, S-C2 (BR-29a, CN-64, CN-77, CN-78). Every field is checked first; any
+ * refusal, a new email within its 60-second wait or past the service's limit, or an email that
+ * cannot be sent saves nothing (AC178, AC185). The customer's own email typed again is no change
+ * and cancels a waiting one (AC175); the waiting email typed again (also the field left as it
+ * was, since it is prefilled with it, AC191) changes nothing (AC176). A Google account's email
+ * is not changed (AC54). Only once every field passes are the name, the phone number and the
+ * building saved and the link sent. All in one transaction that locks the profile row, so two
+ * Saves at the same time are checked one after the other; the email is sent before the write,
+ * and taken back (`cancelEmailChange`, B70) when the write fails (plan.md, PR M1-5).
+ */
+export async function saveProfile(deps: Deps, userId: string, input: ProfileInput): Promise<ProfileState> {
+  // The provider's own database calls (B62, B70) run in this transaction too.
+  return inTransaction(deps.db, (tx) => saveProfileLocked({ ...deps, db: tx }, userId, input))
+}
+
+async function saveProfileLocked(deps: Deps, userId: string, input: ProfileInput): Promise<ProfileState> {
+  const { db, auth, at } = deps
+  const [p] = await db.select().from(profiles).where(eq(profiles.id, userId)).for('update')
+  if (!p) return { status: 'error', fields: {}, notice: { code: 'noAccount' } }
+  const fields: Partial<Record<keyof ProfileInput, FieldError>> = {}
+
+  const name = checkName(input.name)
+  if ('error' in name) fields.name = name.error
+
+  const phone = checkPhone(input.phone)
+  if ('error' in phone) fields.phone = phone.error
+  else if (phone.phone !== p.phone) {
+    // Checked as at sign-up (BR-29a), without "Send again" for a waiting account (CN-63, AC92).
+    const other = await byPhone(db, phone.phone)
+    if (other) fields.phone = (await accountState(auth, other)) === 'waiting' ? 'phoneWaiting' : 'phoneTaken'
+  }
+
+  const before = p.buildingId ? await db.select({ state: buildings.state }).from(buildings).where(eq(buildings.id, p.buildingId)) : []
+  const wasComplete = isComplete(p, before[0]?.state ?? null)
+  // A declined building is not offered, so it cannot be saved again (CN-78, AC188).
+  if (!input.buildingId || !(await usableBuilding(db, input.buildingId, userId))) fields.buildingId = 'required'
+
+  let change: { kind: 'none' } | { kind: 'cancel' } | { kind: 'change'; email: string } = { kind: 'none' }
+  let emailWait = 0
+  if (p.method === 'password') {
+    const email = checkEmail(input.email)
+    if ('error' in email) fields.email = email.error
+    else if (email.email === p.email) change = p.pendingEmail ? { kind: 'cancel' } : { kind: 'none' }
+    else if (email.email === p.pendingEmail) change = { kind: 'none' }
+    else if (roleOf(email.email) === 'shop') fields.email = 'emailShop'
+    else {
+      const other = await byEmail(db, email.email)
+      const [pending] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.pendingEmail, email.email))
+      // An account waiting for confirmation (CN-64), or another account's waiting new email (CN-65).
+      if (other) fields.email = (await accountState(auth, other)) === 'waiting' ? 'emailWaiting' : 'emailTaken'
+      else if (pending) fields.email = 'emailWaiting'
+      else {
+        change = { kind: 'change', email: email.email }
+        emailWait = await mailWait(db, email.email, at)
+      }
+    }
+  }
+  if (Object.keys(fields).length || emailWait > 0)
+    return { status: 'error', fields, ...(emailWait > 0 && !fields.email ? { emailWait } : {}) }
+  if (!('name' in name) || !('phone' in phone)) return { status: 'error', fields }
+
+  if (change.kind === 'change') {
+    const sent = await auth.changeEmail(userId, change.email, at)
+    if (!sent.ok) {
+      if (sent.error === 'rateLimited') return { status: 'error', fields: { email: 'tooMany' } }
+      if (sent.error === 'emailTaken') return { status: 'error', fields: { email: 'emailTaken' } }
+      return { status: 'error', fields: {}, notice: { code: 'sendFailed' } }
+    }
+    // The email went out: its 60-second wait counts whatever happens to the write (CN-67).
+    await logMail(db, change.email, at, 'change')
+  }
+  try {
+    // A savepoint: a refused write rolls back only itself, and the transaction can still end.
+    await db.transaction(async (sp) => {
+      await sp
+        .update(profiles)
+        .set({
+          name: name.name,
+          phone: phone.phone,
+          buildingId: input.buildingId,
+          ...(change.kind === 'change' ? { pendingEmail: change.email } : change.kind === 'cancel' ? { pendingEmail: null } : {}),
+        })
+        .where(eq(profiles.id, userId))
+    })
+  } catch (e) {
+    // Another account took the phone or the address in between: the change is taken back, and
+    // the message is the one of the account that took it (CN-64, CN-65).
+    if (change.kind === 'change') await auth.cancelEmailChange(userId)
+    const text = String((e as { cause?: unknown })?.cause ?? e)
+    if (text.includes('phone')) return { status: 'error', fields: { phone: 'phoneTaken' } }
+    // As the check before: an account waiting for confirmation, or another's waiting new email,
+    // is "waiting"; any other account is "already has an account" (CN-64, CN-65).
+    const taken = change.kind === 'change' ? await byEmail(db, change.email) : undefined
+    const confirmed = taken && (await accountState(auth, taken)) !== 'waiting'
+    return { status: 'error', fields: { email: confirmed ? 'emailTaken' : 'emailWaiting' } }
+  }
+  // Only once the cancel is saved is the change taken back in the sign-in service, so a refused
+  // write leaves the waiting email and its link as they were (AC175).
+  if (change.kind === 'cancel') await auth.cancelEmailChange(userId)
+  return { status: 'saved', wasComplete }
+}
+
+const isComplete = (p: Profile, buildingState: string | null) =>
+  !!p.name && !!p.phone && buildingState !== null && buildingState !== 'declined'
+
+/**
+ * "Send again" of "Waiting for confirmation of <new email>" and "Send a new link" of an expired
+ * email-change link (BR-29a, CN-65, CN-77, CN-78): a new link to the address waiting now, for the
+ * account signed in, after the 60-second wait of that address; older links stop working (AC186).
+ */
+export async function sendEmailChange(deps: Deps, userId: string): Promise<FormState> {
+  const { db, auth, at } = deps
+  const [p] = await db.select().from(profiles).where(eq(profiles.id, userId))
+  if (!p?.pendingEmail) return error({}, { notice: { code: 'noPendingEmail' } })
+  const email = p.pendingEmail
+  const wait = await mailWait(db, email, at)
+  if (wait > 0) return { status: 'wait', sendAgain: { identifier: email, wait } }
+  const sent = await auth.changeEmail(userId, email, at)
+  if (!sent.ok) return error({}, { notice: { code: sent.error === 'rateLimited' ? 'tooMany' : 'sendFailed' } })
+  await logMail(db, email, at, 'change')
+  return { status: 'sent', sendAgain: { identifier: email, wait: SEND_AGAIN_SECONDS } }
+}
+
+/** The email-change link was used: the new email is the account's, nothing waits (CN-77). */
+export async function confirmEmailChange(db: AnyDb, userId: string, email: string): Promise<void> {
+  await db.update(profiles).set({ email: email.trim().toLowerCase(), pendingEmail: null }).where(eq(profiles.id, userId))
 }
 
 /** How long the email of an AC91 refusal is kept for "Send the confirmation link again" (CN-72). */

@@ -247,8 +247,37 @@ const testAuthProvider: AuthProvider = {
     if (expired || !link.userId) return { ok: false, error: 'invalidLink' }
     await db.update(testMailbox).set({ usedAt: date }).where(eq(testMailbox.id, link.id))
     if (type === 'signup') await db.update(testAuthUsers).set({ confirmedAt: date }).where(eq(testAuthUsers.id, link.userId))
+    // An email-change link makes its address the user's email (CN-77).
+    if (type === 'email_change') await db.update(testAuthUsers).set({ email: link.email }).where(eq(testAuthUsers.id, link.userId))
+    // As Supabase's session client, the link's session replaces whoever was signed in on this
+    // browser context (AC179).
+    const current = (await cookies()).get(TEST_SESSION_COOKIE)?.value
+    if (current) await db.delete(testSessions).where(eq(testSessions.token, current))
     await startSession(link.userId)
-    return { ok: true, userId: link.userId }
+    const [user] = await db.select({ email: testAuthUsers.email }).from(testAuthUsers).where(eq(testAuthUsers.id, link.userId))
+    return { ok: true, userId: link.userId, email: user?.email ?? link.email }
+  },
+
+  async changeEmail(userId, email, at) {
+    if (testLimitReached('email', await emailsSentRecently(email, at))) return { ok: false, error: 'rateLimited' }
+    const db = getDb()
+    const [taken] = await db
+      .select({ id: testAuthUsers.id })
+      .from(testAuthUsers)
+      .where(and(eq(testAuthUsers.email, email), ne(testAuthUsers.id, userId)))
+    if (taken) return { ok: false, error: 'emailTaken' }
+    if (await mailRefused(email)) return { ok: false, error: 'sendFailed' }
+    // A new change replaces the one waiting: its older links stop working (AC174, AC186).
+    await sendLink(userId, email, 'email_change', at)
+    return { ok: true }
+  },
+
+  async cancelEmailChange(userId) {
+    const { date } = await now()
+    await getDb()
+      .update(testMailbox)
+      .set({ usedAt: date })
+      .where(and(eq(testMailbox.userId, userId), eq(testMailbox.kind, 'email_change'), isNull(testMailbox.usedAt)))
   },
 
   // The default template's link comes back with a code (CN-71); here the code is the token of

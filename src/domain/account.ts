@@ -16,6 +16,12 @@ export type FieldError =
   | 'emailWaiting'
   // A new password equal to the old one, on the reset page (CN-73).
   | 'samePassword'
+  // The profile (BR-29a, CN-60, CN-64, CN-78): a name over 80 characters, an email of another
+  // account, an email of the shop list, and the service's limit on a new email.
+  | 'nameTooLong'
+  | 'emailTaken'
+  | 'emailShop'
+  | 'tooMany'
 
 /**
  * A message about the whole action, shown as a Notice at the top of the card (UI17); for a
@@ -23,7 +29,16 @@ export type FieldError =
  * a reason other than its limit (CN-74).
  */
 export type NoticeCode =
-  'wrongPassword' | 'noAccount' | 'googleAccount' | 'notConfirmed' | 'tooMany' | 'sendFailed' | 'alreadyConfirmed' | GoogleRefusal
+  | 'wrongPassword'
+  | 'noAccount'
+  | 'googleAccount'
+  | 'notConfirmed'
+  | 'tooMany'
+  | 'sendFailed'
+  | 'alreadyConfirmed'
+  // The expired page of an email-change link when no new email waits (CN-77, CN-78).
+  | 'noPendingEmail'
+  | GoogleRefusal
 
 /**
  * Why a Google sign-in came back without signing in (BR-29a, CN-62, CN-65, CN-72), shown
@@ -62,6 +77,31 @@ export function googleName(raw: unknown): string | null {
   const name = raw.normalize('NFC').trim()
   if (!name) return null
   return Array.from(name).slice(0, NAME_MAX).join('')
+}
+
+/**
+ * The name of the profile (BR-29a, CN-64, AC103): required, the spaces at its start and end
+ * removed, at most 80 characters counted after NFC normalization.
+ */
+export function checkName(raw: string): { name: string } | { error: FieldError } {
+  const name = raw.normalize('NFC').trim()
+  if (!name) return { error: 'required' }
+  if (Array.from(name).length > NAME_MAX) return { error: 'nameTooLong' }
+  return { name }
+}
+
+/** The phone number of the profile, checked as at sign-up (BR-29a, CN-64). */
+export function checkPhone(raw: string): { phone: string } | { error: FieldError } {
+  if (!raw.trim()) return { error: 'required' }
+  const phone = normalizePhone(raw)
+  return isValidPhone(phone) ? { phone } : { error: 'phoneInvalid' }
+}
+
+/** The email of the profile: required and an email address (CN-64). */
+export function checkEmail(raw: string): { email: string } | { error: FieldError } {
+  const email = normalizeEmail(raw)
+  if (!email) return { error: 'required' }
+  return isValidEmail(email) ? { email } : { error: 'emailInvalid' }
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -141,13 +181,14 @@ export function returnPath(next: string | null | undefined, role: 'customer' | '
 /**
  * Where the app goes after signing in, and for someone already signed in who opens /sign-in or
  * /sign-up (CN-65, CN-69): a shop account to /shop, whatever `next` is, also a page open to
- * everyone (CN-72); a customer whose profile is incomplete to the profile first (from PR M1-5;
- * until then to /, plan.md section 1.5); else `next`, or /.
+ * everyone (CN-72); a customer whose profile is incomplete to the profile first, carrying the
+ * page to return to once it is saved (CN-65, plan.md section 1.5); else `next`, or /.
  */
 export function afterSignIn({ role, complete, next }: { role: 'customer' | 'shop'; complete: boolean; next?: string | null }): string {
   if (role === 'shop') return '/shop'
-  if (!complete) return '/'
-  return returnPath(next, role) ?? '/'
+  const back = returnPath(next, role)
+  if (!complete) return back && back !== '/' && !back.startsWith('/profile') ? `/profile?next=${encodeURIComponent(back)}` : '/profile'
+  return back ?? '/'
 }
 
 /** The pages open to everyone (B55, CN-64): the prototype, the account pages and the test routes. */
