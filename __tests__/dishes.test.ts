@@ -111,6 +111,40 @@ describe('AC202 AC206 AC214 H8 H12 H20 typing an amount', () => {
     expect(parseWhole('1.234.567')).toEqual({ value: 1234567 })
     expect(parseWhole('0')).toEqual({ value: 0 })
   })
+  it('drops the characters a Vietnamese input method can put in and reads special spaces as spaces', () => {
+    // Zero-width space, non-joiner, joiner, word joiner, byte order mark, soft hyphen, bidi marks.
+    for (const c of ['​', '‌', '‍', '⁠', '﻿', '­', '‎', '‏', '‪', '‬', '⁦', '⁩'])
+      for (const typed of [`35.000${c}`, `${c}35.000`, `35${c}.000`, `35.${c}000`, `35${c}000`])
+        expect(parseWhole(typed), JSON.stringify(typed)).toEqual({ value: 35000 })
+    // No-break, Ogham, en, em, thin, hair, narrow no-break, medium mathematical and ideographic spaces.
+    for (const sp of [' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '　'])
+      expect(parseWhole(`35${sp}000`), JSON.stringify(sp)).toEqual({ value: 35000 })
+    expect(parseWhole('​')).toEqual({ error: 'required' })
+    // The rules of CN-80 do not change: a decimal is still refused.
+    expect(parseWhole('45,​5')).toEqual({ error: 'notWhole' })
+  })
+
+  it('applies to every number field: price, surcharge, base price, extra dish fee and the counts', () => {
+    const z = '​'
+    const main = group('Món mặn')
+    const fixed = saveDishRule(state(), input({ price: `45.000${z}` }), id)
+    const component = saveDishRule(state([main]), input({ fixed: false, component: true, groupId: main.id, surcharge: `5.000${z}` }), id)
+    const rules = saveRulesRule(
+      state(),
+      {
+        basePrice: `35.000${z}`,
+        groups: [newRow('A', { min: `1${z}`, max: `2${z}`, included: `1${z}`, extraFee: `10.000${z}` })],
+        deleted: [],
+      },
+      id,
+    )
+    if (!fixed.ok || !component.ok || !rules.ok) throw new Error('refused')
+    expect(fixed.state.dishes[0].price).toBe(45000)
+    expect(component.state.dishes[0].surcharge).toBe(5000)
+    expect(rules.basePrice).toBe(35000)
+    expect(rules.state.groups[0]).toMatchObject({ min: 1, max: 2, included: 1, extraFee: 10000 })
+  })
+
   it('refuses a decimal, letters, a negative number and mixed separators', () => {
     for (const s of ['45,5', '45.5', 'abc', '-5.000', '1.234,567', '45.00', '4.5000']) expect(parseWhole(s)).toEqual({ error: 'notWhole' })
     expect(parseWhole('  ')).toEqual({ error: 'required' })

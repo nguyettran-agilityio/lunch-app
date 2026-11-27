@@ -66,6 +66,11 @@ export const nameKey = (raw: string): string => cleanName(raw).toLowerCase()
 
 const length = (s: string) => Array.from(s).length
 
+/** Characters that take no room on screen: zero-width space, non-joiner, joiner, word joiner, byte order mark, soft hyphen, and the bidi marks. */
+const INVISIBLE = /[​‌‍⁠﻿­‎‏‪-‮⁦-⁩]/g
+/** Spaces other than the plain one: no-break, Ogham, en to hair (U+2000–U+200A), narrow no-break, medium mathematical, ideographic. */
+const SPECIAL_SPACES = /[   -   　]/g
+
 /**
  * An amount or a count typed by the shop (CN-80, CN-81): digits, or groups of three digits split
  * by one kind of separator. Dots and spaces in Vietnamese, commas and spaces in English; the other
@@ -73,7 +78,10 @@ const length = (s: string) => Array.from(s).length
  * "45 000" and "45000" are all 45,000, and "45,5" or "45.5" are refused in both languages.
  */
 export function parseWhole(raw: string): { value: number } | { error: 'required' | 'notWhole' } {
-  const s = raw.replace(/[  ]/g, ' ').trim()
+  // A Vietnamese input method can put characters that do not show into the field (a zero-width
+  // space or joiner, a byte order mark, a soft hyphen), and special spaces: they are dropped or read
+  // as a plain space first, in every number field, before the rule above applies.
+  const s = raw.replace(INVISIBLE, '').replace(SPECIAL_SPACES, ' ').trim()
   if (!s) return { error: 'required' }
   if (/^\d+$/.test(s)) return { value: Number(s) }
   const grouped = s.match(/^\d{1,3}(?:([ .,])\d{3})(?:\1\d{3})*$/)
