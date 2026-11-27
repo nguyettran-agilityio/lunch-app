@@ -414,7 +414,7 @@ const vi = {
       emailTakenGoogle: 'Email này đã có tài khoản (đăng nhập bằng Google)',
       emailTakenPhone: 'Email này đã có tài khoản (đăng nhập bằng số điện thoại)',
       emailWaiting: 'Email này đang chờ xác nhận',
-      // Drafted in PR M1-4 (CN-73), for the Lead to review.
+      // Drafted in PR M1-4 (CN-73), approved by the Lead in PR #78.
       samePassword: 'Mật khẩu mới phải khác mật khẩu cũ',
     },
     notice: {
@@ -423,7 +423,7 @@ const vi = {
       googleAccount: 'Tài khoản này đăng nhập bằng Google',
       notConfirmed: 'Bạn chưa xác nhận email',
       tooMany: 'Thử quá nhiều lần, vui lòng thử lại sau vài phút',
-      // Drafted in PR M1-4 (CN-74), for the Lead to review.
+      // Drafted in PR M1-4 (CN-74), approved by the Lead in PR #78.
       sendFailed: 'Chưa gửi được email, vui lòng thử lại sau',
       alreadyConfirmed: 'Email của bạn đã được xác nhận, vui lòng đăng nhập',
       // Under the Google button (BR-29a, CN-62, CN-65, CN-72); the last one is the Lead's text.
