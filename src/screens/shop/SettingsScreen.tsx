@@ -1,14 +1,14 @@
 'use client'
 
 // The shop's Settings screen, S-S4 (BR-4, BR-19, CN-60, CN-61, CN-83), built with the components of
-// the banana-leaf design (UI15): the default cutoff, the bank picked from the VietQR list with a
-// field to search it, the account number and the account holder; one Save for the whole screen,
+// the banana-leaf design (UI15): the default cutoff (its ":" added while digits are typed), the bank
+// picked from the VietQR list in a field to type and pick, the account number and the account holder; one Save for the whole screen,
 // which saves nothing when a field is refused (AC225). A Save that would close today for ordering at
 // once first asks, with "Save anyway" and "Cancel" (AC228).
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Button, Notice, PageTitle, cx } from '@/components/ui'
 import { bankLabel, findBank, searchBanks } from '@/domain/banks'
-import { formatCutoff, type SettingsErrors, type SettingsField } from '@/domain/days'
+import { formatCutoff, maskCutoff, type SettingsErrors, type SettingsField } from '@/domain/days'
 import { messages } from '@/domain/i18n'
 import type { Lang } from '@/domain/types'
 import { saveSettingsAction } from '@/server/actions/shop'
@@ -32,6 +32,9 @@ export function SettingsScreen({
   const [cutoff, setCutoff] = useState(formatCutoff(defaultCutoff))
   const [bin, setBin] = useState(bankBin)
   const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  /** The line the arrow keys are on, picked by Enter. */
+  const [active, setActive] = useState(0)
   const [account, setAccount] = useState(savedAccount)
   const [holder, setHolder] = useState(savedHolder)
   const [errors, setErrors] = useState<SettingsErrors>({})
@@ -41,11 +44,26 @@ export function SettingsScreen({
   const matches = useMemo(() => searchBanks(query), [query])
   const picked = findBank(bin)
 
+  // When the list opens, its highlighted line (the bank picked, B75) is scrolled into view.
+  useEffect(() => {
+    if (open && matches[active])
+      document.getElementById(`settings-bank-option-${matches[active].bin}`)?.scrollIntoView({ block: 'nearest' })
+    // Only when the list opens; the arrow keys scroll it themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
   const edit = (field: SettingsField, set: (v: string) => void) => (v: string) => {
     set(v)
     setErrors((e) => (e[field] ? { ...e, [field]: undefined } : e))
     setSaved(false)
     setAsking(false)
+  }
+
+  /** Picks a bank: the list closes and the field shows it (CN-83, AC230). */
+  const pick = (b: string) => {
+    edit('bankBin', setBin)(b)
+    setQuery('')
+    setOpen(false)
   }
 
   const save = (confirmed: boolean) =>
@@ -84,51 +102,102 @@ export function SettingsScreen({
             id="settings-cutoff"
             label={s.defaultCutoff}
             value={cutoff}
-            onChange={edit('defaultCutoff', setCutoff)}
+            onChange={(v) => edit('defaultCutoff', setCutoff)(maskCutoff(v))}
             error={errors.defaultCutoff}
             m={m}
+            numeric
             hint={s.timeHint}
             className="max-w-56"
           />
-          <fieldset className="flex min-w-0 flex-col gap-2">
-            <legend className="mb-1.5 text-sm font-medium text-muted">{s.bank}</legend>
-            <p id="settings-bank-picked" className="text-[15px] font-semibold">
-              {picked ? s.bankPicked(bankLabel(picked)) : s.noBankPicked}
-            </p>
-            <SetupField id="settings-bank-search" label={s.bankSearch} value={query} onChange={setQuery} m={m} />
-            <div
-              role="radiogroup"
-              aria-label={s.bank}
+          <div className="relative flex min-w-0 flex-col gap-1.5">
+            <label htmlFor="settings-bank" className="text-sm font-medium text-muted">
+              {s.bank}
+            </label>
+            {/* A field to type and pick (CN-83, B74): it shows the bank picked; tapping or typing opens the filtered list. */}
+            <input
+              id="settings-bank"
+              role="combobox"
+              autoComplete="off"
+              aria-expanded={open}
+              aria-controls={open && matches.length > 0 ? 'settings-bank-list' : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={open && matches[active] ? `settings-bank-option-${matches[active].bin}` : undefined}
               aria-invalid={errors.bankBin ? true : undefined}
               aria-describedby={errors.bankBin ? 'settings-bank-error' : undefined}
+              placeholder={open ? s.bankSearch : s.noBankPicked}
+              value={open ? query : picked ? bankLabel(picked) : ''}
+              onFocus={() => {
+                setQuery('')
+                setActive(
+                  Math.max(
+                    0,
+                    searchBanks('').findIndex((b) => b.bin === bin),
+                  ),
+                )
+                setOpen(true)
+              }}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setActive(0)
+                setOpen(true)
+              }}
+              onBlur={() => setOpen(false)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setOpen(false)
+                  e.currentTarget.blur()
+                }
+                if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && matches.length > 0) {
+                  e.preventDefault()
+                  setOpen(true)
+                  const next = (active + (e.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length
+                  setActive(next)
+                  document.getElementById(`settings-bank-option-${matches[next].bin}`)?.scrollIntoView({ block: 'nearest' })
+                }
+                if (e.key === 'Enter' && open && matches[active]) {
+                  e.preventDefault()
+                  pick(matches[active].bin)
+                  e.currentTarget.blur()
+                }
+              }}
               className={cx(
-                'flex max-h-64 flex-col overflow-y-auto rounded-lg p-1 ring-1',
-                errors.bankBin ? 'ring-2 ring-chili' : 'ring-steel',
+                'min-h-11 w-full rounded-lg bg-card px-3 text-[16px] text-ink ring-1 outline-none',
+                errors.bankBin ? 'ring-2 ring-chili' : 'ring-steel focus:ring-2 focus:ring-leaf',
               )}
-            >
-              {matches.length === 0 && <p className="px-2 py-3 text-[15px] text-muted">{s.noBankMatch}</p>}
-              {matches.map((b) => (
-                <label
-                  key={b.bin}
-                  className={cx(
-                    'flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-[15px] hover:bg-tray',
-                    b.bin === bin && 'bg-leaf-soft',
-                  )}
-                >
-                  <input
-                    type="radio"
-                    name="settings-bank"
-                    value={b.bin}
-                    checked={b.bin === bin}
-                    onChange={() => edit('bankBin', setBin)(b.bin)}
-                    className="mt-0.5 size-5 shrink-0 accent-leaf"
-                  />
-                  <span className="min-w-0 break-words">{bankLabel(b)}</span>
-                </label>
-              ))}
-            </div>
+            />
+            {open && matches.length === 0 && <p className="px-2 py-3 text-[15px] text-muted">{s.noBankMatch}</p>}
+            {open && matches.length > 0 && (
+              <ul
+                id="settings-bank-list"
+                role="listbox"
+                aria-label={s.bank}
+                className="flex max-h-64 flex-col overflow-y-auto rounded-lg bg-card p-1 shadow-lg ring-1 ring-steel"
+              >
+                {matches.map((b, i) => (
+                  <li
+                    key={b.bin}
+                    id={`settings-bank-option-${b.bin}`}
+                    role="option"
+                    aria-selected={b.bin === bin}
+                    // Picked on mouse down, before the field's blur closes the list.
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      pick(b.bin)
+                      ;(document.getElementById('settings-bank') as HTMLInputElement | null)?.blur()
+                    }}
+                    className={cx(
+                      'flex min-h-11 cursor-pointer items-center rounded-md px-2 py-2 text-[15px] break-words hover:bg-tray',
+                      b.bin === bin && 'bg-leaf-soft font-semibold',
+                      i === active && 'ring-2 ring-leaf ring-inset',
+                    )}
+                  >
+                    {bankLabel(b)}
+                  </li>
+                ))}
+              </ul>
+            )}
             <FieldError id="settings-bank" m={m} error={errors.bankBin} />
-          </fieldset>
+          </div>
           <SetupField
             id="settings-account"
             label={s.account}

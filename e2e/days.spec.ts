@@ -165,12 +165,31 @@ test('AC225 AC229 AC230 AC231 J4 J8 J9 J10 Settings: the checks, the bank list, 
   await expect(page.locator('#settings-account-error')).toHaveText(s.field.required)
   await expect(page.locator('#settings-holder-error')).toHaveText(s.field.required)
 
-  await page.locator('#settings-bank-search').fill('kien')
-  await expect(page.getByRole('radio')).toHaveCount(1)
-  await expect(page.getByRole('radio', { name: 'KienLongBank – Ngân hàng TMCP Kiên Long' })).toBeVisible()
-  await page.locator('#settings-bank-search').fill('ngoai thuong viet')
-  await page.getByRole('radio', { name: 'Vietcombank – Ngân hàng TMCP Ngoại Thương Việt Nam' }).check()
-  await expect(page.locator('#settings-bank-picked')).toContainText('Vietcombank')
+  // The bank field: typing opens the filtered list; picking a line closes it and the field shows the bank.
+  const bank = page.locator('#settings-bank')
+  await bank.fill('kien')
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await page.getByRole('option', { name: 'KienLongBank – Ngân hàng TMCP Kiên Long' }).click()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(bank).toHaveValue('KienLongBank – Ngân hàng TMCP Kiên Long')
+  await bank.fill('zzz')
+  await expect(page.getByText(s.noBankMatch)).toBeVisible()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(bank).not.toHaveAttribute('aria-controls')
+  // With the keyboard: "vietcom" leaves CBBank then Vietcombank; the down arrow and Enter pick the second.
+  await bank.fill('vietcom')
+  await expect(page.getByRole('option')).toHaveCount(2)
+  await bank.press('ArrowDown')
+  await bank.press('Enter')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
+  await expect(bank).toHaveValue('Vietcombank – Ngân hàng TMCP Ngoại Thương Việt Nam')
+
+  // The cutoff gets its ":" while digits are typed.
+  await page.locator('#settings-cutoff').fill('')
+  await page.locator('#settings-cutoff').pressSequentially('093')
+  await expect(page.locator('#settings-cutoff')).toHaveValue('09:3')
+  await page.locator('#settings-cutoff').pressSequentially('0')
+  await expect(page.locator('#settings-cutoff')).toHaveValue('09:30')
 
   await page.locator('#settings-account').fill('12345')
   await page.locator('#settings-holder').fill('a'.repeat(51))
@@ -201,12 +220,17 @@ test('AC225 AC229 AC230 AC231 J4 J8 J9 J10 Settings: the checks, the bank list, 
   await expect(page.locator('#settings-account')).toHaveValue('0071000123456')
   await expect(page.locator('#settings-holder')).toHaveValue('QUAN COM LA & CO')
   await page.reload()
-  await expect(page.locator('#settings-bank-picked')).toContainText('Vietcombank – Ngân hàng TMCP Ngoại Thương Việt Nam')
+  await expect(page.locator('#settings-bank')).toHaveValue('Vietcombank – Ngân hàng TMCP Ngoại Thương Việt Nam')
+  // Opening the list shows the bank picked, highlighted and scrolled into view (B75); Escape closes it.
+  await page.locator('#settings-bank').click()
+  await expect(page.getByRole('option', { name: /^Vietcombank – / })).toBeInViewport()
+  await page.locator('#settings-bank').press('Escape')
+  await expect(page.locator('#settings-bank')).toHaveValue('Vietcombank – Ngân hàng TMCP Ngoại Thương Việt Nam')
   await expect(page.locator('#settings-account')).toHaveValue('0071000123456')
   await expect(page.locator('#settings-holder')).toHaveValue('QUAN COM LA & CO')
 
-  await phone.locator('#settings-bank-search').fill('techcom')
-  await phone.getByRole('radio', { name: /^Techcombank/ }).check()
+  await phone.locator('#settings-bank').fill('techcom')
+  await phone.getByRole('option', { name: /^Techcombank/ }).click()
   await phone.locator('#settings-account').fill('19030000000000')
   await phone.locator('#settings-holder').fill('Quán Cơm Lá')
   await phone.locator('#settings-cutoff').fill('11:00')
@@ -214,12 +238,12 @@ test('AC225 AC229 AC230 AC231 J4 J8 J9 J10 Settings: the checks, the bank list, 
   await expect(phone.getByRole('status')).toContainText('Đã lưu')
   await other.close()
   await page.reload()
-  await expect(page.locator('#settings-bank-picked')).toContainText('Techcombank')
+  await expect(page.locator('#settings-bank')).toHaveValue(/^Techcombank – /)
   await expect(page.locator('#settings-holder')).toHaveValue('QUAN COM LA')
   await expect(page.locator('#settings-cutoff')).toHaveValue('11:00')
 })
 
-test('AC226 AC233 J5 J12 a day: only the ticks each dish allows, its own cutoff and back to the default, then no menu', async ({
+test('AC226 AC231 AC233 J5 J10 J12 a day: only the ticks each dish allows, its own cutoff and back to the default, then no menu', async ({
   page,
   context,
 }) => {
@@ -245,7 +269,10 @@ test('AC226 AC233 J5 J12 a day: only the ticks each dish allows, its own cutoff 
   await fixedTick(page, 'Ngày Cơm sườn').check()
   await componentTick(page, 'Ngày Cơm sườn').check()
   await fixedTick(page, 'Ngày Bún bò').check()
-  await page.locator('#day-cutoff').fill('1030')
+  // The day's cutoff also gets its ":" while digits are typed.
+  await page.locator('#day-cutoff').pressSequentially('103')
+  await expect(page.locator('#day-cutoff')).toHaveValue('10:3')
+  await page.locator('#day-cutoff').pressSequentially('0')
   await tap(page, 'Lưu')
   await expect(page.getByRole('status')).toContainText('Đã lưu')
   await expect(page.locator('#day-cutoff')).toHaveValue('10:30')

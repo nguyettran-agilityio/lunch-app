@@ -61,10 +61,13 @@ function sourceProblems(rows: Row[]): string[] {
 function ownerProblems(rows: Row[]): string[] {
   const start = rows.findIndex((r) => r.section === 'Build')
   if (start === -1) return []
-  return rows
-    .slice(start)
-    .filter((r) => !/^(User decision|Proposed by Claude)/.test(r.why))
-    .map((r) => `${r.id} on line ${r.line} does not say whether it is a user decision or proposed by Claude`)
+  return (
+    rows
+      .slice(start)
+      // "Claude's choice": picked by Claude while coding or reviewing and listed in the PR for the Lead (G23, since PR M2-2).
+      .filter((r) => !/^(User decision|Proposed by Claude|Claude's choice)/.test(r.why))
+      .map((r) => `${r.id} on line ${r.line} does not say whether it is a user decision or proposed by Claude`)
+  )
 }
 
 const header = '| # | Topic | Decision | Why | Source |\n|---|---|---|---|---|\n'
@@ -124,5 +127,10 @@ describe('decision checks catch mistakes', () => {
       header +
       '| B1 | a | b | User decision | user: "Yes" |\n| B2 | a | b | Proposed by Claude, approved | user: "Ok" |\n| B3 | a | b | Faster | #2 |\n'
     expect(ownerProblems(parseRows(md))).toEqual(['B3 on line 13 does not say whether it is a user decision or proposed by Claude'])
+  })
+
+  it("accepts a Claude's choice of G23", () => {
+    const md = '## Build\n\n' + header + "| B1 | a | b | Claude's choice, listed in the PR | other options |\n"
+    expect(ownerProblems(parseRows(md))).toEqual([])
   })
 })

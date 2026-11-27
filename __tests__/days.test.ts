@@ -13,6 +13,7 @@ import {
   dayNotes,
   dishCount,
   hasCustomerMenu,
+  maskCutoff,
   parseCutoff,
   pastCutoff,
   readAccount,
@@ -81,6 +82,16 @@ describe('typing a cutoff', () => {
     for (const bad of ['25:00', 'abc', '9h30', '9.30', '930', '24:00', '12:60', '9:3', '09:300'])
       expect(parseCutoff(bad)).toEqual({ error: 'badTime' })
     expect(parseCutoff('  ')).toEqual({ error: 'required' })
+  })
+
+  it('AC231 J10 the ":" is added while digits are typed; anything else is left as typed', () => {
+    expect(['0', '09', '093', '0930'].map(maskCutoff)).toEqual(['0', '09', '09:3', '09:30'])
+    // A paste of more than 4 digits stays as it is, and Save refuses it.
+    expect(maskCutoff('12345')).toBe('12345')
+    expect(parseCutoff(maskCutoff('12345'))).toEqual({ error: 'badTime' })
+    expect(maskCutoff('930')).toBe('93:0')
+    expect(parseCutoff(maskCutoff('930'))).toEqual({ error: 'badTime' })
+    for (const typed of ['9:30', '09:', '9h30', '9.30', '']) expect(maskCutoff(typed)).toBe(typed)
   })
 })
 

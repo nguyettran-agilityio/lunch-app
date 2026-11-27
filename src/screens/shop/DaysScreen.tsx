@@ -13,6 +13,7 @@ import {
   dayNotes,
   dishCount,
   formatCutoff,
+  maskCutoff,
   pastCutoff,
   type DayErrors,
   type DayNote,
@@ -239,8 +240,9 @@ function DayForm({
         id="day-cutoff"
         label={s.dayCutoff}
         value={cutoff}
+        numeric
         onChange={(v) => {
-          setCutoff(v)
+          setCutoff(maskCutoff(v))
           setErrors((e) => (e.cutoff ? { ...e, cutoff: undefined } : e))
           changed()
         }}

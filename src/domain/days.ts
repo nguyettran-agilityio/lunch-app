@@ -58,6 +58,17 @@ export function parseCutoff(raw: string): { value: number } | { error: 'required
   return { value: h * 60 + min }
 }
 
+/**
+ * A cutoff field as the shop types it (CN-83): digits only get their ":" after the first two, so
+ * "0930" typed on a phone's number keyboard shows "09:30" while typed; anything else ("9:30",
+ * "9h30", a paste) is left as it is, and `parseCutoff` decides at Save.
+ */
+export function maskCutoff(raw: string): string {
+  // More than 4 digits (a paste) is left as it is, so Save refuses it instead of cutting it (B75).
+  if (!/^\d{1,4}$/.test(raw)) return raw
+  return raw.length > 2 ? `${raw.slice(0, 2)}:${raw.slice(2)}` : raw
+}
+
 /** A cutoff as the screens show it: "09:30", in both languages (CN-83). */
 export const formatCutoff = (minutes: number): string => hhmm(minutes)
 
