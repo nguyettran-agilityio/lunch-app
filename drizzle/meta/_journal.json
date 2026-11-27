@@ -29,6 +29,13 @@
       "when": 1795766819256,
       "tag": "0003_dishes_and_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795775887784,
+      "tag": "0004_days_and_menus",
+      "breakpoints": true
     }
   ]
 }

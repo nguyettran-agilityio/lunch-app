@@ -104,6 +104,12 @@ function AccountMenu({ lang, shop }: { lang: Lang; shop: boolean }) {
             <Link href="/shop/rules" className={item}>
               {s.navRules}
             </Link>
+            <Link href="/shop/days" className={item}>
+              {s.navDays}
+            </Link>
+            <Link href="/shop/settings" className={item}>
+              {s.navSettings}
+            </Link>
           </nav>
         )}
         <form action={signOutAction}>

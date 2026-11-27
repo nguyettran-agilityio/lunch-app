@@ -33,6 +33,7 @@ export function SetupField({
   numeric = false,
   hint,
   className,
+  disabled,
 }: {
   id: string
   label: string
@@ -44,6 +45,8 @@ export function SetupField({
   numeric?: boolean
   hint?: string
   className?: string
+  /** A field that cannot be changed now, for example a day's cutoff once past it (CN-83). */
+  disabled?: boolean
 }) {
   return (
     <div className={cx('flex min-w-0 flex-col gap-1.5', className)}>
@@ -55,12 +58,17 @@ export function SetupField({
         value={value}
         inputMode={numeric ? 'numeric' : 'text'}
         onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? `${id}-error` : undefined}
-        className={control(!!error)}
+        aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+        className={cx(control(!!error), disabled && 'bg-tray text-muted')}
       />
       <FieldError id={id} m={m} error={error} />
-      {hint && !error && <p className="text-[13px] text-muted">{hint}</p>}
+      {hint && !error && (
+        <p id={`${id}-hint`} className="text-[13px] text-muted">
+          {hint}
+        </p>
+      )}
     </div>
   )
 }

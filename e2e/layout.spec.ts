@@ -46,6 +46,9 @@ const REAL: { url: string; account?: 'customer' | 'shop' }[] = [
   // M2-1: the shop's Dishes and Build-your-own rules screens.
   { url: '/shop/dishes', account: 'shop' },
   { url: '/shop/rules', account: 'shop' },
+  // M2-2: the shop's Days and Settings screens.
+  { url: '/shop/days', account: 'shop' },
+  { url: '/shop/settings', account: 'shop' },
 ]
 
 // Every page.tsx under src/app/proto, as a route.
