@@ -3,7 +3,8 @@
 // The account screens of the real app in direction A "Leaf parcel" (UI17, design.md): one
 // leaf-parcel card with Sign in / Sign up tabs; a field's message is chili text right under it
 // with a chili ring; a message about the whole action is a Notice at the top of the card.
-// "Continue with Google" is on both tabs since M1-3; "Forgot password?" comes in M1-4 (B58).
+// "Continue with Google" is on both tabs since M1-3; "Forgot password?" on Sign in, the
+// Forgot password page (S-C1a) and the reset page since M1-4 (B58, CN-73, CN-74).
 import Link from 'next/link'
 import { useActionState, useEffect, useState, useTransition, type ReactNode } from 'react'
 import { useFormStatus } from 'react-dom'
@@ -12,12 +13,16 @@ import type { FieldError, GoogleRefusal, NoticeCode } from '@/domain/account'
 import { messages } from '@/domain/i18n'
 import type { Lang } from '@/domain/types'
 import {
+  forgotPasswordAction,
+  resetPasswordAction,
   sendConfirmationAction,
   sendGoogleConfirmationAction,
   sendNewLinkAction,
+  sendResetAgainAction,
   signInAction,
   signUpAction,
   startGoogleAction,
+  type ResetFormState,
 } from '@/server/actions/auth'
 import type { FormState, Notice as NoticeState, SendAgain as SendAgainState } from '@/server/auth/accounts'
 
@@ -284,10 +289,11 @@ function GoogleSection({ lang, tab, next, google }: { lang: Lang; tab: 'signIn' 
               action={sendGoogleConfirmationAction}
               // The sentence of the case replaces the message and the button: the kept email
               // gone (AC134), already confirmed or no account (AC137), now a Google account
-              // (AC139). "Too many attempts" replaces only the message; the button stays (CN-72).
+              // (AC139). "Too many attempts" replaces only the message; the button stays (CN-72),
+              // and so does "Could not send the email" (CN-74, AC156).
               onNotice={(n) => {
                 setCode(n.code)
-                setButton(n.code === 'tooMany')
+                setButton(n.code === 'tooMany' || n.code === 'sendFailed')
                 return true
               }}
               // A send after "Too many attempts" brings the AC91 message back, with the
@@ -347,6 +353,10 @@ export function SignInForm({ lang, next, google }: { lang: Lang; next: string | 
         <Submit pending={pending}>{m.signIn}</Submit>
       </form>
       <GoogleSection lang={lang} tab="signIn" next={next} google={google} />
+      {/* Plain /forgot-password: the page to return to is not carried (CN-73, AC152). */}
+      <Link href="/forgot-password" className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
+        {m.forgotPasswordLink}
+      </Link>
     </Card>
   )
 }
@@ -418,8 +428,11 @@ export function ExpiredSignUpForm({ lang, signedIn, home = '/' }: { lang: Lang; 
   const m = messages[lang].auth
   const [state, action, pending] = useActionState(sendNewLinkAction, IDLE)
   const [identifier, setIdentifier] = useState('')
+  // The wait belongs to the address it was answered for: typing another one ends it (CN-68).
+  const [editedAfter, setEditedAfter] = useState<FormState | null>(null)
   if (state.status === 'sent') return <SentCard lang={lang} sendAgain={state.sendAgain} />
   const fields = fieldsOf(state)
+  const waiting = state.status === 'wait' && editedAfter !== state
   return (
     <Card lang={lang} title={m.expiredTitle} intro={m.expiredIntro}>
       {state.status === 'error' && state.notice && <ActionNotice lang={lang} notice={state.notice} signInLink={!signedIn} />}
@@ -428,12 +441,15 @@ export function ExpiredSignUpForm({ lang, signedIn, home = '/' }: { lang: Lang; 
           name="identifier"
           label={m.identifier}
           value={identifier}
-          onChange={setIdentifier}
+          onChange={(v) => {
+            setIdentifier(v)
+            setEditedAfter(state)
+          }}
           error={fields.identifier}
           lang={lang}
           autoComplete="username"
         />
-        {state.status === 'wait' ? (
+        {waiting && state.status === 'wait' ? (
           <WaitSubmit key={state.sendAgain.wait} lang={lang} wait={state.sendAgain.wait} pending={pending} />
         ) : (
           <Submit pending={pending}>{m.sendNewLink}</Submit>
@@ -446,14 +462,126 @@ export function ExpiredSignUpForm({ lang, signedIn, home = '/' }: { lang: Lang; 
   )
 }
 
-/** "Send a new link" disabled with the seconds left of the wait, then it sends (CN-68, AC117). */
-function WaitSubmit({ lang, wait, pending }: { lang: Lang; wait: number; pending: boolean }) {
+/** The main button disabled with the seconds left of the wait, then it sends (CN-68, AC117). */
+function WaitSubmit({ lang, wait, pending, label }: { lang: Lang; wait: number; pending: boolean; label?: string }) {
   const m = messages[lang].auth
   const [left] = useCountdown(wait)
-  return <Submit pending={pending || left > 0}>{left > 0 ? m.sendAgainIn(left) : m.sendNewLink}</Submit>
+  return <Submit pending={pending || left > 0}>{left > 0 ? m.sendAgainIn(left) : (label ?? m.sendNewLink)}</Submit>
 }
 
-/** /auth/expired for a link kind that M1-2 does not send yet (reset M1-4, email change M1-5). */
+/**
+ * The link under the card of the Forgot password and expired reset pages, and of their sent
+ * card (CN-74, AC155, AC157): plain "Sign in" for someone not signed in (CN-73, AC152), "Go to
+ * the home page" for someone signed in, `/shop` for the shop.
+ */
+function UnderCardLink({ lang, signedIn, home }: { lang: Lang; signedIn: boolean; home: string }) {
+  const m = messages[lang].auth
+  return (
+    <Link href={signedIn ? home : '/sign-in'} className="min-h-10 self-start font-semibold text-leaf underline underline-offset-2">
+      {signedIn ? m.toHome : m.signIn}
+    </Link>
+  )
+}
+
+/**
+ * S-C1a at /forgot-password, and the expired page of a reset link (`expired`), which asks the
+ * same and answers the same (BR-29a, CN-61, CN-73, AC148). Open to everyone, also signed in
+ * (AC144). Once sent, "The reset link is sent" with "Send again"; while the 60 seconds of that
+ * address run, the main button counts down (AC113).
+ */
+export function ForgotPasswordForm({
+  lang,
+  signedIn,
+  home = '/',
+  expired = false,
+}: {
+  lang: Lang
+  signedIn: boolean
+  home?: string
+  expired?: boolean
+}) {
+  const m = messages[lang].auth
+  const [state, action, pending] = useActionState(forgotPasswordAction, IDLE)
+  const [identifier, setIdentifier] = useState('')
+  // The wait belongs to the address it was answered for: typing another one ends it (CN-68).
+  const [editedAfter, setEditedAfter] = useState<FormState | null>(null)
+  const label = expired ? m.sendNewLink : m.sendResetLink
+  if (state.status === 'sent') {
+    const again = state.sendAgain
+    return (
+      <Card lang={lang} title={m.resetSentTitle}>
+        <p role="status" className="text-[15px]">
+          {m.resetSentBody}
+        </p>
+        <SendAgainButton lang={lang} start={again} label={m.sendAgain} action={() => sendResetAgainAction(again.identifier)} />
+        <UnderCardLink lang={lang} signedIn={signedIn} home={home} />
+      </Card>
+    )
+  }
+  const fields = fieldsOf(state)
+  return (
+    <Card lang={lang} title={expired ? m.expiredTitle : m.forgotTitle} intro={expired ? m.expiredIntro : m.forgotIntro}>
+      {state.status === 'error' && state.notice && (
+        <ActionNotice key={JSON.stringify(state.notice)} lang={lang} notice={state.notice} signInLink={!signedIn} />
+      )}
+      <form action={action} noValidate className="flex flex-col gap-4">
+        <Field
+          name="identifier"
+          label={m.identifier}
+          value={identifier}
+          onChange={(v) => {
+            setIdentifier(v)
+            setEditedAfter(state)
+          }}
+          error={fields.identifier}
+          lang={lang}
+          autoComplete="username"
+        />
+        {state.status === 'wait' && editedAfter !== state ? (
+          <WaitSubmit key={state.sendAgain.wait} lang={lang} wait={state.sendAgain.wait} pending={pending} label={label} />
+        ) : (
+          <Submit pending={pending}>{label}</Submit>
+        )}
+      </form>
+      <UnderCardLink lang={lang} signedIn={signedIn} home={home} />
+    </Card>
+  )
+}
+
+const RESET_IDLE: ResetFormState = { status: 'idle' }
+
+/**
+ * /auth/reset "Set a new password" (BR-29a, CN-64, CN-73): one field with the password rule as
+ * its hint; a password equal to the old one is refused under it; "Too many attempts" is a
+ * Notice at the top. Saving signs in here and signs out the other devices.
+ */
+export function ResetPasswordForm({ lang }: { lang: Lang }) {
+  const m = messages[lang].auth
+  const [state, action, pending] = useActionState(resetPasswordAction, RESET_IDLE)
+  const [password, setPassword] = useState('')
+  const fields = state.status === 'error' ? state.fields : {}
+  return (
+    <Card lang={lang} title={m.resetTitle} intro={m.resetIntro}>
+      {state.status === 'error' && state.notice && <ActionNotice lang={lang} notice={state.notice} />}
+      <form action={action} noValidate className="flex flex-col gap-4">
+        <Field
+          name="password"
+          label={m.newPassword}
+          value={password}
+          onChange={setPassword}
+          error={fields.password}
+          lang={lang}
+          type="password"
+          autoComplete="new-password"
+          hint={m.passwordHint}
+        />
+        <Submit pending={pending}>{m.saveNewPassword}</Submit>
+      </form>
+    </Card>
+  )
+}
+
+/** /auth/expired for a link kind that the app does not send yet (email change, M1-5). */
 export function ExpiredOther({ lang }: { lang: Lang }) {
   const m = messages[lang].auth
   return (

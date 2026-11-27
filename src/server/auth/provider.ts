@@ -27,20 +27,45 @@ export type GoogleUser = {
   identities: { provider: 'email' | 'google'; verified: boolean }[]
 }
 
+/** The reset link kept by /auth/reset/link/<sent> until the new password is saved (CN-73). */
+export type ResetLink = { tokenHash: string; sent: number }
+
 export interface AuthProvider {
   /** The account signed in on this request, or null. */
   getUser(): Promise<SessionUser | null>
   /** Ends the session of this browser. */
   signOut(): Promise<void>
-  /** Creates an unconfirmed account and sends its confirmation email at once. */
-  signUp(email: string, password: string): Promise<Result<{ userId: string }, 'rateLimited' | 'emailTaken'>>
   /**
-   * Sends the link that confirms the email and sets the password again, to an account whose
-   * password the sign-in service removed at a Google sign-in (CN-63, CN-72, AC136).
+   * Creates an unconfirmed account and sends its confirmation email at once. `sendFailed`: the
+   * service could not send the email (CN-74), and keeps no user.
    */
-  sendRecovery(email: string): Promise<Result<object, 'rateLimited'>>
+  signUp(email: string, password: string): Promise<Result<{ userId: string }, 'rateLimited' | 'emailTaken' | 'sendFailed'>>
+  /**
+   * Sends the reset link: for "Forgot password", and the link that confirms the email and sets
+   * the password again for an account whose password the sign-in service removed at a Google
+   * sign-in (CN-63, CN-72, AC136). `at` is the time of sending that the app logs, carried in the
+   * link's address (`/auth/reset/link/<sent>`, CN-74).
+   */
+  sendRecovery(email: string, at: Date): Promise<Result<object, 'rateLimited' | 'sendFailed'>>
   /** Sends a new confirmation link to an unconfirmed account; older links stop working. */
-  resendConfirmation(email: string): Promise<Result<object, 'rateLimited'>>
+  resendConfirmation(email: string): Promise<Result<object, 'rateLimited' | 'sendFailed'>>
+  /**
+   * The account of the reset session held aside by an earlier try of this browser (a save
+   * refused for the old password), or null (CN-73, CN-74).
+   */
+  heldResetUser(): Promise<{ id: string; email: string } | null>
+  /**
+   * Saves a new password from a reset link (CN-73, CN-74): uses the link (or the session held
+   * aside from an earlier try) on a session of its own that the app does not count as signed
+   * in; `samePassword` keeps that session for the next try. On success it signs out the
+   * account's other devices (CN-64), ends any other session of this browser, then signs this
+   * browser in as the link's account.
+   */
+  resetPassword(link: ResetLink, password: string): Promise<Result<{ userId: string }, 'invalidLink' | 'samePassword' | 'rateLimited'>>
+  /** Ends the reset session held aside, if any, and deletes its cookies (B68). */
+  dropHeldReset(): Promise<void>
+  /** Whether the auth user has a password (B66). */
+  hasPassword(userId: string): Promise<boolean>
   /** Signs this browser in. The password is checked before the confirmation. */
   signInWithPassword(
     email: string,

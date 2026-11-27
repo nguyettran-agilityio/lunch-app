@@ -35,6 +35,9 @@ const REAL: { url: string; account?: 'customer' | 'shop' }[] = [
   { url: '/sign-in' },
   { url: '/sign-up' },
   { url: '/auth/expired?type=signup' },
+  // M1-4; /auth/reset opens only from a reset link, so e2e/reset.spec.ts checks it the same way.
+  { url: '/forgot-password' },
+  { url: '/auth/expired?type=recovery' },
   { url: '/', account: 'customer' },
   { url: '/shop', account: 'shop' },
 ]

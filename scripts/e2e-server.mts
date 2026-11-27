@@ -32,7 +32,7 @@ const app = spawn('npx', ['next', 'start', '--port', String(APP_PORT)], {
     NODE_ENV: 'test',
     DATABASE_URL: `postgres://postgres:postgres@127.0.0.1:${DB_PORT}/postgres`,
     E2E_TEST_AUTH: '1',
-    SHOP_EMAILS: `${TEST_ACCOUNTS.shop.email},${TEST_GOOGLE_SHOP_EMAIL}`,
+    SHOP_EMAILS: `${TEST_ACCOUNTS.shop.email},${TEST_GOOGLE_SHOP_EMAIL},${TEST_ACCOUNTS.resetShop.email}`,
   },
 })
 

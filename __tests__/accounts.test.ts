@@ -9,7 +9,8 @@ import type { AuthProvider, GoogleUser } from '@/server/auth/provider'
 import { createTestDb, type TestDb } from './helpers/db'
 
 vi.mock('server-only', () => ({}))
-const { googleSignIn, sendConfirmation, sendGoogleConfirmation, signIn, signUp } = await import('@/server/auth/accounts')
+const { forgotPassword, googleSignIn, resetLinkRefusal, resetPassword, sendConfirmation, sendGoogleConfirmation, signIn, signUp } =
+  await import('@/server/auth/accounts')
 
 type FakeUser = { id: string; email: string; password: string; confirmed: boolean }
 
@@ -23,15 +24,49 @@ function fakeAuth() {
   let googleAnswer: Awaited<ReturnType<AuthProvider['exchangeGoogleCode']>> = { ok: false, error: 'failed' }
   let next = 1
   let limited = false
+  // The service cannot send to these addresses (CN-74).
+  const refused = new Set<string>()
+  // Reset links by token hash, and the session held aside after a try refused for the old password.
+  const resetLinks = new Map<string, { userId: string; used: boolean }>()
+  const recoveredAt: Date[] = []
+  let held: string | null = null
+  const passwordless = new Set<string>()
   const auth: AuthProvider = {
     getUser: async () => null,
     signOut: async () => void signOuts++,
     googleSignInUrl: async () => '/test/google',
-    async sendRecovery(email) {
+    async sendRecovery(email, sentAt) {
       if (limited) return { ok: false, error: 'rateLimited' }
+      if (refused.has(email)) return { ok: false, error: 'sendFailed' }
       recovered.push(email)
+      recoveredAt.push(sentAt)
       return { ok: true }
     },
+    async heldResetUser() {
+      const u = held ? users.get(held) : undefined
+      return u ? { id: u.id, email: u.email } : null
+    },
+    async resetPassword(link, password) {
+      if (limited) return { ok: false, error: 'rateLimited' }
+      let userId = held
+      if (!userId) {
+        const l = resetLinks.get(link.tokenHash)
+        if (!l || l.used) return { ok: false, error: 'invalidLink' }
+        l.used = true
+        userId = l.userId
+        held = userId
+        // As Supabase's recoverVerify: using the link confirms the email.
+        users.get(userId)!.confirmed = true
+      }
+      const u = users.get(userId)!
+      if (u.password === password && !passwordless.has(userId)) return { ok: false, error: 'samePassword' }
+      u.password = password
+      passwordless.delete(userId)
+      held = null
+      return { ok: true, userId }
+    },
+    dropHeldReset: async () => void (held = null),
+    hasPassword: async (id) => users.has(id) && !passwordless.has(id),
     exchangeGoogleCode: async () => googleAnswer,
     removeGoogleIdentity: async (userId, { unconfirm }) => {
       removed.push({ userId, unconfirm })
@@ -40,6 +75,7 @@ function fakeAuth() {
     },
     async signUp(email, password) {
       if (limited) return { ok: false, error: 'rateLimited' }
+      if (refused.has(email)) return { ok: false, error: 'sendFailed' }
       const id = `00000000-0000-4000-8000-${String(next++).padStart(12, '0')}`
       users.set(id, { id, email, password, confirmed: false })
       sent.push(email)
@@ -47,6 +83,7 @@ function fakeAuth() {
     },
     async resendConfirmation(email) {
       if (limited) return { ok: false, error: 'rateLimited' }
+      if (refused.has(email)) return { ok: false, error: 'sendFailed' }
       sent.push(email)
       return { ok: true }
     },
@@ -70,6 +107,14 @@ function fakeAuth() {
     signOuts: () => signOuts,
     confirm: (id: string) => (users.get(id)!.confirmed = true),
     limit: () => (limited = true),
+    unlimit: () => (limited = false),
+    refuse: (email: string) => refused.add(email),
+    recoveredAt,
+    /** A reset link of the account, as the email would carry it. */
+    resetLink: (userId: string, tokenHash: string) => resetLinks.set(tokenHash, { userId, used: false }),
+    held: () => held,
+    /** The service removed the password (CN-63). */
+    dropPassword: (userId: string) => passwordless.add(userId),
     /** What the next Google code signs in as. */
     google: (user: GoogleUser | null) => (googleAnswer = user ? { ok: true, user } : { ok: false, error: 'failed' }),
   }
@@ -322,6 +367,8 @@ describe('the Google callback: the linking guard and a first Google sign-in (pla
   it('a waiting account left with only the Google identity (password dropped): kept, signed out, its profile needs a password', async () => {
     await signUp(deps(), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
     const p = await profileOf('lan@gmail.com')
+    // The service dropped the password with the password identity.
+    f.dropPassword(p.id)
     f.google(gUser(p.id, 'lan@gmail.com', [GOOGLE]))
     expect(await googleSignIn(deps(), 'c1', 'vi')).toMatchObject({ status: 'refused', code: 'googleNotConfirmed' })
     expect(f.users.has(p.id)).toBe(true)
@@ -442,5 +489,180 @@ describe('the Google callback: the linking guard and a first Google sign-in (pla
     expect(await sendGoogleConfirmation(deps(), { email: 'lan@gmail.com', at: at(-200).getTime() })).toMatchObject({ status: 'sent' })
     expect(f.sent).toEqual(['lan@gmail.com', 'lan@gmail.com', 'lan@gmail.com'])
     expect(now.phone).toBe('0987654321')
+  })
+})
+
+describe('Forgot password (S-C1a, PR M1-4)', () => {
+  it('AC56 A15 no account, then the email of a Google account: their messages, nothing sent', async () => {
+    await google('0938111222', 'minh@gmail.com')
+    expect(await forgotPassword(deps(), '0987000111')).toMatchObject({ notice: { code: 'noAccount' } })
+    expect(await forgotPassword(deps(), 'minh@gmail.com')).toMatchObject({ notice: { code: 'googleAccount' } })
+    expect(f.recovered).toEqual([])
+  })
+
+  it('AC143 N1 the phone number on a Google account profile: "This account signs in with Google", nothing sent', async () => {
+    await google('0938111222', 'minh@gmail.com')
+    expect(await forgotPassword(deps(), '0938 111 222')).toMatchObject({ notice: { code: 'googleAccount' } })
+    expect(f.recovered).toEqual([])
+  })
+
+  it('AC69 P8 AC148 N6 an account not confirmed: "not confirmed" with the seconds left, no reset link', async () => {
+    await signUp(deps(-20), { phone: '0905111222', email: 'huy@gmail.com', password: PW }, 'vi')
+    expect(await forgotPassword(deps(), '0905111222')).toEqual({
+      status: 'error',
+      fields: {},
+      notice: { code: 'notConfirmed', identifier: '0905111222', wait: 40 },
+    })
+    expect(f.recovered).toEqual([])
+  })
+
+  it('AC145 N3 an account that needs a password: "not confirmed"; only its button sends the link that sets the password', async () => {
+    await signUp(deps(-120), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    await t.db.update(profiles).set({ needsPassword: true }).where(eq(profiles.email, 'lan@gmail.com'))
+    expect(await forgotPassword(deps(), '0912345678')).toMatchObject({ notice: { code: 'notConfirmed', identifier: '0912345678' } })
+    expect(f.recovered).toEqual([])
+    expect(await sendConfirmation(deps(), '0912345678')).toMatchObject({ status: 'sent' })
+    expect(f.recovered).toEqual(['lan@gmail.com'])
+  })
+
+  it('AC20 A16 AC144 N2 a confirmed account: a reset link sent at the time the app logs, then the 60-second wait', async () => {
+    await confirmed('0905111222', 'huy@gmail.com')
+    expect(await forgotPassword(deps(), '0905111222')).toEqual({ status: 'sent', sendAgain: { identifier: '0905111222', wait: 60 } })
+    expect(f.recovered).toEqual(['huy@gmail.com'])
+    const [log] = await t.db.select().from(authMailLog).where(eq(authMailLog.kind, 'reset'))
+    expect(log.sentAt.getTime()).toBe(f.recoveredAt[0].getTime())
+    expect(await forgotPassword(deps(30), 'huy@gmail.com')).toEqual({
+      status: 'wait',
+      sendAgain: { identifier: 'huy@gmail.com', wait: 30 },
+    })
+    expect(await forgotPassword(deps(60), 'huy@gmail.com')).toMatchObject({ status: 'sent' })
+    expect(f.recovered).toHaveLength(2)
+  })
+
+  it('AC113 Y2 a reset link 20 seconds after a confirmation link to the same address: nothing sent until 60 seconds', async () => {
+    await signUp(deps(0), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    f.confirm((await profileOf('lan@gmail.com')).id)
+    expect(await forgotPassword(deps(20), 'lan@gmail.com')).toEqual({
+      status: 'wait',
+      sendAgain: { identifier: 'lan@gmail.com', wait: 40 },
+    })
+    expect(f.recovered).toEqual([])
+  })
+
+  it('AC98 A16 the limit of the service gives "Too many attempts"', async () => {
+    await confirmed('0905111222', 'huy@gmail.com')
+    f.limit()
+    expect(await forgotPassword(deps(), '0905111222')).toMatchObject({ notice: { code: 'tooMany' } })
+  })
+
+  it('AC156 N14 N16 an address the service cannot send to: "Could not send the email", nothing created, no wait started', async () => {
+    f.refuse('huy@gmail.com')
+    expect(await signUp(deps(), { phone: '0905111222', email: 'huy@gmail.com', password: PW }, 'vi')).toMatchObject({
+      notice: { code: 'sendFailed' },
+    })
+    expect(await profileOf('huy@gmail.com')).toBeUndefined()
+    await confirmed('0912345678', 'lan@gmail.com')
+    f.refuse('lan@gmail.com')
+    expect(await forgotPassword(deps(), 'lan@gmail.com')).toMatchObject({ notice: { code: 'sendFailed' } })
+    await signUp(deps(-120), { phone: '0987654321', email: 'an@gmail.com', password: PW }, 'vi')
+    f.refuse('an@gmail.com')
+    expect(await sendConfirmation(deps(), 'an@gmail.com')).toMatchObject({ notice: { code: 'sendFailed' } })
+    expect(await t.db.select().from(authMailLog).where(eq(authMailLog.kind, 'reset'))).toEqual([])
+  })
+})
+
+describe('saving a new password on /auth/reset (PR M1-4)', () => {
+  const link = (sent: number, tokenHash = 'tok-1') => ({ tokenHash, sent })
+
+  /** Lan, confirmed with PW, asked for a reset link at `seconds`; returns its link. */
+  async function lanWithLink(seconds = 0, tokenHash = 'tok-1') {
+    await confirmed('0912345678', 'lan@gmail.com')
+    const p = await profileOf('lan@gmail.com')
+    expect(await forgotPassword(deps(seconds), 'lan@gmail.com')).toMatchObject({ status: 'sent' })
+    f.resetLink(p.id, tokenHash)
+    return { p, l: link(at(seconds).getTime(), tokenHash) }
+  }
+
+  it('AC53 A10 the password rule comes first, under the field', async () => {
+    const { l } = await lanWithLink()
+    expect(await resetPassword(deps(), l, '')).toMatchObject({ fields: { password: 'required' } })
+    for (const pw of ['abc12', 'abcdefgh'])
+      expect(await resetPassword(deps(), l, pw)).toMatchObject({ fields: { password: 'passwordRule' } })
+    expect(await resetPassword(deps(), l, 'abcdef34')).toMatchObject({ status: 'saved' })
+  })
+
+  it('AC147 N5 no link kept: the expired page', async () => {
+    expect(await resetPassword(deps(), null, 'abcdef34')).toEqual({ status: 'invalidLink' })
+  })
+
+  it('AC161 N20 a link replaced by a newer reset email comes before the password rule, with no session held', async () => {
+    const { l } = await lanWithLink(0, 'tok-3')
+    expect(await forgotPassword(deps(61), 'lan@gmail.com')).toMatchObject({ status: 'sent' })
+    expect(f.held()).toBeNull()
+    expect(await resetPassword(deps(70), l, 'abc')).toEqual({ status: 'invalidLink' })
+    expect(f.recovered).toHaveLength(2)
+  })
+
+  it('AC159 N18 an expired or saved link comes before the password rule', async () => {
+    const { l } = await lanWithLink()
+    expect(await resetPassword(deps(3601), l, 'abc')).toEqual({ status: 'invalidLink' })
+    expect(await resetPassword(deps(10), l, 'abcdef34')).toMatchObject({ status: 'saved' })
+    expect(await resetPassword(deps(20), l, 'abc')).toEqual({ status: 'invalidLink' })
+  })
+
+  it('AC20 AC149 N7 saving uses the link and records it, so the saved link is refused when tapped again', async () => {
+    const { p, l } = await lanWithLink()
+    expect(await resetLinkRefusal(t.db, l, at(300))).toBeNull()
+    const saved = await resetPassword(deps(300), l, 'abcdef34')
+    expect(saved).toMatchObject({ status: 'saved', profile: { id: p.id } })
+    expect(f.users.get(p.id)!.password).toBe('abcdef34')
+    expect(await resetLinkRefusal(t.db, l, at(310))).toBe('invalidLink')
+    expect(await resetPassword(deps(310), l, 'abcdef56')).toEqual({ status: 'invalidLink' })
+  })
+
+  it('AC153 N11 a link past its hour by the clock, and a link replaced by a newer one while a session is held', async () => {
+    const { l } = await lanWithLink(0, 'tok-1')
+    expect(await resetLinkRefusal(t.db, l, at(3601))).toBe('invalidLink')
+    expect(await resetPassword(deps(3601), l, 'abcdef34')).toEqual({ status: 'invalidLink' })
+    // A try refused for the old password holds the session of L1; then L2 is sent.
+    expect(await resetPassword(deps(10), l, PW)).toMatchObject({ fields: { password: 'samePassword' } })
+    expect(f.held()).not.toBeNull()
+    expect(await forgotPassword(deps(100), 'lan@gmail.com')).toMatchObject({ status: 'sent' })
+    expect(await resetPassword(deps(110), l, 'abcdef34')).toEqual({ status: 'invalidLink' })
+    // A <sent> changed by hand is refused the same way.
+    expect(await resetPassword(deps(110), link(at(5000).getTime()), 'abcdef34')).toEqual({ status: 'invalidLink' })
+  })
+
+  it('AC150 AC158 N8 N17 a password equal to the old one: refused under the field; the held session saves the next try', async () => {
+    const { p, l } = await lanWithLink()
+    expect(await resetPassword(deps(10), l, PW)).toEqual({ status: 'error', fields: { password: 'samePassword' } })
+    expect(f.users.get(p.id)!.password).toBe(PW)
+    expect(await resetPassword(deps(20), l, 'abcdef34')).toMatchObject({ status: 'saved' })
+    expect(f.users.get(p.id)!.password).toBe('abcdef34')
+  })
+
+  it('AC94 AC146 W3 N4 an account that needed a password: the link confirms it only by saving; the mark goes and so does Google', async () => {
+    await signUp(deps(-120), { phone: '0912345678', email: 'lan@gmail.com', password: PW }, 'vi')
+    const p = await profileOf('lan@gmail.com')
+    await t.db.update(profiles).set({ needsPassword: true }).where(eq(profiles.id, p.id))
+    f.dropPassword(p.id)
+    expect(await sendConfirmation(deps(), '0912345678')).toMatchObject({ status: 'sent' })
+    f.resetLink(p.id, 'tok-63')
+    // Leaving the page before saving changes nothing.
+    expect(await signIn(deps(30), { identifier: '0912345678', password: 'abc12345' })).toMatchObject({ notice: { code: 'notConfirmed' } })
+    const saved = await resetPassword(deps(60), link(at(0).getTime(), 'tok-63'), 'abcdef34')
+    expect(saved).toMatchObject({ status: 'saved', profile: { needsPassword: false, phone: '0912345678' } })
+    expect((await profileOf('lan@gmail.com')).needsPassword).toBe(false)
+    expect(f.removed).toEqual([{ userId: p.id, unconfirm: false }])
+    expect(await signIn(deps(70), { identifier: '0912345678', password: 'abcdef34' })).toMatchObject({ status: 'signedIn' })
+  })
+
+  it('AC154 N12 Google with the email of that account after its reset: the AC49 sentence, the Google identity taken off again', async () => {
+    await confirmed('0912345678', 'lan@gmail.com')
+    const p = await profileOf('lan@gmail.com')
+    f.google(gUser(p.id, 'lan@gmail.com', [GOOGLE]))
+    expect(await googleSignIn(deps(), 'c1', 'vi')).toEqual({ status: 'refused', code: 'googleTakenPhone' })
+    expect(f.removed).toEqual([{ userId: p.id, unconfirm: false }])
+    expect((await profileOf('lan@gmail.com')).needsPassword).toBe(false)
   })
 })

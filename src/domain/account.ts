@@ -14,9 +14,16 @@ export type FieldError =
   | 'emailTakenGoogle'
   | 'emailTakenPhone'
   | 'emailWaiting'
+  // A new password equal to the old one, on the reset page (CN-73).
+  | 'samePassword'
 
-/** A message about the whole action, shown as a Notice at the top of the card (UI17). */
-export type NoticeCode = 'wrongPassword' | 'noAccount' | 'googleAccount' | 'notConfirmed' | 'tooMany' | 'alreadyConfirmed' | GoogleRefusal
+/**
+ * A message about the whole action, shown as a Notice at the top of the card (UI17); for a
+ * "Send again" button, right under it. `sendFailed`: the service could not send the email for
+ * a reason other than its limit (CN-74).
+ */
+export type NoticeCode =
+  'wrongPassword' | 'noAccount' | 'googleAccount' | 'notConfirmed' | 'tooMany' | 'sendFailed' | 'alreadyConfirmed' | GoogleRefusal
 
 /**
  * Why a Google sign-in came back without signing in (BR-29a, CN-62, CN-65, CN-72), shown

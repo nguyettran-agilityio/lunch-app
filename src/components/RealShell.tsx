@@ -12,7 +12,20 @@ import type { Lang } from '@/domain/types'
 import { setLangAction, signOutAction } from '@/server/actions/auth'
 import { cx } from './ui'
 
-export function RealShell({ lang, signedIn, home = '/', children }: { lang: Lang; signedIn: boolean; home?: string; children: ReactNode }) {
+export function RealShell({
+  lang,
+  signedIn,
+  home = '/',
+  browserOnlyLang = false,
+  children,
+}: {
+  lang: Lang
+  signedIn: boolean
+  home?: string
+  /** The VI/EN switch changes only the browser, not the account signed in (the reset page, CN-75). */
+  browserOnlyLang?: boolean
+  children: ReactNode
+}) {
   const m = messages[lang]
 
   useEffect(() => {
@@ -29,7 +42,7 @@ export function RealShell({ lang, signedIn, home = '/', children }: { lang: Lang
             <span className="hidden self-end pb-0.5 text-sm text-white/75 sm:inline">{m.tagline}</span>
           </Link>
           <div className="flex items-center gap-2">
-            <LangSwitch lang={lang} />
+            <LangSwitch lang={lang} browserOnly={browserOnlyLang} />
             {signedIn && <AccountMenu lang={lang} />}
           </div>
         </div>
@@ -46,7 +59,7 @@ export function RealShell({ lang, signedIn, home = '/', children }: { lang: Lang
   )
 }
 
-function LangSwitch({ lang }: { lang: Lang }) {
+function LangSwitch({ lang, browserOnly }: { lang: Lang; browserOnly: boolean }) {
   const [pending, start] = useTransition()
   return (
     <div role="group" aria-label={messages[lang].common.language} className="flex rounded-full p-0.5 ring-1 ring-white/35">
@@ -56,7 +69,7 @@ function LangSwitch({ lang }: { lang: Lang }) {
           type="button"
           aria-pressed={lang === l}
           disabled={pending}
-          onClick={() => start(() => setLangAction(l))}
+          onClick={() => start(() => setLangAction(l, browserOnly))}
           className={cx(
             'min-h-9 min-w-10 rounded-full text-sm font-bold uppercase',
             lang === l ? 'bg-[#f4f8f1] text-[#1d4a29]' : 'text-white/80',

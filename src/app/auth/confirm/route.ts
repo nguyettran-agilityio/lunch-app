@@ -5,8 +5,12 @@
 // - the repository's templates (`supabase/templates/`): `?token_hash=…&type=…`.
 // A good link signs this browser in, copies the account's language to the browser (the account
 // wins, CN-60) and goes by type: `signup` opens the profile (CN-64), which PR M1-5 builds; until
-// then the home page /. The other types come in M1-4 (recovery) and M1-5 (email_change). Any
-// other answer (expired, used, an error, nothing) opens /auth/expired?type=….
+// then the home page /. `email_change` comes in M1-5. Any other answer (expired, used, an
+// error, nothing) opens /auth/expired?type=….
+// A reset link lands on /auth/reset/link/<sent> since PR M1-4 (CN-73): `type=recovery` here
+// opens the expired page of a reset link. A `?code=` of the default template sent before M1-4
+// may be a CN-63 recovery link: a profile that needs a password is signed out at once and sent
+// to that expired page, so it never enters the app without a password (CN-73).
 import { eq } from 'drizzle-orm'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getAuthProvider, type LinkType } from '@/server/auth/provider'
@@ -30,7 +34,14 @@ export async function GET(request: NextRequest) {
   const tokenHash = params.get('token_hash')
   const verified = code ? await auth.exchangeCode(code) : tokenHash ? await auth.verifyLink(tokenHash, type) : null
   if (!verified?.ok) return go(expired)
-  const [p] = await getDb().select({ lang: profiles.lang }).from(profiles).where(eq(profiles.id, verified.userId))
+  const [p] = await getDb()
+    .select({ lang: profiles.lang, needsPassword: profiles.needsPassword })
+    .from(profiles)
+    .where(eq(profiles.id, verified.userId))
+  if (p?.needsPassword) {
+    await auth.signOut()
+    return go('/auth/expired?type=recovery')
+  }
   if (p) await setLangCookie(p.lang)
   return go('/')
 }

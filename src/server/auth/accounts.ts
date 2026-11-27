@@ -3,7 +3,8 @@
 // Every function takes its database, provider and time, so Vitest runs it on PGlite with a
 // fake provider. Results carry message codes; the texts are in i18n.ts (`auth`).
 import 'server-only'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, gt, lt } from 'drizzle-orm'
+import { isValidPassword } from '@/domain/password'
 import {
   checkSignIn,
   checkSignUp,
@@ -16,8 +17,9 @@ import {
 } from '@/domain/account'
 import type { Lang } from '@/domain/types'
 import type { AnyDb } from '@/server/db/client'
-import { authMailLog, profiles } from '@/server/db/schema'
-import type { AuthProvider } from './provider'
+import { authMailLog, profiles, usedResetLinks } from '@/server/db/schema'
+import type { AuthProvider, ResetLink } from './provider'
+import { RESET_LINK_MS, resetDigest } from './reset-cookies'
 
 /** The 60-second wait between account emails to one address, whatever their kind (CN-67). */
 export const SEND_AGAIN_SECONDS = 60
@@ -139,6 +141,8 @@ export async function signUp(deps: Deps, input: { phone: string; email: string; 
   const created = await auth.signUp(email, password)
   if (!created.ok) {
     if (created.error === 'rateLimited') return error({}, { notice: { code: 'tooMany' } })
+    // The service could not send the first email: nothing is created (CN-74, AC156).
+    if (created.error === 'sendFailed') return error({}, { notice: { code: 'sendFailed' } })
     return error({ email: 'emailTakenPhone' })
   }
   if (pPhone) await deleteAccount(deps, pPhone)
@@ -174,10 +178,118 @@ export async function sendConfirmation(deps: Deps, rawIdentifier: string): Promi
   if (wait > 0) return { status: 'wait', sendAgain: { identifier, wait } }
   // An account whose password the sign-in service removed gets the link that confirms the
   // email and sets the password again, only to its own email (CN-63, CN-72, AC136).
-  const sent = p.needsPassword ? await auth.sendRecovery(p.email) : await auth.resendConfirmation(p.email)
-  if (!sent.ok) return error({}, { notice: { code: 'tooMany' } })
+  const sent = p.needsPassword ? await auth.sendRecovery(p.email, at) : await auth.resendConfirmation(p.email)
+  if (!sent.ok) return error({}, { notice: { code: sent.error === 'sendFailed' ? 'sendFailed' : 'tooMany' } })
   await logMail(db, p.email, at, p.needsPassword ? 'reset' : 'confirm')
   return { status: 'sent', sendAgain: { identifier, wait: SEND_AGAIN_SECONDS } }
+}
+
+/**
+ * "Forgot password", its "Send again", and "Send a new link" of an expired reset link (BR-29a,
+ * CN-61, CN-73): the answers of a phone number or email, then a reset link to a confirmed
+ * account after the 60-second wait of its address. An account not confirmed, also one that
+ * needs a password (CN-63), gets "You have not confirmed your email" with the button, and
+ * nothing is sent here (AC69, AC145, AC148).
+ */
+export async function forgotPassword(deps: Deps, rawIdentifier: string): Promise<FormState> {
+  const { db, auth, at } = deps
+  const id = readIdentifier(rawIdentifier)
+  if (typeof id === 'string') return error({ identifier: id })
+  const p = await byIdentifier(db, id)
+  if (!p) return error({}, { notice: { code: 'noAccount' } })
+  const identifier = id.kind === 'phone' ? id.phone : id.email
+  const state = await accountState(auth, p)
+  // Found by its email or by the phone on its profile (AC56, AC143).
+  if (state === 'google') return error({}, { notice: { code: 'googleAccount' } })
+  const wait = await mailWait(db, p.email, at)
+  if (state === 'waiting') return error({}, { notice: { code: 'notConfirmed', identifier, wait } })
+  if (wait > 0) return { status: 'wait', sendAgain: { identifier, wait } }
+  const sent = await auth.sendRecovery(p.email, at)
+  if (!sent.ok) return error({}, { notice: { code: sent.error === 'sendFailed' ? 'sendFailed' : 'tooMany' } })
+  await logMail(db, p.email, at, 'reset')
+  return { status: 'sent', sendAgain: { identifier, wait: SEND_AGAIN_SECONDS } }
+}
+
+/** Why /auth/reset/link/<sent> opens the expired page at once (CN-74, AC153), or null. */
+export async function resetLinkRefusal(db: AnyDb, link: ResetLink | null, at: Date): Promise<'invalidLink' | null> {
+  if (!link || !Number.isFinite(link.sent) || at.getTime() - link.sent > RESET_LINK_MS) return 'invalidLink'
+  const [used] = await db
+    .select({ digest: usedResetLinks.digest })
+    .from(usedResetLinks)
+    .where(eq(usedResetLinks.digest, resetDigest(link.tokenHash)))
+  return used ? 'invalidLink' : null
+}
+
+/**
+ * A reset link replaced by a newer reset email to the same address (CN-75, AC161), found in the
+ * email log without using the link: the reset row sent at `<sent>`, then a newer one.
+ */
+async function replacedLink(db: AnyDb, link: ResetLink): Promise<boolean> {
+  const rows = await db
+    .select({ email: authMailLog.email })
+    .from(authMailLog)
+    .where(and(eq(authMailLog.kind, 'reset'), eq(authMailLog.sentAt, new Date(link.sent))))
+  // Reset emails to two addresses in the same millisecond: the address is not known, so the
+  // sign-in service decides when saving.
+  const emails = new Set(rows.map((r) => r.email))
+  if (emails.size !== 1) return false
+  const [newer] = await db
+    .select({ sentAt: authMailLog.sentAt })
+    .from(authMailLog)
+    .where(and(eq(authMailLog.email, [...emails][0]), eq(authMailLog.kind, 'reset'), gt(authMailLog.sentAt, new Date(link.sent))))
+    .limit(1)
+  return !!newer
+}
+
+export type ResetResult =
+  // `profile` is null only when the auth user has no profile (none is expected): signed in all the same.
+  | { status: 'saved'; profile: Profile | null }
+  | { status: 'invalidLink' }
+  | { status: 'error'; fields: Partial<Record<string, FieldError>>; notice?: Notice }
+
+/**
+ * Saving the new password on /auth/reset (BR-29a, CN-64, CN-73, CN-74, CN-75): the link first,
+ * whatever was typed (CN-75): it must still be within its hour by `at` (the test clock moves
+ * it), not already saved, and, when a session is held aside from an earlier try, the newest
+ * reset email of that account (else it was replaced, or its time changed by hand); then the
+ * password rule. A saved link is recorded; an account that needed a password (CN-63) no longer
+ * does, and its Google identity is taken off (B66).
+ */
+export async function resetPassword(deps: Deps, link: ResetLink | null, password: string): Promise<ResetResult> {
+  const { db, auth, at } = deps
+  if (!link || (await resetLinkRefusal(db, link, at))) return { status: 'invalidLink' }
+  const held = await auth.heldResetUser()
+  if (held) {
+    const [last] = await db
+      .select({ sentAt: authMailLog.sentAt })
+      .from(authMailLog)
+      .where(and(eq(authMailLog.email, held.email.toLowerCase()), eq(authMailLog.kind, 'reset')))
+      .orderBy(desc(authMailLog.sentAt))
+      .limit(1)
+    if (!last || last.sentAt.getTime() !== link.sent) return { status: 'invalidLink' }
+  } else if (await replacedLink(db, link)) return { status: 'invalidLink' }
+  if (!password) return { status: 'error', fields: { password: 'required' } }
+  if (!isValidPassword(password)) return { status: 'error', fields: { password: 'passwordRule' } }
+  const result = await auth.resetPassword(link, password)
+  if (!result.ok) {
+    if (result.error === 'samePassword') return { status: 'error', fields: { password: 'samePassword' } }
+    if (result.error === 'rateLimited') return { status: 'error', fields: {}, notice: { code: 'tooMany' } }
+    return { status: 'invalidLink' }
+  }
+  // Rows older than 1 hour by the server's own time: in production that is `at`; in the test
+  // sign-in mode each browser context moves its own clock (B59), and one far ahead must not
+  // delete the rows of the others.
+  await db.delete(usedResetLinks).where(lt(usedResetLinks.usedAt, new Date(Date.now() - RESET_LINK_MS)))
+  await db
+    .insert(usedResetLinks)
+    .values({ digest: resetDigest(link.tokenHash), usedAt: at })
+    .onConflictDoNothing()
+  const [p] = await db.select().from(profiles).where(eq(profiles.id, result.userId))
+  if (p?.needsPassword) {
+    await auth.removeGoogleIdentity(p.id, { unconfirm: false })
+    await db.update(profiles).set({ needsPassword: false }).where(eq(profiles.id, p.id))
+  }
+  return { status: 'saved', profile: p ? { ...p, needsPassword: false } : null }
 }
 
 export type SignInResult = { status: 'signedIn'; profile: Profile } | Extract<FormState, { status: 'error' }>
@@ -239,6 +351,12 @@ export async function googleSignIn(deps: Deps, code: string | null, lang: Lang):
       // Joined by automatic linking: the email identity tells whether it was confirmed.
       waiting = p.needsPassword || !emailIdentity.verified
       await auth.removeGoogleIdentity(u.id, { unconfirm: waiting && !p.needsPassword })
+      await auth.signOut()
+    } else if (!p.needsPassword && (await auth.hasPassword(u.id))) {
+      // A CN-63 account whose new password was saved has no identity row left, so Google came
+      // back alone: it is a phone + password account; the Google identity goes again (B66, AC154).
+      waiting = false
+      await auth.removeGoogleIdentity(u.id, { unconfirm: false })
       await auth.signOut()
     } else {
       // The sign-in service dropped the unconfirmed password identity (CN-63): the user stays.

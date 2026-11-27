@@ -62,3 +62,12 @@ export const authMailLog = pgTable(
     check('auth_mail_log_email_lower', sql`${t.email} = lower(${t.email})`),
   ],
 ).enableRLS()
+
+// The reset links whose new password was saved (CN-74, B67): the SHA-256 digest of the link's
+// token hash, so a saved link opens "The link has expired" as soon as it is tapped, in any
+// browser; Supabase refuses a used link only when the app uses it. Rows older than 1 hour are
+// deleted when a new one is written, since an older link has expired anyway.
+export const usedResetLinks = pgTable('used_reset_links', {
+  digest: text('digest').primaryKey(),
+  usedAt: timestamp('used_at', { withTimezone: true }).notNull(),
+}).enableRLS()
