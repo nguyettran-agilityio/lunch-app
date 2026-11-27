@@ -208,7 +208,7 @@ Written in the Plan step before any code (X6); each runs in the milestone of [pl
 
 | # | Steps | Expected | How run |
 |---|---|---|---|
-| P1 | Shop: deactivate a dish that an order still to be delivered contains (M3) | Refused with the reason; the order unchanged (AC63) | Planned |
+| P1 | Shop: "Stop selling" on a dish that an order still to be delivered contains (M3) | Refused with the reason; the order unchanged (AC63) | Planned |
 | P2 | Customer adds a dish in an edit; shop changes its price; customer saves (M4) | "Price changed from X", saved at the new price (AC64) | Planned |
 | P3 | Customer adds a dish in an edit; shop takes it off the day's menu; customer saves (M4) | "No longer on sale today"; Save refused until the line is removed (AC64) | Planned |
 | P4 | Cart shown at 50,000; shop sets 55,000; customer taps to place (M3) | Nothing placed; 55,000 with "Price changed from 50,000"; second tap places it (AC65) | Planned |
@@ -446,3 +446,31 @@ Written with the Lead's answers to the points `spec-reviewer` found on the M1-5 
 |---|---|---|---|
 | K23 | Propose "Tòa ABC" with "12 Lê Lợi", leave; come back, propose " tòa abc " with "34 Hai Bà Trưng", then " Tòa ABC " with no address | One pending Tòa ABC, address "34 Hai Bà Trưng" (AC193) | Playwright and Test |
 | K24 | Tap an email-change link, then reload the profile | The notice the first time; after the reload the new email without the notice, and no `emailChanged` in the address (AC194) | Playwright |
+
+## 28. Open points of M2-1 (CN-80, CN-81)
+
+Written with the Lead's answers to the open points of PR M2-1, the Dishes and Build-your-own rules screens, and to the points `spec-reviewer` found on its plan (X6).
+
+| # | Steps | Expected | How run |
+|---|---|---|---|
+| H1 | Dishes: save "Nước sâm" with no "Ready meal" and no group (M2) | "Pick at least one: ready meal or build-your-own dish" under the kind field; nothing saved (AC195) | Planned |
+| H2 | Dishes: "Stop selling" on "Bún bò Huế", then "Sell again" (M2) | At the end with "Not sold", then back in the list by name (AC196) | Planned |
+| H3 | Dishes: replace the photo of "Cá kho tộ", then "Remove photo"; a dish with no drawing removes its photo (M2) | New photo; then the drawing; with no drawing a plain rice bowl (AC197) | Planned |
+| H4 | Rules: add "Tráng miệng", move it above "Canh", Save; delete it, Save; delete "Canh", which has a dish no longer sold, Save (M2) | Saved in its place, then deleted; deleting "Canh" refused with "This group still has dishes; move them to another group first" (AC198) | Planned |
+| H5 | Dishes: add " trứng chiên " while "Trứng chiên" is not sold; Rules: add " rau " and an empty name, Save (M2) | "A dish with this name already exists"; "A group with this name already exists" and "Required"; nothing saved (AC199) | Planned |
+| H6 | Rules: base price 40,000, "Món mặn" max 1, "Rau" min 2 / max 1, Save; fix "Rau", Save (M2) | First Save saves nothing, the message under "Rau"; second Save saves all and shows "Saved" (AC200) | Planned |
+| H7 | Shop signs in from `/sign-in?next=/shop/dishes`, `/sign-in?next=/shop/old-menu`, `/sign-in?next=/proto`; a customer from `/sign-in?next=/shop/dishes` (M2) | `/shop/dishes`, `/shop`, `/shop`; the customer `/`; the shop, signed in, opening `/shop/old-menu` lands on `/shop` with no 404 (AC201) | Planned |
+| H8 | Dishes: price "45.000", "45 000", "45000", "45,5", "abc" (M2) | 45,000 saved and shown "45.000" three times; "Must be a whole number of 0 or more" twice (AC202) | Planned |
+| H9 | Dishes: name of 81 characters, description of 201, then 80 and 200 (M2) | "At most 80 characters", "At most 200 characters", then saved (AC203) | Planned |
+| H10 | Dishes: open the list with "Rau muống xào", "Canh bí đỏ" and "Bún bò Huế" (both not sold), "Cá kho tộ", "Ấp chả" (M2) | Ấp chả, Cá kho tộ, Rau muống xào, then Bún bò Huế and Canh bí đỏ "Not sold" (AC204) | Planned |
+| H11 | Dishes: build-your-own "Trứng chiên" with an empty surcharge; Rules: empty extra dish fee, Save (M2) | "Required" under each; nothing saved (AC205) | Planned |
+| H12 | Dishes in English: price "45,000", "45 000", "45.5" (M2) | 45,000 saved and shown "45,000" twice; "45.5" refused (AC206) | Planned |
+| H13 | Price 10,000,001 then 10,000,000; group maximum 21 then 20 (M2) | The first of each refused under the field; the second saved (AC207) | Planned |
+| H14 | Add "Trứng  chiên" (two inner spaces) and "Trứng ốp la" with the English name "Fried egg" while "Trứng chiên" / "Fried egg" exists (M2) | Both saved (AC208) | Planned |
+| H15 | Rules open in two browsers: the first adds "Tráng miệng" and saves; the second changes the base price and saves (M2) | The base price saved, "Tráng miệng" gone (AC209) | Planned |
+| H16 | Dishes: upload a WebP, then a moving GIF (M2) | Both accepted and shown, the GIF as its first picture (AC210) | Planned |
+| H17 | Dishes: the upload of a new photo fails, then Save (M2) | "Could not upload the photo, please try again"; saved with the earlier photo (AC211) | Planned |
+| H18 | Rules: delete every group (no dish in them), Save (M2) | Saved with no group (AC212) | Planned |
+| H19 | No group: "Add dish"; then a form with "Canh" picked while another browser deletes "Canh", Save (M2) | The box disabled with the hint; then "Required" under the group and the groups loaded again (AC213) | Planned |
+| H20 | Price "45,000" in Vietnamese, "45.000" in English, then "45,5" and "45.5" (M2) | 45,000 saved twice, shown in each language's format; the last two refused (AC214) | Planned |
+| H21 | Rules open on a computer; a phone adds "Tráng miệng", saves, saves "Chè đậu" into it; the computer changes the base price and saves (M2) | Base price saved; "Tráng miệng" stays with "Chè đậu" (AC215) | Planned |
